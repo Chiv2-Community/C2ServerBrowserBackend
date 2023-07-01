@@ -1,0 +1,132 @@
+openapi: 3.0.0
+info:
+  title: Game Server API
+  version: 1.0.0
+paths:
+  /register:
+    post:
+      summary: Register a game server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Server'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+  /heartbeat:
+    post:
+      summary: Send a keepalive signal for a game server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatSignal'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+  /servers:
+    get:
+      summary: Get a list of registered game servers
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Server'
+components:
+  schemas:
+    HeartbeatSignal:
+      type: object
+      required:
+        - port
+        - player_count
+        - current_map
+      properties:
+        port:
+          type: integer
+          format: int32
+          description: The port number the server is running on
+        player_count:
+          type: integer
+          format: int32
+          description: The number of players currently on the server
+        current_map:
+          type: string
+          description: The current map being played on the server
+    Mod:
+      type: object
+      required:
+        - name
+        - organization
+        - version
+      properties:
+        name:
+          type: string
+          description: The name of the mod
+        organization:
+          type: string
+          description: The organization that provides the mod
+        version:
+          type: string
+          description: The version of the mod
+    Server:
+      type: object
+      required:
+        - port
+        - name
+        - description
+        - current_map
+        - player_count
+        - mods
+      properties:
+        port:
+          type: integer
+          format: int32
+          description: The port number the server is running on
+        name:
+          type: string
+          description: The name of the server
+        description:
+          type: string
+          description: A description of the server
+        current_map:
+          type: string
+          description: The current map being played on the server
+        player_count:
+          type: integer
+          format: int32
+          description: The number of players currently on the server
+        mods:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mod'
+          description: A list of mods running on the server
+    RegistrationResponse:
+      type: object
+      required:
+        - status
+      properties:
+        refresh_before:
+          type: number
+          format: double
+          description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
+        status:
+          type: string
+          enum:
+            - registered
+            - banned
+          description: Registration status of the server
