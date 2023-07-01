@@ -11,7 +11,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Server'
+              $ref: '#/components/schemas/ServerRegistrationRequest'
       responses:
         '200':
           description: Successful operation
@@ -55,6 +55,7 @@ components:
         - port
         - player_count
         - current_map
+        - max_players
       properties:
         port:
           type: integer
@@ -64,6 +65,10 @@ components:
           type: integer
           format: int32
           description: The number of players currently on the server
+        max_players:
+          type: integer
+          format: int32
+          description: The max number of players the server allows
         current_map:
           type: string
           description: The current map being played on the server
@@ -86,11 +91,53 @@ components:
     Server:
       type: object
       required:
+        - ip_address
         - port
         - name
         - description
         - current_map
         - player_count
+        - max_players
+        - mods
+      properties:
+        ip_address:
+          type: string
+          description: The IP address of the server
+        port:
+          type: integer
+          format: int32
+          description: The port number the server is running on
+        name:
+          type: string
+          description: The name of the server
+        description:
+          type: string
+          description: A description of the server
+        current_map:
+          type: string
+          description: The current map being played on the server
+        player_count:
+          type: integer
+          format: int32
+          description: The number of players currently on the server
+        max_players:
+          type: integer
+          format: int32
+          description: The max number of players on the server
+        mods:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mod'
+          description: A list of mods running on the server
+    ServerRegistrationRequest:
+      type: object
+      required:
+        - port
+        - name
+        - description
+        - current_map
+        - player_count
+        - max_players
         - mods
       properties:
         port:
@@ -110,6 +157,10 @@ components:
           type: integer
           format: int32
           description: The number of players currently on the server
+        max_players:
+          type: integer
+          format: int32
+          description: The max number of players on the server
         mods:
           type: array
           items:
