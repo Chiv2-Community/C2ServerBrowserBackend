@@ -1,0 +1,42 @@
+﻿<Window x:Class="Chivalry_2_Unofficial_Server_Browser.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Chivalry_2_Unofficial_Server_Browser"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid x:Name="LayoutRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0">
+            <Menu Width="Auto" Name="tabs" VerticalAlignment="Top" DockPanel.Dock="Left"/>
+        </DockPanel>
+        <TabControl Grid.Row="1">
+            <TabItem Header="Server List">
+                <Grid Background="#FFE5E5E5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Button Content="Refresh" HorizontalAlignment="Left" Grid.Row="1" VerticalAlignment="Top" Margin="741,5,0,0" Click="Button_Refresh"/>
+                    <DataGrid x:Name="ServerList" Grid.Row="1" d:ItemsSource="{d:SampleData ItemCount=5}" Margin="0,30,0,-30" SelectionChanged="DataGrid_SelectionChanged"/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Configuration">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Label Content="Server Browser Host"/>
+                    <TextBox x:Name="ServerBrowserHost" TextWrapping="Wrap" Text="https://server-browser.polehammer.net" Margin="134,0,363,380" Grid.RowSpan="2" TextChanged="TextBox_TextChanged" VerticalAlignment="Center"/>
+
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+
+</Window>

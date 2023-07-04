@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <RootNamespace>Chivalry_2_Unofficial_Server_Browser</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Refit" Version="6.5.1" />
+    <PackageReference Include="RestSharp" Version="110.2.0" />
+    <PackageReference Include="RestSharp.Serializers.NewtonsoftJson" Version="110.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Swagger.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>../server/assets/chiv2-server-browser-api.yaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="../server/assets/chiv2-server-browser-api.yaml">
+      <Generator>RefitterCodeGenerator</Generator>
+      <LastGenOutput>Swagger.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+</Project>

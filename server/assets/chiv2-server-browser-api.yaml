@@ -44,9 +44,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Server'
+                $ref: '#/components/schemas/ServerListResponse'
 components:
   schemas:
     HeartbeatSignal:
@@ -88,6 +86,16 @@ components:
         version:
           type: string
           description: The version of the mod
+    ServerListResponse:
+      type: object
+      required:
+        - servers
+      properties:
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Server'
+          description: A list of servers
     Server:
       type: object
       required:

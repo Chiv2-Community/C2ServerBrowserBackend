@@ -5,7 +5,7 @@ from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from models import HeartbeatSignal, Server
+from .models import HeartbeatSignal, Server
 from logging.config import dictConfig
 
 dictConfig({
@@ -95,9 +95,17 @@ def get_servers():
         except KeyError:
             app.logger.warning("WARNING: Concurrent modification of servers dict")
 
-    
     return jsonify({'servers': list(servers.values())}), 200
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+from flask import send_from_directory
 
+@app.route('/swagger.yaml>')
+def send_report():
+    return send_from_directory('.', "chiv2-server-browser-api.yaml")
+
+
+def __main__():
+    app.run(host='0.0.0.0', port=8080, threaded=True)
+
+if __name__ == "__main__":
+    __main__()
