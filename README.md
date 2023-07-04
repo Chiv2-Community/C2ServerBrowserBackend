@@ -19,7 +19,7 @@ The client's api code was generated using refitter 0.6.0 and https://raw.githubu
 
 * Project Organization
 * Create ServerListing models in the client for use in the DataGrid
-    * Shouldn't show all fields, only ip, ping, current/max players, and current map
+    * Shouldn't show all fields, only name, ip, ping, current/max players, and current map
     * Should also contain description and mods list for display in a text box to the right of the DataGrid
 * Convert `Server` api outputs to the ServerListing models 
 * Add a `connect` button.
