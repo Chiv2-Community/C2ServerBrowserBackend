@@ -1,4 +1,9 @@
-__pycache__
+
+### Swagger.yaml is only needed locally for generating models (seen in client/Swagger.cs).
+client/Swagger.yaml
+
+
+### All the crap below I copied from other repos. If somebody wants to make a cleaner gitignore, please do so. I'm too lazy to do it myself.
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

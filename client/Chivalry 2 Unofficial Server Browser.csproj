@@ -19,12 +19,16 @@
     <Compile Update="Swagger.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
-      <DependentUpon>../server/assets/chiv2-server-browser-api.yaml</DependentUpon>
+      <DependentUpon>Swagger.yaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
   <ItemGroup>
     <None Update="../server/assets/chiv2-server-browser-api.yaml">
+      <Generator>RefitterCodeGenerator</Generator>
+      <LastGenOutput>Swagger.cs</LastGenOutput>
+    </None>
+    <None Update="Swagger.yaml">
       <Generator>RefitterCodeGenerator</Generator>
       <LastGenOutput>Swagger.cs</LastGenOutput>
     </None>
