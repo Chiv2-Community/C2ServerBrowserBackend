@@ -1,0 +1,3 @@
+[
+  {"port":7777, "name":"Mock Host 1", "description": "Not a real server", "current_map": "none", "player_count": 69, "max_players": 420, "mods": []}
+]

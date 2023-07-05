@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from server_browser_backend.dict_util import get_or
-from typing import List, Dict, Callable, TypeVar, Type, Any
+from typing import List, Dict, Callable, TypeVar, Type, Any, cast
     
 @dataclass
 class Mod:
@@ -34,8 +34,16 @@ class Server:
 
     @staticmethod
     def from_json(json: dict):
-        mods_json_list = get_or(json, 'mods', List[Dict[str, Any]], lambda k,d: [])
-        mods = list(map(lambda mod: Mod.from_json(mod), mods_json_list))
+        mods_json_list: List[Any] = get_or(json, 'mods', List, lambda k,d: [])
+        
+        # Iterate over the mods and make sure they are all dicts
+        for mod in mods_json_list:
+            if not isinstance(mod, Dict):
+                raise TypeError(f"Mod {str(mod)} is not a dict")
+
+        safer_mods_json_list: List[Dict[Any, Any]] = cast(List[Dict[Any, Any]], mods_json_list)
+
+        mods = list(map(lambda mod: Mod.from_json(mod), safer_mods_json_list))
 
         return Server(
             get_or(json, 'ip_address', str),

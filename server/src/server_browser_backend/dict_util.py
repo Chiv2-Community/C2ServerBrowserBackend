@@ -11,15 +11,15 @@ class DictTypeError(Generic[A, B], Exception):
     value: B
     expected_type: Type[A]
     actual_type: Type[B]
-    context: str
+    context: Dict[Any, Any]
 
 @dataclass(frozen=True)
 class DictKeyError(Generic[A], Exception):
     key: str
-    context: str
+    context: Dict[Any, Any]
 
 def default_error(key: str, input_dict: Dict[str, Any]) -> Any:
-    raise DictKeyError(key, json.dumps(input_dict))
+    raise DictKeyError(key, input_dict)
 
 def get_or(dictionary: Dict[str, Any], key: str, expected_type: Type[A], default: Callable[[str, Dict[str, Any]], A] = default_error) -> A:
     if key in dictionary:
@@ -27,6 +27,6 @@ def get_or(dictionary: Dict[str, Any], key: str, expected_type: Type[A], default
         if isinstance(value, expected_type):
             return value
         else:
-            raise DictTypeError(key, value, expected_type, type(value), json.dumps(dictionary))
+            raise DictTypeError(key, value, expected_type, type(value), dictionary)
     return default(key, dictionary)
 

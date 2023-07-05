@@ -110,7 +110,7 @@ def handle_dict_key_error(e):
 
 @app.errorhandler(DictTypeError)
 def handle_dict_type_error(e):
-    error_string = f"Invalid type for key '{e.key}'. Got '{e.actual_type.__name__}' with value '{e.value}', but expected '{e.expected_type.__name__}"
+    error_string = f"Invalid type for key '{e.key}'. Got '{e.actual_type.__name__}' with value '{e.value}', but expected '{e.expected_type.__name__}'"
     return jsonify({'error': error_string, 'context': e.context}), 400
 
 def main():
