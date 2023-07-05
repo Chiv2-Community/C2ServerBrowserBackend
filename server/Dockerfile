@@ -22,6 +22,6 @@ COPY poetry.lock pyproject.toml /code/
 COPY . /code
 
 RUN poetry config virtualenvs.create false \
-  && poetry install $(test "$YOUR_ENV" == production && echo "--no-dev") --no-interaction --no-ansi
+  && poetry install $(test "$ENV" == production && echo "--no-dev") --no-interaction --no-ansi
 
 ENTRYPOINT poetry run python3 src/main.py

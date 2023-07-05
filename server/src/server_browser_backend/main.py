@@ -5,7 +5,7 @@ from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from models import HeartbeatSignal, Server
+from .models import HeartbeatSignal, Server
 from logging.config import dictConfig
 
 dictConfig({
