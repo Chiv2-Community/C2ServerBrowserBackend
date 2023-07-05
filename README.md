@@ -15,6 +15,8 @@ Client does nothing right now except list servers from a given host. Needs lots 
 
 The client's api code was generated using refitter 0.6.0 and https://raw.githubusercontent.com/Chiv2-Community/chivalry2-unofficial-server-browser/main/server/assets/chiv2-server-browser-api.yaml
 
+### Running the server
+
 ### TO-DO
 
 * Project Organization

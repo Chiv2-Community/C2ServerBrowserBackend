@@ -5,7 +5,7 @@ description = "A server browser backend for unofficial chivalry2 servers. Keeps 
 authors = ["Jacob Barber <Jacoby6000@gmail.com>"]
 license = "GPL3"
 readme = "README.md"
-packages = [{include = "server"}]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
