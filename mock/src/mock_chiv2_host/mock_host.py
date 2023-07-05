@@ -49,7 +49,7 @@ def main():
                         help='The host of the Flask server.')
     parser.add_argument('--port', type=int, default=8080,
                         help='The port of the Flask server.')
-    parser.add_argument('--file', type=str, required=True,
+    parser.add_argument('--file', type=str, default='assets/servers.json',
                         help='The file containing the list of mock servers.')
     args = parser.parse_args()
 
