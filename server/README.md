@@ -18,3 +18,6 @@ This is a poetry project, and as such dependencies are managed via poetry.  If y
 
 Then the project can be run via `./run.sh`
 
+Try running with `--help` to see what options are available.
+
+Tests can be run via `./ci.sh`
