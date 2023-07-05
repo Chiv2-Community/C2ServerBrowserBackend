@@ -4,8 +4,10 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
+import argparse
 
-from .models import HeartbeatSignal, Server
+from server_browser_backend.models import HeartbeatSignal, Server
+from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from logging.config import dictConfig
 
 dictConfig({
@@ -99,13 +101,28 @@ def get_servers():
 
 from flask import send_from_directory
 
-@app.route('/swagger.yaml>')
-def send_report():
+@app.route('/swagger.yaml')
+def send_swagger():
     return send_from_directory('.', "chiv2-server-browser-api.yaml")
 
+@app.errorhandler(DictKeyError)
+def handle_dict_key_error(e):
+    return jsonify({'error': f"Missing key '{e.key}'", 'context': e.context}), 400
 
-def __main__():
-    app.run(host='0.0.0.0', port=8080, threaded=True)
+@app.errorhandler(DictTypeError)
+def handle_dict_key_error(e):
+    return jsonify({'error': f"Invalid type for key '{e.key}'. Got '{e.actual_type}' with value '{e.value}', but expected '{e.expected_type}", 'context': e.context}), 400
+
+def main():
+    parser = argparse.ArgumentParser(description='Start the Flask server.')
+    parser.add_argument('--host', type=str, default='0.0.0.0',
+                        help='The interface to bind to.')
+    parser.add_argument('--port', type=int, default=8080,
+                        help='The port to bind to.')
+
+    args = parser.parse_args()
+
+    app.run(host=args.host, port=args.port, threaded=True)
 
 if __name__ == "__main__":
-    __main__()
+    main()

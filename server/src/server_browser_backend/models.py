@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from .dict_util import get_or
+from server_browser_backend.dict_util import get_or
 from typing import List, Dict, Callable, TypeVar, Type
     
 @dataclass
@@ -34,7 +34,7 @@ class Server:
 
     @staticmethod
     def from_json(json: dict):
-        mods_json_list = get_or(json, 'mods', List[any], lambda k: [])
+        mods_json_list = get_or(json, 'mods', List[any], lambda k,d: [])
         mods = list(map(lambda mod: Mod.from_json(mod), mods_json_list))
 
         return Server(
