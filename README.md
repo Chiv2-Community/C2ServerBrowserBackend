@@ -15,7 +15,12 @@ Client does nothing right now except list servers from a given host. Needs lots 
 
 The client's api code was generated using refitter 0.6.0 and https://raw.githubusercontent.com/Chiv2-Community/chivalry2-unofficial-server-browser/main/server/assets/chiv2-server-browser-api.yaml
 
-### Running the server
+### Project Layout
+
+* [client](./client) contains the WPF windows client
+* [server](./server) contains the server backend used to host server listings
+
+For more info on the specific sub-projects, check out their respective directories.
 
 ### TO-DO
 
