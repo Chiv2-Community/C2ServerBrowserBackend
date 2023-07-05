@@ -9,7 +9,6 @@ import argparse
 from server_browser_backend.models import HeartbeatSignal, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from logging.config import dictConfig
-
 dictConfig({
     'version': 1,
     'formatters': {'default': {
@@ -110,8 +109,9 @@ def handle_dict_key_error(e):
     return jsonify({'error': f"Missing key '{e.key}'", 'context': e.context}), 400
 
 @app.errorhandler(DictTypeError)
-def handle_dict_key_error(e):
-    return jsonify({'error': f"Invalid type for key '{e.key}'. Got '{e.actual_type}' with value '{e.value}', but expected '{e.expected_type}", 'context': e.context}), 400
+def handle_dict_type_error(e):
+    error_string = f"Invalid type for key '{e.key}'. Got '{e.actual_type.__name__}' with value '{e.value}', but expected '{e.expected_type.__name__}"
+    return jsonify({'error': error_string, 'context': e.context}), 400
 
 def main():
     parser = argparse.ArgumentParser(description='Start the Flask server.')
