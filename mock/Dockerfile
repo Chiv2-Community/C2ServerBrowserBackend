@@ -22,6 +22,6 @@ COPY poetry.lock pyproject.toml /code/
 COPY . /code
 
 RUN poetry config virtualenvs.create false \
-  && poetry install --no-dev --no-interaction --no-ansi
+  && poetry install --no-interaction --no-ansi
 
 ENTRYPOINT ["poetry", "run", "python3", "src/mock_chiv2_host/mock_host.py"]
