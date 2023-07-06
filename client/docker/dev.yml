@@ -1,0 +1,24 @@
+version: '3.3'
+services:
+  server-browser-backend:
+    hostname: server-browser-backend
+    image: 'jacoby6000/chivalry2-unofficial-server-browser-backend:latest' 
+    command: '--port 8081'
+    ports:
+        - '8081:8081'
+    healthcheck:
+      test: curl -f 'http://localhost:8081/servers' || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  server-browser-mock-hosts:
+    hostname: server-browser-mock-hosts
+    image: 'jacoby6000/chivalry2-unofficial-server-browser-mock-host:latest'
+    command: '--host server-browser-backend --port 8081 --file /assets/servers.json'
+    volumes:
+      - ./assets:/assets
+    links:
+      - server-browser-backend
+

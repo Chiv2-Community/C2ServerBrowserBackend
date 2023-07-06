@@ -85,6 +85,7 @@ def heartbeat():
 @limiter.limit("60/minute")  
 def get_servers():
     now = datetime.now().timestamp()
+    app.logger.info(f"Server list requested")
 
     # filter out servers with outdated heartbeats
     inactive_servers = [(id, server) for id, server in servers.items() if (now - server.last_heartbeat) > heartbeat_timeout or server.ip_address in ban_list]

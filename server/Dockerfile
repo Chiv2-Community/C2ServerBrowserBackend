@@ -12,7 +12,7 @@ ENV ENV=${ENV} \
   POETRY_VERSION=1.5.1
 
 RUN apt-get update
-RUN apt-get install python3-pip python3 -y
+RUN apt-get install python3-pip python3 curl -y
 RUN pip3 install poetry
 
 WORKDIR /code
