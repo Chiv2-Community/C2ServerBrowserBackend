@@ -32,12 +32,18 @@ paths:
     post:
       summary: Update the listing for a game server. This does not count as a heartbeat
       parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-KEY
+          description: The key provided at registration time
+          required: true
+          schema:
+            type: string
         - in: path
           name: unique_id
           description: The unique id of the server being updated
+          required: true
           schema:
             type: string
-          required: true
       requestBody:
         required: true
         content:
@@ -45,6 +51,18 @@ paths:
             schema:
               $ref: '#/components/schemas/ServerUpdateRequest'
       responses:
+        '400':
+          description: Something in your request is malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: You did something you're not allowed to do with the parameters provided.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '200':
           description: Successful operation
           content:
@@ -68,6 +86,18 @@ paths:
             schema:
               $ref: '#/components/schemas/HeartbeatSignal'
       responses:
+        '400':
+          description: Something in your request is malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: You did something you're not allowed to do with the parameters provided.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '200':
           description: Successful operation
           content:
@@ -219,13 +249,9 @@ components:
     RegistrationSuccessfulResponse:
       type: object
       required:
-        - key
         - refresh_before
         - server
       properties:
-        key:
-          type: string
-          description: The key used for updating the server. Used in X-CHIV2-SERVER-BROWSER-KEY
         refresh_before:
           type: number
           format: double
@@ -249,11 +275,18 @@ components:
       required:
         - status
       properties:
+        message:
+          type: string
+          description: a human readable message about the error
+        context: 
+          type: string
+          description: when json is malformed, this provides the json object containing the error.
         status:
           type: string
           enum:
             - banned
             - not_registered
             - no_key
+            - invalid_json_body
             - forbidden
   

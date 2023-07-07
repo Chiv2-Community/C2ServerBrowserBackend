@@ -137,7 +137,7 @@ def test_bad_json_missing_key(client: FlaskClient):
     })
 
     assert response.status_code == 400
-    assert "current_map" in response.get_json()["error"], "Error response did not contain the missing key"
+    assert "current_map" in response.get_json()["message"], "Error response did not contain the missing key"
 
 def test_bad_json_invalid_type(client: FlaskClient):
     servers.clear() 
@@ -153,6 +153,6 @@ def test_bad_json_invalid_type(client: FlaskClient):
     
     response_json = response.get_json()
     assert response.status_code == 400
-    assert "player_count" in response_json["error"], "Error response did not contain the key of the invalid type"
-    assert "int" in response_json["error"], "Error response did not contain the correct type of the invalid key"
-    assert "str" in response_json["error"], "Error response did not contain the actual type of the invalid key"
+    assert "player_count" in response_json["message"], "Error response did not contain the key of the invalid type"
+    assert "int" in response_json["message"], "Error response did not contain the correct type of the invalid key"
+    assert "str" in response_json["message"], "Error response did not contain the actual type of the invalid key"
