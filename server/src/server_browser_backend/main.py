@@ -36,10 +36,13 @@ servers: Dict[Tuple[str, int], Server] = {}
 # 1 minute timeout for heartbeats
 heartbeat_timeout = 65
 
+def get_ip(request) -> str:
+    return request.headers.get('X-Forwarded-For', request.remote_addr)
+
 @app.route('/register', methods=['POST'])
 @limiter.limit("5/minute") 
 def register():
-    server_ip = request.remote_addr
+    server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
     request.json["last_heartbeat"] = datetime.now().timestamp()
 
@@ -59,7 +62,7 @@ def register():
 @app.route('/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
 def heartbeat():
-    server_ip = request.remote_addr
+    server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
     heartbeat = Heartbeat.from_json(request.json)
     server_id = (server_ip, heartbeat.port)
@@ -80,7 +83,7 @@ def heartbeat():
 @app.route('/update', methods=['POST'])
 @limiter.limit("60/minute") 
 def update():
-    server_ip = request.remote_addr
+    server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
     update_request = UpdateRegisteredServer.from_json(request.json)
 
