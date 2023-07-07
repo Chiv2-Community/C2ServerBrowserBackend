@@ -42,7 +42,7 @@ heartbeat_timeout = 65
 def get_ip(request) -> str:
     return request.headers.get('X-Forwarded-For', request.remote_addr)
 
-@app.route('/register', methods=['POST'])
+@app.route('/servers', methods=['POST'])
 @limiter.limit("5/minute") 
 def register():
     server_ip = get_ip(request)
@@ -67,11 +67,12 @@ def register():
 
     return jsonify({'status': 'registered', 'refresh_before': timeout, 'key': key, 'server': server}), 201
 
-@app.route('/heartbeat', methods=['POST'])
+@app.route('/servers/<server_id>/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
-def heartbeat():
+def heartbeat(server_id):
     server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
+    request.json["unique_id"] = server_id
     heartbeat = Heartbeat.from_json(request.json)
 
     if heartbeat.unique_id not in servers:
@@ -93,17 +94,21 @@ def heartbeat():
 
     servers[heartbeat.unique_id] = result
 
-    timeout = result.get().last_heartbeat + heartbeat_timeout
+    server = result.get()
+
+    timeout = server.last_heartbeat + heartbeat_timeout
+
     app.logger.info(f"Heartbeat received from server \"{server.name}\" at {server.ip_address}:{server.port} (timeout: {timeout})")
 
     return jsonify({'status': 'heartbeat received', 'refresh_before': timeout, 'server': result.get()}), 200
 
 
-@app.route('/update', methods=['POST'])
+@app.route('/servers/<server_id>', methods=['PUT'])
 @limiter.limit("60/minute") 
-def update():
+def update(server_id):
     server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
+    request.json["unique_id"] = server_id
     update_request = UpdateRegisteredServer.from_json(request.json)
 
     if update_request.unique_id not in servers:
@@ -120,9 +125,10 @@ def update():
         app.logger.warning("Update failed. Invalid request.")
         return jsonify({'status': 'forbidden'}), 403
 
-    servers[secured_server.unique_id] = result
+    servers[update_request.unique_id] = result
+    server = result.get()
 
-    timeout = result.get().last_heartbeat + heartbeat_timeout
+    timeout = server.last_heartbeat + heartbeat_timeout
 
     app.logger.info(f"Update received from server \"{server.name}\" at {server.ip_address}:{server.port})")
 

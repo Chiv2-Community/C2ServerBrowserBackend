@@ -25,7 +25,7 @@ def client():
 def test_register(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/register', json=test_server_json)
+    response = client.post('/servers', json=test_server_json)
     response_json = response.get_json()
 
     assert response.status_code == 201
@@ -38,9 +38,9 @@ def test_register(client: FlaskClient):
 def test_update(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/register', json=test_server_json)
-    response = client.post('/update', json={
-        "unique_id": registration_response.get_json()['server']['unique_id'],
+    registration_response = client.post('/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.put(f'/servers/{server_id}', json={
         "key": registration_response.get_json()['key'],
         "port": 1234,
         "player_count": 10,
@@ -49,16 +49,18 @@ def test_update(client: FlaskClient):
     })
 
     response_json = response.get_json()
+    unique_id = response_json['server']['unique_id']
 
     assert response.status_code == 200
     assert response_json['status'] == 'update received'
-    assert servers[registration_response.get_json().unique_id].get().player_count == 10
+    assert servers[unique_id].get().player_count == 10
 
 def test_heartbeat(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/register', json=test_server_json)
-    response = client.post('/heartbeat', json={
+    registration_response = client.post('/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.post(f'/servers/{server_id}/heartbeat', json={
         "unique_id": registration_response.get_json()['server']['unique_id'],
         "key": registration_response.get_json()['key'],
         "port": 1234,
@@ -75,7 +77,7 @@ def test_get_servers(client: FlaskClient):
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 0
 
-    registration = client.post('/register', json={
+    registration = client.post('/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -84,8 +86,6 @@ def test_get_servers(client: FlaskClient):
         "current_map": "Test Map"
     })
 
-    print(registration.get_json())
-
     response = client.get('/servers')
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 1
@@ -93,7 +93,7 @@ def test_get_servers(client: FlaskClient):
 def test_heartbeat_timeout(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/register', json={
+    registration_response = client.post('/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -106,7 +106,7 @@ def test_heartbeat_timeout(client: FlaskClient):
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration. 
-    servers[unique_id] = servers[unique_id].update(
+    result = servers[unique_id].update(
         response_json["key"],
         lambda server: server.with_heartbeat(
             Heartbeat(
@@ -119,6 +119,10 @@ def test_heartbeat_timeout(client: FlaskClient):
         )
     )
 
+    assert result is not None
+
+    servers[unique_id] = result
+
     response = client.get('/servers')
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 0
@@ -126,7 +130,7 @@ def test_heartbeat_timeout(client: FlaskClient):
 def test_bad_json_missing_key(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/register', json={
+    response = client.post('/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -140,7 +144,7 @@ def test_bad_json_missing_key(client: FlaskClient):
 def test_bad_json_invalid_type(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/register', json={
+    response = client.post('/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
