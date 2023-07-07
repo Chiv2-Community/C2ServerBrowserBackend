@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Chivalry_2_Unofficial_Server_Browser
+namespace Chivalry2UnofficialServerBrowser
 {
     /// <summary>
     /// Interaction logic for App.xaml

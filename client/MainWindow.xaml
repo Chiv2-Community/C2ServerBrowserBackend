@@ -1,42 +1,66 @@
-﻿<Window x:Class="Chivalry_2_Unofficial_Server_Browser.MainWindow"
+﻿<Window x:Class="Chivalry2UnofficialServerBrowser.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Chivalry_2_Unofficial_Server_Browser"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid x:Name="LayoutRoot">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <DockPanel Grid.Row="0">
-            <Menu Width="Auto" Name="tabs" VerticalAlignment="Top" DockPanel.Dock="Left"/>
-        </DockPanel>
-        <TabControl Grid.Row="1">
+        Title="Server Browser" Height="450" Width="600">
+
+    <DockPanel Margin="10">
+
+        <TabControl DockPanel.Dock="Top" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
             <TabItem Header="Server List">
-                <Grid Background="#FFE5E5E5">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Button Content="Refresh" HorizontalAlignment="Left" Grid.Row="1" VerticalAlignment="Top" Margin="741,5,0,0" Click="Button_Refresh"/>
-                    <DataGrid x:Name="ServerList" Grid.Row="1" d:ItemsSource="{d:SampleData ItemCount=5}" Margin="0,30,0,-30" SelectionChanged="DataGrid_SelectionChanged"/>
-                </Grid>
-            </TabItem>
-            <TabItem Header="Configuration">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Label Content="Server Browser Host"/>
-                    <TextBox x:Name="ServerBrowserHost" TextWrapping="Wrap" Text="https://server-browser.polehammer.net" Margin="134,0,363,380" Grid.RowSpan="2" TextChanged="TextBox_TextChanged" VerticalAlignment="Center"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid x:Name="ServerListGrid" Grid.Column="0" AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Server Name" Binding="{Binding Name}"/>
+                            <DataGridTextColumn Header="IP Address" Binding="{Binding Address}"/>
+                            <DataGridTextColumn Header="Map" Binding="{Binding Map}"/>
+                            <DataGridTextColumn Header="Players" Binding="{Binding Players}"/>
+                            <DataGridTextColumn Header="Ping" Binding="{Binding Ping}"/>
+
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Margin="5,0,0,0" BorderBrush="Black" BorderThickness="1" Padding="10" Grid.Column="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="Server Description" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock x:Name="ServerDescriptionText" Text="{Binding SelectedItem.Description, ElementName=ServerListGrid}" TextWrapping="Wrap" Height="60"/>
+                                <TextBlock Text="Server Mods" FontWeight="Bold" Margin="0,20,0,10"/>
+                                <TextBlock x:Name="ServerModsText" Text="{Binding SelectedItem.Mods, ElementName=ServerListGrid}" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Content="Refresh" Margin="5,10,5,0" Click="RefreshButton_Click"/>
+                                <Button Content="Connect" Margin="5,10,0,0" Click="ConnectButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
 
                 </Grid>
             </TabItem>
+
+            <TabItem Header="Settings">
+                <StackPanel>
+                    <Label Content="Server Browser Backend Host"/>
+                    <TextBox x:Name="ServerBrowserHost" Text="127.0.0.1:8081" />
+                    <Label Content="Chivalry2 Exe Path"/>
+                    <TextBox x:Name="Chiv2ExePath" Text="TBL\Binaries\Win64\Chivalry2-Win64-Shipping.exe" />
+                    <Label Content="Chivalry2 Exe Forward Arguments"/>
+                    <TextBox x:Name="Chiv2ExeArgs" Text="" />
+                </StackPanel>
+            </TabItem>
+
         </TabControl>
-    </Grid>
+
+    </DockPanel>
 
 </Window>

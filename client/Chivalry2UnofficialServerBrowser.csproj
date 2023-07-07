@@ -2,10 +2,18 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+	<UseWPF>True</UseWPF>
     <TargetFramework>net6.0-windows</TargetFramework>
-    <RootNamespace>Chivalry_2_Unofficial_Server_Browser</RootNamespace>
-    <Nullable>enable</Nullable>
-    <UseWPF>true</UseWPF>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>True</SelfContained>
+    <PublishSingleFile>True</PublishSingleFile>
+    <PublishReadyToRun>False</PublishReadyToRun>
+	<IncludeNativeLibrariesForSelfExtract>True</IncludeNativeLibrariesForSelfExtract>
+	<SignAssembly>False</SignAssembly>
+	<RepositoryUrl>https://github.com/Chiv2-Community/chivalry2-unofficial-server-browser</RepositoryUrl>
+	<RepositoryType>git</RepositoryType>
+	<StartupObject>Chivalry2UnofficialServerBrowser.App</StartupObject>
+	<Title>Chivalry 2 Unofficial Server Browser</Title>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +21,11 @@
     <PackageReference Include="Refit" Version="6.5.1" />
     <PackageReference Include="RestSharp" Version="110.2.0" />
     <PackageReference Include="RestSharp.Serializers.NewtonsoftJson" Version="110.2.0" />
+    <PackageReference Include="Virtuosity.Fody" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="App.xaml" />
   </ItemGroup>
 
   <ItemGroup>
