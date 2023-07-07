@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chivalry2-unofficial-server-browser-backend"
-version = "0.1.1"
+version = "0.2.0"
 description = "A server browser backend for unofficial chivalry2 servers. Keeps track of live servers with a heartbeat, and allows clients to list them. Probably usable for other unofficial gameservers."
 authors = ["Jacob Barber <Jacoby6000@gmail.com>"]
 license = "GPL3"

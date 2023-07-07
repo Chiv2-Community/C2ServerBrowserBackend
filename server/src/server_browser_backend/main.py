@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import argparse
 
-from server_browser_backend.models import HeartbeatSignal, Server
+from server_browser_backend.models import UpdateRegisteredServer, Server, Heartbeat
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from logging.config import dictConfig
 dictConfig({
@@ -53,16 +53,38 @@ def register():
     timeout = server.last_heartbeat + heartbeat_timeout
 
     app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.port}")
+
     return jsonify({'status': 'registered', 'refresh_before': timeout}), 201
 
 @app.route('/heartbeat', methods=['POST'])
-@limiter.limit("60/minute") 
+@limiter.limit("10/minute") 
 def heartbeat():
     server_ip = request.remote_addr
     request.json["ip_address"] = server_ip
-    heartbeat_signal = HeartbeatSignal.from_json(request.json)
+    heartbeat = Heartbeat.from_json(request.json)
+    server_id = (server_ip, heartbeat.port)
 
-    server_id = (server_ip, heartbeat_signal.port)
+    if server_id not in servers:
+        return jsonify({'status': 'server not registered'}), 400
+    
+    server = servers[server_id]
+    server.last_heartbeat = datetime.now().timestamp()
+
+    timeout = server.last_heartbeat + heartbeat_timeout
+
+    app.logger.info(f"Heartbeat received from server \"{server.name}\" at {server.ip_address}:{server.port} (timeout: {timeout})")
+    
+    return jsonify({'status': 'heartbeat received', 'refresh_before': timeout}), 200
+
+
+@app.route('/update', methods=['POST'])
+@limiter.limit("60/minute") 
+def update():
+    server_ip = request.remote_addr
+    request.json["ip_address"] = server_ip
+    update_request = UpdateRegisteredServer.from_json(request.json)
+
+    server_id = (server_ip, update_request.port)
 
 
     if server_id not in servers:
@@ -70,16 +92,15 @@ def heartbeat():
     
     server = servers[server_id]
 
-    server.last_heartbeat = datetime.now().timestamp()
-    server.player_count = heartbeat_signal.player_count
-    server.max_players = heartbeat_signal.max_players
-    server.current_map = heartbeat_signal.current_map
+    server.player_count = update_request.player_count
+    server.max_players = update_request.max_players
+    server.current_map = update_request.current_map
 
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Heartbeat received from server \"{server.name}\" at {server.ip_address}:{server.port} (timeout: {timeout})")
+    app.logger.info(f"Update received from server \"{server.name}\" at {server.ip_address}:{server.port})")
 
-    return jsonify({'status': 'heartbeat received', 'refresh_before': timeout}), 200
+    return jsonify({'status': 'update received', 'refresh_before': timeout}), 200
 
 @app.route('/servers', methods=['GET'])
 @limiter.limit("60/minute")  
