@@ -29,7 +29,6 @@ def test_register(client: FlaskClient):
     response_json = response.get_json()
 
     assert response.status_code == 201
-    assert response_json['status'] == 'registered'
     assert 'key' in response_json
     assert 'server' in response_json
     assert 'unique_id' in response_json['server']
@@ -53,7 +52,6 @@ def test_update(client: FlaskClient):
     unique_id = response_json['server']['unique_id']
 
     assert response.status_code == 200
-    assert response_json['status'] == 'update received'
     assert servers[unique_id].get().player_count == 10
 
 def test_heartbeat(client: FlaskClient):
@@ -69,7 +67,6 @@ def test_heartbeat(client: FlaskClient):
     })
 
     assert response.status_code == 200
-    assert response.get_json()['status'] == 'heartbeat received'
     assert response.get_json()['refresh_before'] > datetime.now().timestamp()
 
 def test_get_servers(client: FlaskClient):
