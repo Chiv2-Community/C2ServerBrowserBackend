@@ -23,7 +23,6 @@ jobs:
       - name: Cache Poetry virtualenv
         uses: actions/cache@v1
         id: cache
-        working-directory: server
         with:
           path: ~/.virtualenvs
           key: poetry-${{ hashFiles('**/poetry.lock') }}
@@ -47,7 +46,4 @@ jobs:
 
       - name: Test with pytest
         working-directory: server
-        env:
-          DJANGO_SETTINGS_MODULE: project.settings
-          SECRETS_FILE: .confidential/ci.json
         run: ./ci.sh
