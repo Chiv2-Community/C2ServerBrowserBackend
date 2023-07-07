@@ -19,9 +19,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistrationResponse'
+  /update:
+    post:
+      summary: Update the listing for a game server. This does not count as a heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerUpdateRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
   /heartbeat:
     post:
-      summary: Send a keepalive signal for a game server
+      summary: Send a keepalive signal to stay on the server list
       requestBody:
         required: true
         content:
@@ -47,7 +63,7 @@ paths:
                 $ref: '#/components/schemas/ServerListResponse'
 components:
   schemas:
-    HeartbeatSignal:
+    ServerUpdateRequest:
       type: object
       required:
         - port
@@ -70,6 +86,15 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
+    HeartbeatSignal:
+      type: object
+      required:
+        - port
+      properties:
+        port:
+          type: integer
+          format: int32
+          description: The port number the server is running on
     Mod:
       type: object
       required:

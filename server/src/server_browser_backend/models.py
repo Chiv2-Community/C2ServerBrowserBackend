@@ -58,7 +58,20 @@ class Server:
         )
 
 @dataclass
-class HeartbeatSignal:
+class Heartbeat:
+    ip_address: str
+    port: int
+    
+    @staticmethod
+    def from_json(json: dict):
+        return Heartbeat(
+            get_or(json, 'ip_address', str),
+            get_or(json, 'port', int)
+        )
+
+
+@dataclass
+class UpdateRegisteredServer:
     ip_address: str
     port: int
     current_map: str
@@ -67,7 +80,7 @@ class HeartbeatSignal:
 
     @staticmethod
     def from_json(json: dict):
-        return HeartbeatSignal(
+        return UpdateRegisteredServer(
             get_or(json, 'ip_address', str),
             get_or(json, 'port', int),
             get_or(json, 'current_map', str),
