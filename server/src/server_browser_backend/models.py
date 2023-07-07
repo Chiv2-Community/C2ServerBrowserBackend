@@ -105,7 +105,7 @@ class Server(UniqueServer):
 
     @staticmethod
     def from_json(json: dict):
-        mods_json_list: List[Any] = get_or(json, 'mods', List, lambda k,d: [])
+        mods_json_list: List[Any] = get_or(json, 'mods', List, lambda: [])
         
         # Iterate over the mods and make sure they are all dicts
         for mod in mods_json_list:

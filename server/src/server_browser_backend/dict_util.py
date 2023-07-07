@@ -1,4 +1,4 @@
-from typing import List, Dict, Callable, TypeVar, Type, Generic, Any
+from typing import List, Dict, Callable, TypeVar, Type, Generic, Any, Optional
 import json
 from dataclasses import dataclass
 
@@ -18,15 +18,19 @@ class DictKeyError(Generic[A], Exception):
     key: str
     context: Dict[Any, Any]
 
-def default_error(key: str, input_dict: Dict[str, Any]) -> Any:
+def no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:
     raise DictKeyError(key, input_dict)
 
-def get_or(dictionary: Dict[str, Any], key: str, expected_type: Type[A], default: Callable[[str, Dict[str, Any]], A] = default_error) -> A:
+def get_or(dictionary: Dict[str, Any], key: str, expected_type: Type[A], default: Optional[Callable[[], A]] = None) -> A:
     if key in dictionary:
         value = dictionary[key]
         if isinstance(value, expected_type):
             return value
         else:
             raise DictTypeError(key, value, expected_type, type(value), dictionary)
-    return default(key, dictionary)
+
+    if default is None:
+        return no_key_error(key, dictionary)
+
+    return default()
 
