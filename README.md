@@ -2,10 +2,8 @@
 
 Currently things are not set up in the best way.  
 
-`client` is a VisualStudio 2022 (Community Edition) project and should open pretty seamlessly with that.
-`server` is a simply python poetry project, though the config isn't fully working. It's a fairly simple setup and easy to get running if you have any familiarity with python though.
-
-Sorry for the mess. I will clean things up soon.
+`client` is a VisualStudio 2022 (Community Edition) project and should open pretty seamlessly with that. The build is a little messy. Somebody please help
+`server` is a python poetry project
 
 ### Current Status
 
