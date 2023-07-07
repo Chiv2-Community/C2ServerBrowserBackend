@@ -64,7 +64,6 @@ def test_heartbeat(client: FlaskClient):
     response = client.post(f'/servers/{server_id}/heartbeat', headers={
         KEY_HEADER: registration_response.get_json()['key'],
     }, json={
-        "unique_id": registration_response.get_json()['server']['unique_id'],
         "key": registration_response.get_json()['key'],
         "port": 1234,
     })

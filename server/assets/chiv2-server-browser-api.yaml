@@ -3,7 +3,16 @@ info:
   title: Server Browser API
   version: 1.0.0
 paths:
-  /register:
+  /servers:
+    get:
+      summary: Get a list of registered game servers
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerListResponse'
     post:
       summary: Register a game server
       requestBody:
@@ -19,9 +28,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistrationResponse'
-  /update:
+  /servers/{unique_id}:
     post:
       summary: Update the listing for a game server. This does not count as a heartbeat
+      parameters:
+        - in: path
+          name: unique_id
+          description: The unique id of the server being updated
+          schema:
+            type: string
+          required: true
       requestBody:
         required: true
         content:
@@ -34,9 +50,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationResponse'
-  /heartbeat:
+                $ref: '#/components/schemas/UpdateSuccessfulResponse'
+  /servers/{unique_id}/heartbeat:
     post:
+      parameters:
+        - in: path
+          name: unique_id
+          description: The unique id of the server being updated
+          schema:
+            type: string
+          required: true
       summary: Send a keepalive signal to stay on the server list
       requestBody:
         required: true
@@ -50,17 +73,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationResponse'
-  /servers:
-    get:
-      summary: Get a list of registered game servers
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerListResponse'
+                $ref: '#/components/schemas/UpdateSuccessfulResponse'
 components:
   schemas:
     ServerUpdateRequest:
@@ -124,6 +137,7 @@ components:
     Server:
       type: object
       required:
+        - unique_id
         - ip_address
         - port
         - name
@@ -133,6 +147,9 @@ components:
         - max_players
         - mods
       properties:
+        unique_id:
+          type: string
+          description: The unique identifier of this server
         ip_address:
           type: string
           description: The IP address of the server
@@ -199,18 +216,44 @@ components:
           items:
             $ref: '#/components/schemas/Mod'
           description: A list of mods running on the server
-    RegistrationResponse:
+    RegistrationSuccessfulResponse:
       type: object
       required:
-        - status
+        - key
+        - refresh_before
+        - server
       properties:
+        key:
+          type: string
+          description: The key used for updating the server. Used in X-CHIV2-SERVER-BROWSER-KEY
         refresh_before:
           type: number
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
+        server:
+          $ref: '#/components/schemas/ServerRegistrationRequest'
+    UpdateSuccessfulResponse:
+      type: object
+      required:
+        - refresh_before
+        - server
+      properties:
+        server:
+          $ref: '#/components/schemas/ServerRegistrationRequest'
+        refresh_before:
+          type: number
+          format: double
+          description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
+    ErrorResponse:
+      type: object
+      required:
+        - status
+      properties:
         status:
           type: string
           enum:
-            - registered
             - banned
-          description: Registration status of the server
+            - not_registered
+            - no_key
+            - forbidden
+  

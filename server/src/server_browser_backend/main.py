@@ -67,14 +67,14 @@ def register():
 
     app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.port}")
 
-    return jsonify({'status': 'registered', 'refresh_before': timeout, 'key': key, 'server': server}), 201
+    return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
 @app.route('/servers/<server_id>/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
 def heartbeat(server_id):
     key = request.headers.get(KEY_HEADER)
     if not key:
-        return jsonify({'status': KEY_HEADER + " header not specified"}), 400
+        return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400
 
     server_ip = get_ip(request)
 
@@ -84,7 +84,7 @@ def heartbeat(server_id):
     heartbeat = Heartbeat.from_json(request.json)
 
     if heartbeat.unique_id not in servers:
-        return jsonify({'status': 'server not registered'}), 400
+        return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
 
     secured_server = servers[heartbeat.unique_id]
 
@@ -108,7 +108,7 @@ def heartbeat(server_id):
 
     app.logger.info(f"Heartbeat received from server \"{server.name}\" at {server.ip_address}:{server.port} (timeout: {timeout})")
 
-    return jsonify({'status': 'heartbeat received', 'refresh_before': timeout, 'server': result.get()}), 200
+    return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
 
 
 @app.route('/servers/<server_id>', methods=['PUT'])
@@ -116,7 +116,7 @@ def heartbeat(server_id):
 def update(server_id):
     key = request.headers.get(KEY_HEADER)
     if not key:
-        return jsonify({'status': KEY_HEADER + " header not specified"}), 400
+        return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400
 
     server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
@@ -124,7 +124,7 @@ def update(server_id):
     update_request = UpdateRegisteredServer.from_json(request.json)
 
     if update_request.unique_id not in servers:
-        return jsonify({'status': 'server not registered'}), 400
+        return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
 
     secured_server = servers[update_request.unique_id]
 
@@ -144,7 +144,7 @@ def update(server_id):
 
     app.logger.info(f"Update received from server \"{server.name}\" at {server.ip_address}:{server.port})")
 
-    return jsonify({'status': 'update received', 'refresh_before': timeout, 'server': result.get()}), 200
+    return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
 
 @app.route('/servers', methods=['GET'])
 @limiter.limit("60/minute")  
