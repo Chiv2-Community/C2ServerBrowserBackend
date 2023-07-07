@@ -252,6 +252,9 @@ components:
         - refresh_before
         - server
       properties:
+        key:
+          type: string
+          description: To be used as the X-CHIV2-SERVER-BROWSER-KEY header
         refresh_before:
           type: number
           format: double
