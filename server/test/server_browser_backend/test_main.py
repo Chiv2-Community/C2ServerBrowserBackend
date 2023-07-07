@@ -2,10 +2,20 @@ import pytest
 from flask.testing import FlaskClient
 from datetime import datetime
 from server_browser_backend.main import app, servers, heartbeat_timeout, limiter
+from server_browser_backend.models import Heartbeat, SecuredResource
 
 LOCALHOST = "127.0.0.1"
 
 limiter.enabled = False
+
+test_server_json = {
+        "name": "Test Server",
+        "description": "Test Description",
+        "port": 1234,
+        "player_count": 0,
+        "max_players": 100,
+        "current_map": "Test Map"
+    }
 
 @pytest.fixture
 def client():
@@ -15,52 +25,42 @@ def client():
 def test_register(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/register', json={
-        "name": "Test Server",
-        "description": "Test Description",
-        "port": 1234,
-        "player_count": 0,
-        "max_players": 100,
-        "current_map": "Test Map"
-    })
+    response = client.post('/register', json=test_server_json)
+    response_json = response.get_json()
+
     assert response.status_code == 201
-    assert response.get_json()['status'] == 'registered'
-    assert (LOCALHOST, 1234) in servers
+    assert response_json['status'] == 'registered'
+    assert 'key' in response_json
+    assert 'server' in response_json
+    assert 'unique_id' in response_json['server']
+    assert response_json['server']['unique_id'] in servers
 
 def test_update(client: FlaskClient):
     servers.clear() 
 
-    client.post('/register', json={
-        "name": "Test Server",
-        "description": "Test Description",
-        "port": 1234,
-        "player_count": 0,
-        "max_players": 100,
-        "current_map": "Test Map"
-    })
+    registration_response = client.post('/register', json=test_server_json)
     response = client.post('/update', json={
+        "unique_id": registration_response.get_json()['server']['unique_id'],
+        "key": registration_response.get_json()['key'],
         "port": 1234,
         "player_count": 10,
         "max_players": 100,
         "current_map": "Test Map"
     })
 
+    response_json = response.get_json()
+
     assert response.status_code == 200
-    assert response.get_json()['status'] == 'update received'
-    assert servers[(LOCALHOST, 1234)].player_count == 10
+    assert response_json['status'] == 'update received'
+    assert servers[registration_response.get_json().unique_id].get().player_count == 10
 
 def test_heartbeat(client: FlaskClient):
     servers.clear() 
 
-    client.post('/register', json={
-        "name": "Test Server",
-        "description": "Test Description",
-        "port": 1234,
-        "player_count": 0,
-        "max_players": 100,
-        "current_map": "Test Map"
-    })
+    registration_response = client.post('/register', json=test_server_json)
     response = client.post('/heartbeat', json={
+        "unique_id": registration_response.get_json()['server']['unique_id'],
+        "key": registration_response.get_json()['key'],
         "port": 1234,
     })
 
@@ -93,7 +93,7 @@ def test_get_servers(client: FlaskClient):
 def test_heartbeat_timeout(client: FlaskClient):
     servers.clear() 
 
-    client.post('/register', json={
+    registration_response = client.post('/register', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -102,8 +102,22 @@ def test_heartbeat_timeout(client: FlaskClient):
         "current_map": "Test Map"
     })
 
-    # Force expiration. Should probably do this in a nicer way
-    servers[(LOCALHOST, 1234)].last_heartbeat = datetime.now().timestamp() - heartbeat_timeout - 1
+    response_json = registration_response.get_json()
+    unique_id = response_json["server"]["unique_id"]
+
+    # Force expiration. 
+    servers[unique_id] = servers[unique_id].update(
+        response_json["key"],
+        lambda server: server.with_heartbeat(
+            Heartbeat(
+                server.unique_id,
+                server.ip_address,
+                server.port,
+                response_json["key"]
+            ),
+            datetime.now().timestamp() - heartbeat_timeout - 1
+        )
+    )
 
     response = client.get('/servers')
     assert response.status_code == 200
