@@ -1,7 +1,7 @@
 import pytest
 from flask.testing import FlaskClient
 from datetime import datetime
-from server_browser_backend.main import app, servers, heartbeat_timeout, limiter
+from server_browser_backend.main import app, servers, heartbeat_timeout, limiter, KEY_HEADER
 from server_browser_backend.models import Heartbeat, SecuredResource
 
 LOCALHOST = "127.0.0.1"
@@ -40,8 +40,9 @@ def test_update(client: FlaskClient):
 
     registration_response = client.post('/servers', json=test_server_json)
     server_id = registration_response.get_json()['server']['unique_id']
-    response = client.put(f'/servers/{server_id}', json={
-        "key": registration_response.get_json()['key'],
+    response = client.put(f'/servers/{server_id}', headers={
+        KEY_HEADER: registration_response.get_json()['key'],
+    }, json={
         "port": 1234,
         "player_count": 10,
         "max_players": 100,
@@ -60,7 +61,9 @@ def test_heartbeat(client: FlaskClient):
 
     registration_response = client.post('/servers', json=test_server_json)
     server_id = registration_response.get_json()['server']['unique_id']
-    response = client.post(f'/servers/{server_id}/heartbeat', json={
+    response = client.post(f'/servers/{server_id}/heartbeat', headers={
+        KEY_HEADER: registration_response.get_json()['key'],
+    }, json={
         "unique_id": registration_response.get_json()['server']['unique_id'],
         "key": registration_response.get_json()['key'],
         "port": 1234,
@@ -112,8 +115,7 @@ def test_heartbeat_timeout(client: FlaskClient):
             Heartbeat(
                 server.unique_id,
                 server.ip_address,
-                server.port,
-                response_json["key"]
+                server.port
             ),
             datetime.now().timestamp() - heartbeat_timeout - 1
         )

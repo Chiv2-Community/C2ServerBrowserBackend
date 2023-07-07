@@ -134,15 +134,13 @@ class Heartbeat(UniqueServer):
     unique_id: str
     ip_address: str
     port: int
-    key: str
     
     @staticmethod
     def from_json(json: dict):
         return Heartbeat(
             get_or(json, 'unique_id', str),
             get_or(json, 'ip_address', str),
-            get_or(json, 'port', int),
-            get_or(json, 'key', str)
+            get_or(json, 'port', int)
         )
 
 
@@ -154,7 +152,6 @@ class UpdateRegisteredServer(UniqueServer):
     current_map: str
     player_count: int
     max_players: int
-    key: str
 
     @staticmethod
     def from_json(json: dict):
@@ -165,5 +162,4 @@ class UpdateRegisteredServer(UniqueServer):
             get_or(json, 'current_map', str),
             get_or(json, 'player_count', int),
             get_or(json, 'max_players', int),
-            get_or(json, 'key', str),
         )

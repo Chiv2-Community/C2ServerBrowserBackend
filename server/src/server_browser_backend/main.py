@@ -28,6 +28,8 @@ dictConfig({
     }
 })
 
+KEY_HEADER = "x-chiv2-server-browser-key"
+
 ban_list: List[str] = []
 
 app = Flask(__name__)
@@ -70,7 +72,13 @@ def register():
 @app.route('/servers/<server_id>/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
 def heartbeat(server_id):
+    key = request.headers.get(KEY_HEADER)
+    if not key:
+        return jsonify({'status': KEY_HEADER + " header not specified"}), 400
+
     server_ip = get_ip(request)
+
+
     request.json["ip_address"] = server_ip
     request.json["unique_id"] = server_id
     heartbeat = Heartbeat.from_json(request.json)
@@ -81,7 +89,7 @@ def heartbeat(server_id):
     secured_server = servers[heartbeat.unique_id]
 
     result = secured_server.update(
-        heartbeat.key, 
+        key, 
         lambda server: server.with_heartbeat(
             heartbeat, 
             server.last_heartbeat + heartbeat_timeout
@@ -106,6 +114,10 @@ def heartbeat(server_id):
 @app.route('/servers/<server_id>', methods=['PUT'])
 @limiter.limit("60/minute") 
 def update(server_id):
+    key = request.headers.get(KEY_HEADER)
+    if not key:
+        return jsonify({'status': KEY_HEADER + " header not specified"}), 400
+
     server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
     request.json["unique_id"] = server_id
@@ -117,7 +129,7 @@ def update(server_id):
     secured_server = servers[update_request.unique_id]
 
     result = secured_server.update(
-        update_request.key, 
+        key,
         lambda server: server.with_update(update_request)
     )
 
