@@ -106,7 +106,7 @@ def update_server(request, server_id: str, read_json: Callable[[dict], A], updat
 
     return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
 
-@app.route('/servers/<server_id>/heartbeat', methods=['POST'])
+@app.route('/api/v1/servers/<server_id>/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
 def heartbeat(server_id: str):
     return update_server(
@@ -116,7 +116,7 @@ def heartbeat(server_id: str):
         lambda server, heartbeat: server.with_heartbeat(heartbeat, datetime.now().timestamp())
     )
 
-@app.route('/servers/<server_id>', methods=['PUT'])
+@app.route('/api/v1/servers/<server_id>', methods=['PUT'])
 @limiter.limit("60/minute") 
 def update(server_id: str):
     return update_server(
@@ -126,7 +126,7 @@ def update(server_id: str):
         lambda server, update: server.with_update(update)
     )
 
-@app.route('/servers', methods=['GET'])
+@app.route('/api/v1/servers', methods=['GET'])
 @limiter.limit("60/minute")  
 def get_servers():
     now = datetime.now().timestamp()
@@ -148,7 +148,7 @@ def get_servers():
 
 from flask import send_from_directory
 
-@app.route('/swagger.yaml')
+@app.route('/api/v1/swagger.yaml')
 def send_swagger():
     return send_from_directory('.', "chiv2-server-browser-api.yaml")
 

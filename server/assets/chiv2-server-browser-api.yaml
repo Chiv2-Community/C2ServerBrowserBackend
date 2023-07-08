@@ -3,7 +3,7 @@ info:
   title: Server Browser API
   version: 1.0.0
 paths:
-  /servers:
+  /api/v1/servers:
     get:
       summary: Get a list of registered game servers
       responses:
@@ -28,7 +28,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistrationResponse'
-  /servers/{unique_id}:
+  /api/v1/servers/{unique_id}:
     post:
       summary: Update the listing for a game server. This does not count as a heartbeat
       parameters:
@@ -69,7 +69,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UpdateSuccessfulResponse'
-  /servers/{unique_id}/heartbeat:
+  /api/v1/servers/{unique_id}/heartbeat:
     post:
       parameters:
         - in: path

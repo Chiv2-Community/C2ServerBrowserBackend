@@ -25,7 +25,7 @@ def client():
 def test_register(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/servers', json=test_server_json)
+    response = client.post('/api/v1/servers', json=test_server_json)
     response_json = response.get_json()
 
     assert response.status_code == 201
@@ -37,9 +37,9 @@ def test_register(client: FlaskClient):
 def test_update(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/servers', json=test_server_json)
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
     server_id = registration_response.get_json()['server']['unique_id']
-    response = client.put(f'/servers/{server_id}', headers={
+    response = client.put(f'/api/v1/servers/{server_id}', headers={
         KEY_HEADER: registration_response.get_json()['key'],
     }, json={
         "port": 1234,
@@ -57,9 +57,9 @@ def test_update(client: FlaskClient):
 def test_heartbeat(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/servers', json=test_server_json)
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
     server_id = registration_response.get_json()['server']['unique_id']
-    response = client.post(f'/servers/{server_id}/heartbeat', headers={
+    response = client.post(f'/api/v1/servers/{server_id}/heartbeat', headers={
         KEY_HEADER: registration_response.get_json()['key'],
     }, json={
         "key": registration_response.get_json()['key'],
@@ -72,11 +72,11 @@ def test_heartbeat(client: FlaskClient):
 def test_get_servers(client: FlaskClient):
     servers.clear() 
 
-    response = client.get('/servers')
+    response = client.get('/api/v1/servers')
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 0
 
-    registration = client.post('/servers', json={
+    registration = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -85,14 +85,14 @@ def test_get_servers(client: FlaskClient):
         "current_map": "Test Map"
     })
 
-    response = client.get('/servers')
+    response = client.get('/api/v1/servers')
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 1
 
 def test_heartbeat_timeout(client: FlaskClient):
     servers.clear() 
 
-    registration_response = client.post('/servers', json={
+    registration_response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -121,14 +121,14 @@ def test_heartbeat_timeout(client: FlaskClient):
 
     servers[unique_id] = result
 
-    response = client.get('/servers')
+    response = client.get('/api/v1/servers')
     assert response.status_code == 200
     assert len(response.get_json()['servers']) == 0
 
 def test_bad_json_missing_key(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/servers', json={
+    response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
@@ -142,7 +142,7 @@ def test_bad_json_missing_key(client: FlaskClient):
 def test_bad_json_invalid_type(client: FlaskClient):
     servers.clear() 
 
-    response = client.post('/servers', json={
+    response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
         "port": 1234,
