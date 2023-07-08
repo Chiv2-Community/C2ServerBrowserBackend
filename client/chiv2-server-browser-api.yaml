@@ -27,7 +27,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationResponse'
+                $ref: '#/components/schemas/RegistrationSuccessfulResponse'
+        '403':
+          description: Banned from the server browser
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/servers/{unique_id}:
     post:
       summary: Update the listing for a game server. This does not count as a heartbeat

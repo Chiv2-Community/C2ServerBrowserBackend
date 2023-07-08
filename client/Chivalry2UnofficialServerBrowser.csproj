@@ -29,21 +29,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Swagger.cs">
+    <Compile Update="chiv2-server-browser-api.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
-      <DependentUpon>Swagger.yaml</DependentUpon>
+      <DependentUpon>chiv2-server-browser-api.yaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="../server/assets/chiv2-server-browser-api.yaml">
+    <None Update="chiv2-server-browser-api.yaml">
       <Generator>RefitterCodeGenerator</Generator>
-      <LastGenOutput>Swagger.cs</LastGenOutput>
-    </None>
-    <None Update="Swagger.yaml">
-      <Generator>RefitterCodeGenerator</Generator>
-      <LastGenOutput>Swagger.cs</LastGenOutput>
+      <LastGenOutput>ServerBrowserApi.cs</LastGenOutput>
     </None>
   </ItemGroup>
 

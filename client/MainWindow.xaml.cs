@@ -67,7 +67,7 @@ namespace Chivalry2UnofficialServerBrowser
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
             var client = RestService.For<Chivalry2UnofficialServerBrowser.IServerBrowserAPI>("http://" + ServerBrowserHost.Text);
-            var responseServers = client.Servers().Result.Servers;
+            var responseServers = client.ServersGET().Result.Servers;
             var serverList = new List<ServerTableElement>();
             foreach (var server in responseServers)
             {
