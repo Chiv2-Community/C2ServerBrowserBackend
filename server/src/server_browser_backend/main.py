@@ -7,9 +7,8 @@ from datetime import datetime, timedelta
 import argparse
 import secrets
 from uuid import UUID, uuid4
-from server_browser_backend.models import UniqueServer
 
-from server_browser_backend.models import UpdateRegisteredServer, Server, Heartbeat, SecuredResource
+from server_browser_backend.models import UpdateRegisteredServer, Server, Heartbeat, SecuredResource, UniqueServer
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from logging.config import dictConfig
 
@@ -72,8 +71,8 @@ def register():
 
     return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
-A = TypeVar('A', bound=UniqueServer)
-def update_server(request, server_id: str, read_json: Callable[[dict], A], update_server: Callable[[Server, A], Optional[Server]]):
+_A = TypeVar('_A', bound=UniqueServer)
+def update_server(request, server_id: str, read_json: Callable[[dict], _A], update_server: Callable[[Server, _A], Optional[Server]]):
     key = request.headers.get(KEY_HEADER)
     if not key:
         return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400

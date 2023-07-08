@@ -101,7 +101,7 @@ def test_heartbeat_invalid_key(client: FlaskClient):
     server_id = registration_response.get_json()['server']['unique_id']
     response = client.post(f'/api/v1/servers/{server_id}/heartbeat', headers={
         KEY_HEADER: registration_response.get_json()['key'] + "invalid",
-    }, json={ "port": 1234, })
+    }, json={ "port": 1234 })
 
     assert response.status_code == 403
 
