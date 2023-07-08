@@ -20,13 +20,13 @@ class SecuredResource(Generic[A]):
     def validate(self, key: str) -> bool:
         return self.key == key
 
-    def update(self, key: str, update_func: Callable[[A], A]) -> Optional[SecuredResource[A]]:
+    def update(self, key: str, update_func: Callable[[A], Optional[A]]) -> Optional[SecuredResource[A]]:
         if self.validate(key):
             update_result = update_func(self.resource)
             if update_result is None:
                 return None
 
-            return SecuredResource(key, update_func(self.resource))
+            return SecuredResource(key, update_result)
         
         return None
     
@@ -69,7 +69,7 @@ class Server(UniqueServer):
         return self_validation_params == update_validation_params
 
 
-    def with_heartbeat(self, heartbeat: Heartbeat, new_timeout: float):
+    def with_heartbeat(self, heartbeat: Heartbeat, heartbeat_time: float):
         if not self.is_same_server(heartbeat):
             return None 
         
@@ -77,7 +77,7 @@ class Server(UniqueServer):
             self.unique_id,
             self.ip_address,
             self.port,
-            new_timeout,
+            heartbeat_time,
             self.name,
             self.description,
             self.current_map,

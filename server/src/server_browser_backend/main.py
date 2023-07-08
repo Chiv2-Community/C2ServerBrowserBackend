@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import argparse
 import secrets
 from uuid import UUID, uuid4
+from server_browser_backend.models import UniqueServer
 
 from server_browser_backend.models import UpdateRegisteredServer, Server, Heartbeat, SecuredResource
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
@@ -36,7 +37,7 @@ app = Flask(__name__)
 limiter = Limiter(app = app, key_func=get_remote_address)
 
 # dict structure to store server list results  heartbeat
-servers: Dict[Tuple[str, int], SecuredResource[Server]] = {}
+servers: Dict[str, SecuredResource[Server]] = {}
 
 # 1 minute timeout for heartbeats
 heartbeat_timeout = 65
@@ -69,51 +70,8 @@ def register():
 
     return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
-@app.route('/servers/<server_id>/heartbeat', methods=['POST'])
-@limiter.limit("10/minute") 
-def heartbeat(server_id):
-    key = request.headers.get(KEY_HEADER)
-    if not key:
-        return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400
-
-    server_ip = get_ip(request)
-
-
-    request.json["ip_address"] = server_ip
-    request.json["unique_id"] = server_id
-    heartbeat = Heartbeat.from_json(request.json)
-
-    if heartbeat.unique_id not in servers:
-        return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
-
-    secured_server = servers[heartbeat.unique_id]
-
-    result = secured_server.update(
-        key, 
-        lambda server: server.with_heartbeat(
-            heartbeat, 
-            server.last_heartbeat + heartbeat_timeout
-        )
-    )
-
-    if not result:
-        app.logger.warning("Heartbeat failed. Invalid request.")
-        return jsonify({'status': 'forbidden'}), 403
-
-    servers[heartbeat.unique_id] = result
-
-    server = result.get()
-
-    timeout = server.last_heartbeat + heartbeat_timeout
-
-    app.logger.info(f"Heartbeat received from server \"{server.name}\" at {server.ip_address}:{server.port} (timeout: {timeout})")
-
-    return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
-
-
-@app.route('/servers/<server_id>', methods=['PUT'])
-@limiter.limit("60/minute") 
-def update(server_id):
+A = TypeVar('A', bound=UniqueServer)
+def update_server(request, server_id: str, read_json: Callable[[dict], A], update_server: Callable[[Server, A], Optional[Server]]):
     key = request.headers.get(KEY_HEADER)
     if not key:
         return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400
@@ -121,7 +79,7 @@ def update(server_id):
     server_ip = get_ip(request)
     request.json["ip_address"] = server_ip
     request.json["unique_id"] = server_id
-    update_request = UpdateRegisteredServer.from_json(request.json)
+    update_request = read_json(request.json)
 
     if update_request.unique_id not in servers:
         return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
@@ -130,7 +88,7 @@ def update(server_id):
 
     result = secured_server.update(
         key,
-        lambda server: server.with_update(update_request)
+        lambda server: update_server(server, update_request)
     )
 
     if not result:
@@ -142,9 +100,29 @@ def update(server_id):
 
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Update received from server \"{server.name}\" at {server.ip_address}:{server.port})")
+    app.logger.info(f"Update/Heartbeat received from server \"{server.name}\" ({server.unique_id}) at {server.ip_address}:{server.port})")
 
     return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
+
+@app.route('/servers/<server_id>/heartbeat', methods=['POST'])
+@limiter.limit("10/minute") 
+def heartbeat(server_id: str):
+    return update_server(
+        request, 
+        server_id, 
+        Heartbeat.from_json, 
+        lambda server, heartbeat: server.with_heartbeat(heartbeat, datetime.now().timestamp())
+    )
+
+@app.route('/servers/<server_id>', methods=['PUT'])
+@limiter.limit("60/minute") 
+def update(server_id: str):
+    return update_server(
+        request, 
+        server_id, 
+        UpdateRegisteredServer.from_json, 
+        lambda server, update: server.with_update(update)
+    )
 
 @app.route('/servers', methods=['GET'])
 @limiter.limit("60/minute")  
