@@ -31,6 +31,8 @@ dictConfig({
 
 KEY_HEADER = "x-chiv2-server-browser-key"
 
+# Later defined in main
+ban_list_location: str = ""
 ban_list: List[str] = []
 
 app = Flask(__name__)
@@ -45,7 +47,7 @@ heartbeat_timeout = 65
 def get_ip(request) -> str:
     return request.headers.get('X-Forwarded-For', request.remote_addr)
 
-@app.route('/servers', methods=['POST'])
+@app.route('/api/v1/servers', methods=['POST'])
 @limiter.limit("5/minute") 
 def register():
     server_ip = get_ip(request)
@@ -173,8 +175,19 @@ def main():
                         help='The interface to bind to.')
     parser.add_argument('--port', type=int, default=8080,
                         help='The port to bind to.')
-
+    parser.add_argument('--ban-list', type=str, default='ban_list.txt',
+                        help='File location of line separated list of banned IPs')
     args = parser.parse_args()
+
+    ban_list_location = args.ban_list
+
+    try:
+        with open(ban_list_location) as f:
+            ban_list.extend(f.read().splitlines())
+    except FileNotFoundError:
+        print(f"WARNING: Ban list file {ban_list_location} not found. Creating empty ban list file.")
+        with open(ban_list_location, 'w') as f:
+            f.write("")
 
     app.run(host=args.host, port=args.port, threaded=True)
 
