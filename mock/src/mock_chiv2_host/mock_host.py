@@ -15,29 +15,24 @@ def registerServer(address: str, port: int = 7777, name: str = "Chivalry 2 Serve
         "max_players": max_players,
         "mods": mods
     }
-    response = requests.post(address+"/register", json=serverObj)
+    response = requests.post(address+"/api/v1/servers", json=serverObj)
     if not response.ok:
         raise RuntimeError("Server could not be registered: error " + str(response.status_code))
     else:
-        return float(response.json()['refresh_before'])
+        return response.json()
     
-def heartbeat(address: str, port: int = 7777, 
+def heartbeat(address: str, unique_id: str, port: int = 7777, 
               current_map: str = "Unknown", 
-              player_count: int = -1, max_players: int = -1):
-    heartbeatObj = {
-        "port": port,
-        "current_map": current_map,
-        "player_count": player_count,
-        "max_players": max_players
-    }
-    response = requests.post(address+"/heartbeat", json=heartbeatObj)
+              player_count: int = -1, max_players: int = -1, key = ""):
+    heartbeatObj = { "port": port }
+    response = requests.post(address+f"/api/v1/servers/{unique_id}/heartbeat", json=heartbeatObj, headers={"x-chiv2-server-browser-key": key})
     if not response.ok:
         raise RuntimeError("Heartbeat failure: error " + str(response.status_code))
     else:
-        return float(response.json()['refresh_before'])
+        return response.json()
     
 def getServerList(address: str):
-    response = requests.get(address+"/servers")
+    response = requests.get(address+"/api/v1/servers")
     if not response.ok:
         raise RuntimeError("Failed to retreive server list: error " + str(response.status_code))
     else:
@@ -60,7 +55,10 @@ def main():
 
     for server in servers:
         print("Registering server on port " + str(server["port"]))
-        registerServer(address, **server)
+        result = registerServer(address, **server)
+
+        server["key"] = result["key"]
+        server["unique_id"] = result["server"]["unique_id"]
         del server["name"]
         del server["description"]
         del server["mods"]

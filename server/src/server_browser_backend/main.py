@@ -83,6 +83,7 @@ def update_server(request, server_id: str, read_json: Callable[[dict], _A], upda
     update_request = read_json(request.json)
 
     if update_request.unique_id not in servers:
+        app.logger.warning(f"Update failed. Server with id {update_request.unique_id} not registered.")
         return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
 
     secured_server = servers[update_request.unique_id]
@@ -93,7 +94,7 @@ def update_server(request, server_id: str, read_json: Callable[[dict], _A], upda
     )
 
     if not result:
-        app.logger.warning("Update failed. Invalid request.")
+        app.logger.warning("Update failed. Invalid key or unique id.")
         return jsonify({'status': 'forbidden'}), 403
 
     servers[update_request.unique_id] = result
