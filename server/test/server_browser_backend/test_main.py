@@ -54,6 +54,28 @@ def test_update(client: FlaskClient):
     assert response.status_code == 200
     assert servers[unique_id].get().player_count == 10
 
+def test_update_no_key(client: FlaskClient):
+    servers.clear() 
+
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.put(f'/api/v1/servers/{server_id}')
+    response.status_code == 400
+
+def test_update_invalid_key(client: FlaskClient):
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.put(f'/api/v1/servers/{server_id}', headers={
+        KEY_HEADER: registration_response.get_json()['key'] + "invalid",
+    }, json={
+        "port": 1234,
+        "player_count": 10,
+        "max_players": 100,
+        "current_map": "Test Map"
+    })
+
+    assert response.status_code == 403
+
 def test_heartbeat(client: FlaskClient):
     servers.clear() 
 
@@ -61,13 +83,27 @@ def test_heartbeat(client: FlaskClient):
     server_id = registration_response.get_json()['server']['unique_id']
     response = client.post(f'/api/v1/servers/{server_id}/heartbeat', headers={
         KEY_HEADER: registration_response.get_json()['key'],
-    }, json={
-        "key": registration_response.get_json()['key'],
-        "port": 1234,
-    })
+    }, json={ "port": 1234 })
 
     assert response.status_code == 200
     assert response.get_json()['refresh_before'] > datetime.now().timestamp()
+
+def test_heartbeat_no_key(client: FlaskClient):
+    servers.clear() 
+
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.post(f'/api/v1/servers/{server_id}/heartbeat')
+    response.status_code == 400
+
+def test_heartbeat_invalid_key(client: FlaskClient):
+    registration_response = client.post('/api/v1/servers', json=test_server_json)
+    server_id = registration_response.get_json()['server']['unique_id']
+    response = client.post(f'/api/v1/servers/{server_id}/heartbeat', headers={
+        KEY_HEADER: registration_response.get_json()['key'] + "invalid",
+    }, json={ "port": 1234, })
+
+    assert response.status_code == 403
 
 def test_get_servers(client: FlaskClient):
     servers.clear() 
