@@ -29,7 +29,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RegistrationResponse'
   /api/v1/servers/{unique_id}:
-    post:
+    put:
       summary: Update the listing for a game server. This does not count as a heartbeat
       parameters:
         - in: header
