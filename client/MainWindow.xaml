@@ -52,7 +52,7 @@
                 <StackPanel>
                     <Label Content="Server Browser Backend Host"/>
                     <TextBox x:Name="ServerBrowserHost" Text="servers.polehammer.net" />
-                    <Label Content="Use TLS"/>
+                    <Label Content="Use HTTPS"/>
                     <CheckBox x:Name="UseTLS" IsChecked="True" />
                     <Label Content="Chivalry2 Exe Path"/>
                     <TextBox x:Name="Chiv2ExePath" Text="TBL\Binaries\Win64\Chivalry2-Win64-Shipping.exe" />

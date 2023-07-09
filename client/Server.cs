@@ -23,12 +23,12 @@ namespace Chivalry2UnofficialServerBrowser
         // Update ping asynchronously
         public async Task UpdatePingAsync()
         {
-            var address = Address.Split(':')[0];
+            var ip = Address.Split(':')[0];
             var ping = new Ping();
 
             try
             {
-                var reply = await ping.SendPingAsync("google.com", 1000);
+                var reply = await ping.SendPingAsync(ip, 1000);
                 Ping = reply.Status == IPStatus.Success ? reply.RoundtripTime.ToString() : "N/A";
             }
             catch
