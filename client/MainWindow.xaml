@@ -51,7 +51,9 @@
             <TabItem Header="Settings">
                 <StackPanel>
                     <Label Content="Server Browser Backend Host"/>
-                    <TextBox x:Name="ServerBrowserHost" Text="127.0.0.1:8081" />
+                    <TextBox x:Name="ServerBrowserHost" Text="servers.polehammer.net" />
+                    <Label Content="Use TLS"/>
+                    <CheckBox x:Name="UseTLS" IsChecked="True" />
                     <Label Content="Chivalry2 Exe Path"/>
                     <TextBox x:Name="Chiv2ExePath" Text="TBL\Binaries\Win64\Chivalry2-Win64-Shipping.exe" />
                     <Label Content="Chivalry2 Exe Forward Arguments"/>
