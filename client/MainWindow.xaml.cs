@@ -28,7 +28,7 @@ namespace Chivalry2UnofficialServerBrowser
         public MainWindow()
         {
             InitializeComponent();
-            Chiv2ExeArgs.Text = string.Join(" ", Environment.GetCommandLineArgs().Skip(1));
+            Chiv2ExeArgs.Text = string.Join(" ", Environment.GetCommandLineArgs().Append("@ADDRESS@").Skip(1));
         }
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -54,12 +54,11 @@ namespace Chivalry2UnofficialServerBrowser
             var startInfo = new ProcessStartInfo();
 
             var exePath = Chiv2ExePath.Text;
-            cliArgs.Add(selectedServer.Address);
             cliArgs.Add(Chiv2ExeArgs.Text);
 
             var proc = new Process();
             startInfo.FileName = exePath;
-            startInfo.Arguments = string.Join(" ", cliArgs);
+            startInfo.Arguments = Chiv2ExeArgs.Text.Replace("@ADDRESS@", selectedServer.Address);
             proc.StartInfo = startInfo;
             proc.Start();
         }

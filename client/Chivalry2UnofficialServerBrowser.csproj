@@ -38,7 +38,7 @@
   <ItemGroup>
     <None Update="chiv2-server-browser-api.yaml">
       <Generator>RefitterCodeGenerator</Generator>
-      <LastGenOutput>ServerBrowserApi.cs</LastGenOutput>
+      <LastGenOutput>chiv2-server-browser-api.cs</LastGenOutput>
     </None>
   </ItemGroup>
 
