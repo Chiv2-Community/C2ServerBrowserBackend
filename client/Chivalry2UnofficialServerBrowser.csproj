@@ -21,7 +21,6 @@
     <PackageReference Include="Refit" Version="6.5.1" />
     <PackageReference Include="RestSharp" Version="110.2.0" />
     <PackageReference Include="RestSharp.Serializers.NewtonsoftJson" Version="110.2.0" />
-    <PackageReference Include="Virtuosity.Fody" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,21 +28,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Swagger.cs">
+    <Compile Update="chiv2-server-browser-api.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
-      <DependentUpon>Swagger.yaml</DependentUpon>
+      <DependentUpon>chiv2-server-browser-api.yaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="../server/assets/chiv2-server-browser-api.yaml">
+    <None Update="chiv2-server-browser-api.yaml">
       <Generator>RefitterCodeGenerator</Generator>
-      <LastGenOutput>Swagger.cs</LastGenOutput>
-    </None>
-    <None Update="Swagger.yaml">
-      <Generator>RefitterCodeGenerator</Generator>
-      <LastGenOutput>Swagger.cs</LastGenOutput>
+      <LastGenOutput>ServerBrowserApi.cs</LastGenOutput>
     </None>
   </ItemGroup>
 

@@ -66,24 +66,32 @@ namespace Chivalry2UnofficialServerBrowser
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            var client = RestService.For<Chivalry2UnofficialServerBrowser.IServerBrowserAPI>("http://" + ServerBrowserHost.Text);
-            var responseServers = client.Servers().Result.Servers;
-            var serverList = new List<ServerTableElement>();
-            foreach (var server in responseServers)
+            try
             {
-                serverList.Add(new ServerTableElement
+                var protocol = UseTLS.IsChecked == true ? "https" : "http";
+                var client = RestService.For<Chivalry2UnofficialServerBrowser.IServerBrowserAPI>(protocol + "://" + ServerBrowserHost.Text);
+                var responseServers = client.ServersGET().Result.Servers;
+                var serverList = new List<ServerTableElement>();
+                foreach (var server in responseServers)
                 {
-                    Name = server.Name,
-                    Address = server.Ip_address + ":" + server.Port,
-                    Map = server.Current_map,
-                    Players = server.Player_count + " / " + server.Max_players,
-                    Ping = "N/A",
-                    Mods = server.Mods,
-                    Description = server.Description
-                });
-            }
+                    serverList.Add(new ServerTableElement
+                    {
+                        Name = server.Name,
+                        Address = server.Ip_address + ":" + server.Port,
+                        Map = server.Current_map,
+                        Players = server.Player_count + " / " + server.Max_players,
+                        Ping = "N/A",
+                        Mods = server.Mods,
+                        Description = server.Description
+                    });
+                }
 
-            UpdateServerList(serverList, true);
+                UpdateServerList(serverList, true);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message);
+            }
         }
 
         private async void UpdateServerList(ICollection<ServerTableElement> elems, bool shouldPing)
