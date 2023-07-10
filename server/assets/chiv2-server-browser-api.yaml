@@ -107,10 +107,6 @@ components:
         - current_map
         - max_players
       properties:
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
         player_count:
           type: integer
           format: int32

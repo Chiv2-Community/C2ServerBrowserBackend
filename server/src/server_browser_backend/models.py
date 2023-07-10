@@ -85,7 +85,6 @@ class Server:
 
 @dataclass(frozen=True)
 class UpdateRegisteredServer:
-    unique_id: str
     current_map: str
     player_count: int
     max_players: int
@@ -93,7 +92,6 @@ class UpdateRegisteredServer:
     @staticmethod
     def from_json(json: dict):
         return UpdateRegisteredServer(
-            get_or(json, 'unique_id', str),
             get_or(json, 'current_map', str),
             get_or(json, 'player_count', int),
             get_or(json, 'max_players', int),

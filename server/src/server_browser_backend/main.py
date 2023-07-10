@@ -107,7 +107,6 @@ def update(server_id: str):
         return jsonify({'status': 'invalid_json_body', 'message': 'no json body provided'}), 400
     
     request_json = request.json
-    request_json["unique_id"] = server_id
 
     return update_server(
         request, 
