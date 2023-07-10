@@ -3,15 +3,11 @@ from flask.testing import FlaskClient
 from datetime import datetime
 from server_browser_backend.main import (
     app,
-    servers,
-    heartbeat_timeout,
-    limiter,
-    KEY_HEADER,
 )
+from server_browser_backend.routes.shared import KEY_HEADER, server_list, heartbeat_timeout
 
 LOCALHOST = "127.0.0.1"
 
-limiter.enabled = False
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
@@ -32,7 +28,7 @@ def client():
 
 
 def test_register(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.get_json()
@@ -41,11 +37,11 @@ def test_register(client: FlaskClient):
     assert "key" in response_json
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
-    assert servers.exists(response_json["server"]["unique_id"])
+    assert server_list.exists(response_json["server"]["unique_id"])
 
 
 def test_update(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -59,7 +55,7 @@ def test_update(client: FlaskClient):
 
     response_json = response.get_json()
     unique_id = response_json["server"]["unique_id"]
-    server = servers.get(unique_id)
+    server = server_list.get(unique_id)
 
     assert response.status_code == 200
 
@@ -68,7 +64,7 @@ def test_update(client: FlaskClient):
 
 
 def test_update_no_key(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -91,7 +87,7 @@ def test_update_invalid_key(client: FlaskClient):
 
 
 def test_heartbeat(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -108,7 +104,7 @@ def test_heartbeat(client: FlaskClient):
 
 
 def test_heartbeat_no_key(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -117,7 +113,7 @@ def test_heartbeat_no_key(client: FlaskClient):
 
 
 def test_heartbeat_invalid_key(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -126,13 +122,12 @@ def test_heartbeat_invalid_key(client: FlaskClient):
         headers={KEY_HEADER: "invalid", "Content-Type": "application/json"},
     )
 
-    print(response.json)
 
     assert response.status_code == 403
 
 
 def test_get_servers(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
@@ -156,7 +151,7 @@ def test_get_servers(client: FlaskClient):
 
 
 def test_heartbeat_timeout(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     registration_response = client.post(
         "/api/v1/servers",
@@ -174,7 +169,7 @@ def test_heartbeat_timeout(client: FlaskClient):
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration.
-    result = servers.update(
+    result = server_list.update(
         unique_id,
         response_json["key"],
         lambda server: server.with_heartbeat(
@@ -190,7 +185,7 @@ def test_heartbeat_timeout(client: FlaskClient):
 
 
 def test_bad_json_missing_key(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     response = client.post(
         "/api/v1/servers",
@@ -210,7 +205,7 @@ def test_bad_json_missing_key(client: FlaskClient):
 
 
 def test_bad_json_invalid_type(client: FlaskClient):
-    servers.clear()
+    server_list.clear()
 
     response = client.post(
         "/api/v1/servers",
