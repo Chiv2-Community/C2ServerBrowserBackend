@@ -149,7 +149,7 @@ components:
       required:
         - unique_id
         - ip_address
-        - port
+        - ports
         - name
         - description
         - current_map
@@ -163,10 +163,8 @@ components:
         ip_address:
           type: string
           description: The IP address of the server
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
+        ports:
+          $ref: '#/components/schemas/Ports'
         name:
           type: string
           description: The name of the server
