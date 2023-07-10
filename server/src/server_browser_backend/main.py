@@ -192,12 +192,14 @@ def payfab_client_matchmake():
     if not server:
         return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
 
-    return jsonify(playfab.Wrapper(200, "OK", Game(
+    return jsonify(playfab.Wrapper(200, "OK", playfab.Game(
         server.unique_id, 
         server.ip_address, 
         server.ip_address, 
         server.ports.game,
-        str(uuid4())
+        str(uuid4()),
+        None,
+        None
     ))), 200
 
 
