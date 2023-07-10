@@ -19,6 +19,7 @@ from os import path
 from server_browser_backend.models import UpdateRegisteredServer, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from server_browser_backend import tbio
+from server_browser_backend import playfab
 from logging.config import dictConfig
 
 dictConfig(
@@ -156,10 +157,9 @@ def get_servers():
 
 @app.route("/api/tbio/GetCurrentGames", methods=["POST"])
 @limiter.limit("60/minute")
-def get_servers_tbio():
+def tbio_get_servers():
     server_list = tbio.ServerListData.from_servers(servers.get_all())
-    return jsonify({"Success": True, "Data": server_list}), 200
-
+    return jsonify(tbio.Wrapper(True, server_list)), 200
 
 @app.route("/api/tbio/GetMotd", methods=["POST"])
 @limiter.limit("60/minute")
@@ -179,6 +179,25 @@ def get_motd():
             jsonify(tbio.Wrapper(True, motd, int(one_year_from_now.timestamp()))),
             200,
         )
+
+@app.route("/api/playfab/Client/Matchmake", methods=["POST"])
+@limiter.limit("60/minute")
+def payfab_client_matchmake():
+    server_id = request.json.get("LobbyId")
+    if not server_id:
+        return jsonify(playfab.Error(400, {}, "No LobbyId provided.", {}, False)), 400
+
+    server = servers.get(server_id)
+
+    if not server:
+        return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
+
+    return jsonify(playfab.Wrapper(200, "OK", playfab.Game(
+        server.ip_address, 
+        server.ip_address, 
+        server.ports.game,
+        str(uuid4()),
+    ))), 200
 
 
 @app.route("/api/v1/swagger.yaml")
