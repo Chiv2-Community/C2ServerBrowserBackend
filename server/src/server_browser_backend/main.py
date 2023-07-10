@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import argparse
 from uuid import UUID, uuid4
-from server_browser_backend.ServerList import InvalidSecretKey, SecretKeyMissing, ServerList
+from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
 
 from server_browser_backend.models import UpdateRegisteredServer, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
