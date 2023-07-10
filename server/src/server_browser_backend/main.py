@@ -11,6 +11,7 @@ from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissin
 
 from server_browser_backend.models import UpdateRegisteredServer, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
+from server_browser_backend import tbio
 from logging.config import dictConfig
 
 dictConfig({
@@ -71,7 +72,7 @@ def register():
     key = servers.register(server)
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.port}")
+    app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.ports.game}")
 
     return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
@@ -87,7 +88,7 @@ def update_server(request: Request, server_id: str, update_server: Callable[[Ser
 
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Update/Heartbeat received from server \"{server.name}\" ({server.unique_id}) at {server.ip_address}:{server.port})")
+    app.logger.info(f"Update/Heartbeat received from server \"{server.name}\" ({server.unique_id}) at {server.ip_address}:{server.ports.game})")
 
     return jsonify({'refresh_before': timeout, 'server': server}), 200
 
@@ -120,14 +121,16 @@ def update(server_id: str):
 @app.route('/api/v1/servers', methods=['GET'])
 @limiter.limit("60/minute")  
 def get_servers():
-    now = datetime.now().timestamp()
-    app.logger.info(f"Server list requested")
     server_list = servers.get_all()
-
     return jsonify({'servers': server_list }), 200
 
-from flask import send_from_directory
+@app.route('/api/tbio/GetCurrentGames', methods=['POST'])
+@limiter.limit("60/minute")  
+def get_servers_tbio():
+    server_list = tbio.ServerListData.from_servers(servers.get_all())
+    return jsonify({'Success': True, "Data": server_list}), 200
 
+from flask import send_from_directory
 @app.route('/api/v1/swagger.yaml')
 def send_swagger():
     return send_from_directory('.', "chiv2-server-browser-api.yaml")
@@ -149,6 +152,18 @@ def handle_dict_type_error(e):
         'context': e.context
     }), 400
 
+
+
+@app.errorhandler(SecretKeyMissing)
+def handle_secret_key_missing(e):
+    return jsonify({
+        'status': 'no_key', 
+        'message': KEY_HEADER + " header not specified"
+    }), 400
+
+@app.errorhandler(InvalidSecretKey)
+def handle_invalid_secret_key(e):
+    return jsonify({'status': 'forbidden'}), 403
 
 def main():
     parser = argparse.ArgumentParser(description='Start the Flask server.')
@@ -172,16 +187,6 @@ def main():
 
     app.run(host=args.host, port=args.port, threaded=True)
 
-@app.errorhandler(SecretKeyMissing)
-def handle_secret_key_missing(e):
-    return jsonify({
-        'status': 'no_key', 
-        'message': KEY_HEADER + " header not specified"
-    }), 400
-
-@app.errorhandler(InvalidSecretKey)
-def handle_invalid_secret_key(e):
-    return jsonify({'status': 'forbidden'}), 403
 
 if __name__ == "__main__":
     main()

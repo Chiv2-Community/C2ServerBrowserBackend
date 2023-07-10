@@ -26,7 +26,7 @@ class Mod:
 class Server:
     unique_id: str
     ip_address: str
-    port: int
+    ports: Chivalry2Ports
     last_heartbeat: float
     name: str
     description: str
@@ -39,7 +39,7 @@ class Server:
         return Server(
             self.unique_id,
             self.ip_address,
-            self.port,
+            self.ports,
             heartbeat_time,
             self.name,
             self.description,
@@ -53,7 +53,7 @@ class Server:
         return Server(
             self.unique_id,
             self.ip_address,
-            self.port,
+            self.ports,
             self.last_heartbeat,
             self.name,
             self.description,

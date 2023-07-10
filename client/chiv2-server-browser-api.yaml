@@ -77,6 +77,7 @@ paths:
                 $ref: '#/components/schemas/UpdateSuccessfulResponse'
   /api/v1/servers/{unique_id}/heartbeat:
     post:
+      summary: Send a keepalive signal to stay on the server list
       parameters:
         - in: path
           name: unique_id
@@ -84,13 +85,6 @@ paths:
           schema:
             type: string
           required: true
-      summary: Send a keepalive signal to stay on the server list
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/HeartbeatSignal'
       responses:
         '400':
           description: Something in your request is malformed
@@ -135,15 +129,6 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
-    HeartbeatSignal:
-      type: object
-      required:
-        - port
-      properties:
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
     Mod:
       type: object
       required:
