@@ -1,15 +1,20 @@
+from __future__ import annotations
+import json
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Request, send_file, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
 import argparse
-import secrets
-from uuid import UUID, uuid4
+from uuid import uuid4
+from server_browser_backend import dict_util
+from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
+from os import path
 
-from server_browser_backend.models import UpdateRegisteredServer, Server, Heartbeat, SecuredResource, UniqueServer
+from server_browser_backend.models import UpdateRegisteredServer, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
+from server_browser_backend import tbio
 from logging.config import dictConfig
 
 dictConfig({
@@ -37,14 +42,21 @@ ban_list: List[str] = []
 app = Flask(__name__)
 limiter = Limiter(app = app, key_func=get_remote_address)
 
-# dict structure to store server list results  heartbeat
-servers: Dict[str, SecuredResource[Server]] = {}
 
 # 1 minute timeout for heartbeats
 heartbeat_timeout = 65
 
+servers: ServerList = ServerList(heartbeat_timeout)
+
 def get_ip(request) -> str:
     return request.headers.get('X-Forwarded-For', request.remote_addr)
+
+def get_key(request) -> str:
+    key = request.headers.get(KEY_HEADER)
+    if not key:
+        raise SecretKeyMissing()
+
+    return key
 
 @app.route('/api/v1/servers', methods=['POST'])
 @limiter.limit("5/minute") 
@@ -60,51 +72,27 @@ def register():
     request.json["last_heartbeat"] = datetime.now().timestamp()
 
     server = Server.from_json(request.json)
-    key = secrets.token_hex(128)
-
-    secured_resource = SecuredResource(key, server)
-
-    servers[server.unique_id] = secured_resource
+    key = servers.register(server)
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.port}")
+    app.logger.info(f"Registered server \"{server.name}\" at {server.ip_address}:{server.ports.game}")
 
     return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
-_A = TypeVar('_A', bound=UniqueServer)
-def update_server(request, server_id: str, read_json: Callable[[dict], _A], update_server: Callable[[Server, _A], Optional[Server]]):
-    key = request.headers.get(KEY_HEADER)
-    if not key:
-        return jsonify({'status': 'no_key', 'message': KEY_HEADER + " header not specified"}), 400
+def update_server(request: Request, server_id: str, update_server: Callable[[Server], Server]):
+    key = get_key(request)
 
-    server_ip = get_ip(request)
-    request.json["ip_address"] = server_ip
-    request.json["unique_id"] = server_id
-    update_request = read_json(request.json)
-
-    if update_request.unique_id not in servers:
-        app.logger.warning(f"Update failed. Server with id {update_request.unique_id} not registered.")
+    if not servers.exists(server_id):
+        app.logger.warning(f"Update failed. Server with id {server_id} not registered.")
         return jsonify({'status': 'not_registered', 'message': 'server not registered'}), 400
-
-    secured_server = servers[update_request.unique_id]
-
-    result = secured_server.update(
-        key,
-        lambda server: update_server(server, update_request)
-    )
-
-    if not result:
-        app.logger.warning("Update failed. Invalid key or unique id.")
-        return jsonify({'status': 'forbidden'}), 403
-
-    servers[update_request.unique_id] = result
-    server = result.get()
+    
+    server = servers.update(server_id, key, update_server)
 
     timeout = server.last_heartbeat + heartbeat_timeout
 
-    app.logger.info(f"Update/Heartbeat received from server \"{server.name}\" ({server.unique_id}) at {server.ip_address}:{server.port})")
+    app.logger.info(f"Update/Heartbeat received from server \"{server.name}\" ({server.unique_id}) at {server.ip_address}:{server.ports.game})")
 
-    return jsonify({'refresh_before': timeout, 'server': result.get()}), 200
+    return jsonify({'refresh_before': timeout, 'server': server}), 200
 
 @app.route('/api/v1/servers/<server_id>/heartbeat', methods=['POST'])
 @limiter.limit("10/minute") 
@@ -112,45 +100,56 @@ def heartbeat(server_id: str):
     return update_server(
         request, 
         server_id, 
-        Heartbeat.from_json, 
-        lambda server, heartbeat: server.with_heartbeat(heartbeat, datetime.now().timestamp())
+        lambda server: server.with_heartbeat(datetime.now().timestamp())
     )
 
 @app.route('/api/v1/servers/<server_id>', methods=['PUT'])
 @limiter.limit("60/minute") 
 def update(server_id: str):
+    if not request.json:
+        return jsonify({'status': 'invalid_json_body', 'message': 'no json body provided'}), 400
+    
+    request_json = request.json
+
     return update_server(
         request, 
         server_id, 
-        UpdateRegisteredServer.from_json, 
-        lambda server, update: server.with_update(update)
+        lambda server: server.with_update(
+            UpdateRegisteredServer.from_json(request_json)
+        )
     )
 
 @app.route('/api/v1/servers', methods=['GET'])
 @limiter.limit("60/minute")  
 def get_servers():
-    now = datetime.now().timestamp()
-    app.logger.info(f"Server list requested")
+    server_list = servers.get_all()
+    return jsonify({'servers': server_list }), 200
 
-    server_list = [(id, secured_resource.get()) for id, secured_resource in servers.items()]
+@app.route('/api/tbio/GetCurrentGames', methods=['POST'])
+@limiter.limit("60/minute")  
+def get_servers_tbio():
+    server_list = tbio.ServerListData.from_servers(servers.get_all())
+    return jsonify({'Success': True, "Data": server_list}), 200
 
-    # filter out servers with outdated heartbeats
-    inactive_servers = [(id, server) for id, server in server_list if (now - server.last_heartbeat) > heartbeat_timeout or server.ip_address in ban_list]
+@app.route('/api/tbio/GetMotd', methods=['POST'])
+@limiter.limit("60/minute")  
+def get_motd():
+    language = dict_util.get_or(request.json, "Language", str, lambda: "en")
     
-    for (id, server) in inactive_servers:
-        app.logger.info(f"Removing server \"{server.name}\" at {server.ip_address}:{server.port} due to inactivity")
-        try:
-            del servers[id]
-        except KeyError:
-            app.logger.warning("WARNING: Concurrent modification of servers dict")
+    language_path = f"assets/motd/{language}.json"
+    default_path = f"assets/motd/en.json"
 
-    return jsonify({'servers': list(map(lambda x: x.get(), servers.values()))}), 200
+    motd_path = language_path if path.exists(language_path) else default_path
 
-from flask import send_from_directory
+    print(path.exists(motd_path))
+    with open(motd_path, 'r') as f:
+        motd = json.load(f)
+        one_year_from_now = datetime.now() + timedelta(days=365)
+        return jsonify(tbio.Wrapper(True, motd, int(one_year_from_now.timestamp()))), 200
 
 @app.route('/api/v1/swagger.yaml')
 def send_swagger():
-    return send_from_directory('.', "chiv2-server-browser-api.yaml")
+    return send_file('../../assets/chiv2-server-browser-api.yaml')
 
 @app.errorhandler(DictKeyError)
 def handle_dict_key_error(e):
@@ -168,6 +167,19 @@ def handle_dict_type_error(e):
         'message': error_string, 
         'context': e.context
     }), 400
+
+
+
+@app.errorhandler(SecretKeyMissing)
+def handle_secret_key_missing(e):
+    return jsonify({
+        'status': 'no_key', 
+        'message': KEY_HEADER + " header not specified"
+    }), 400
+
+@app.errorhandler(InvalidSecretKey)
+def handle_invalid_secret_key(e):
+    return jsonify({'status': 'forbidden'}), 403
 
 def main():
     parser = argparse.ArgumentParser(description='Start the Flask server.')
@@ -190,6 +202,7 @@ def main():
             f.write("")
 
     app.run(host=args.host, port=args.port, threaded=True)
+
 
 if __name__ == "__main__":
     main()

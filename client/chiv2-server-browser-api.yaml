@@ -27,13 +27,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationSuccessfulResponse'
-        '403':
-          description: Banned from the server browser
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/RegistrationResponse'
   /api/v1/servers/{unique_id}:
     put:
       summary: Update the listing for a game server. This does not count as a heartbeat
@@ -77,6 +71,7 @@ paths:
                 $ref: '#/components/schemas/UpdateSuccessfulResponse'
   /api/v1/servers/{unique_id}/heartbeat:
     post:
+      summary: Send a keepalive signal to stay on the server list
       parameters:
         - in: path
           name: unique_id
@@ -84,13 +79,6 @@ paths:
           schema:
             type: string
           required: true
-      summary: Send a keepalive signal to stay on the server list
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/HeartbeatSignal'
       responses:
         '400':
           description: Something in your request is malformed
@@ -115,15 +103,10 @@ components:
     ServerUpdateRequest:
       type: object
       required:
-        - port
         - player_count
         - current_map
         - max_players
       properties:
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
         player_count:
           type: integer
           format: int32
@@ -135,15 +118,6 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
-    HeartbeatSignal:
-      type: object
-      required:
-        - port
-      properties:
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
     Mod:
       type: object
       required:
@@ -175,7 +149,7 @@ components:
       required:
         - unique_id
         - ip_address
-        - port
+        - ports
         - name
         - description
         - current_map
@@ -189,10 +163,8 @@ components:
         ip_address:
           type: string
           description: The IP address of the server
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
+        ports:
+          $ref: '#/components/schemas/Ports'
         name:
           type: string
           description: The name of the server
@@ -218,18 +190,15 @@ components:
     ServerRegistrationRequest:
       type: object
       required:
-        - port
+        - ports
         - name
         - description
         - current_map
         - player_count
         - max_players
-        - mods
       properties:
-        port:
-          type: integer
-          format: int32
-          description: The port number the server is running on
+        ports:
+          $ref: '#/components/schemas/Ports'
         name:
           type: string
           description: The name of the server
@@ -255,6 +224,7 @@ components:
     RegistrationSuccessfulResponse:
       type: object
       required:
+        - key
         - refresh_before
         - server
       properties:
@@ -266,7 +236,7 @@ components:
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
         server:
-          $ref: '#/components/schemas/ServerRegistrationRequest'
+          $ref: '#/components/schemas/Server'
     UpdateSuccessfulResponse:
       type: object
       required:
@@ -279,6 +249,25 @@ components:
           type: number
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
+    Ports:
+      type: object
+      required:
+        - game
+        - a2s
+        - ping
+      properties:
+        game:
+          type: integer
+          format: int32
+          description: The port number the server is running on
+        a2s:
+          type: integer
+          format: int32
+          description: The port number the server is responding to a2s requests at
+        ping:
+          type: integer
+          format: int32
+          description: The port number the server is accepting ping requests at
     ErrorResponse:
       type: object
       required:
