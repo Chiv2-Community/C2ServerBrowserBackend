@@ -10,13 +10,10 @@ class Wrapper:
 
 @dataclass(frozen=True)
 class Game:
-    LobbyId: Optional[str]
     ServerHostname: str
     ServerIPV4Address: str
     ServerPort: int
     Ticket: str
-    Expires: Optional[str]
-    Status: Optional[str]
 
 @dataclass(frozen=True)
 class Error:
