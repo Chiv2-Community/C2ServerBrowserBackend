@@ -1,10 +1,11 @@
+from os import getenv
 import pytest
 from flask.testing import FlaskClient
 from datetime import datetime
 from server_browser_backend.main import (
     app,
 )
-from server_browser_backend.routes.shared import KEY_HEADER, server_list, heartbeat_timeout
+from server_browser_backend.routes.shared import KEY_HEADER, server_list, heartbeat_timeout, ban_list, ADMIN_KEY_HEADER
 
 LOCALHOST = "127.0.0.1"
 
@@ -230,3 +231,27 @@ def test_bad_json_invalid_type(client: FlaskClient):
     assert (
         "str" in response_json["message"]
     ), "Error response did not contain the actual type of the invalid key"
+
+def test_add_to_ban_list(client: FlaskClient):
+    ban_list.clear()
+    ban_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/ban-list",
+        json={"ban_ips": ban_targets}, 
+        headers={ADMIN_KEY_HEADER: getenv("ADMIN_KEY")}
+    )
+
+    assert response.status_code == 200
+    assert len(ban_list) == 1
+
+def test_add_to_ban_list_invalid_key(client: FlaskClient):
+    ban_list.clear()
+    ban_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/ban-list",
+        json={"ban_ips": ban_targets}, 
+        headers={ADMIN_KEY_HEADER: "beep"}
+    )
+
+    assert response.status_code == 403
+    assert len(ban_list) == 0

@@ -2,4 +2,4 @@
 
 poetry install
 poetry run mypy .
-poetry run pytest .
+ADMIN_KEY=test_key poetry run pytest .

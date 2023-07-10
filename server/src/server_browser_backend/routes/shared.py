@@ -2,6 +2,7 @@ from flask import request
 from typing import List
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 
+ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
 
 KEY_HEADER = "x-chiv2-server-browser-key"
 

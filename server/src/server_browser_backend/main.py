@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from os import getenv
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 from flask import Flask, request, jsonify, Request, send_file, send_from_directory
 from flask_limiter import Limiter
@@ -65,6 +66,9 @@ def main() -> None:
 
     ban_list_location = args.ban_list
 
+    if getenv("ADMIN_KEY") is None:
+        print("WARNING: ADMIN_KEY environment variable not set. Admin routes disabled.")
+
     try:
         with open(ban_list_location) as f:
             routes.ban_list.extend(f.read().splitlines())
@@ -74,8 +78,6 @@ def main() -> None:
         )
         with open(ban_list_location, "w") as f:
             f.write("[]")
-
-    
 
     app.run(host=args.host, port=args.port, threaded=True)
 
