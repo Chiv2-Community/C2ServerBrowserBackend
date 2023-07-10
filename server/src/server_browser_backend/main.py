@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from flask import Flask, request, jsonify, Request, send_from_directory
+from flask import Flask, request, jsonify, Request, send_file, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from collections import defaultdict
@@ -149,7 +149,7 @@ def get_motd():
 
 @app.route('/api/v1/swagger.yaml')
 def send_swagger():
-    return send_from_directory('assets/', "chiv2-server-browser-api.yaml")
+    return send_file('../../assets/chiv2-server-browser-api.yaml')
 
 @app.errorhandler(DictKeyError)
 def handle_dict_key_error(e):
