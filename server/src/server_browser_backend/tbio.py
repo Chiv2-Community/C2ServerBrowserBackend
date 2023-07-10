@@ -59,7 +59,7 @@ class Game:
             False,
             "dummy",
             "40p",
-            [],
+            [*range(server.player_count)],
             500,
             0,
             Tags(
