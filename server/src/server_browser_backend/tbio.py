@@ -1,20 +1,19 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List
+from typing import Generic, List, Optional
 
 from server_browser_backend.dict_util import get_or
-from server_browser_backend.models import Server
+from server_browser_backend.models import Server, A
 
 @dataclass(frozen=True)
-class Wrapper:
+class Wrapper(Generic[A]):
     Success: bool
-    Data: ServerListData
+    Data: A
+    expiration: Optional[int] = None
 
     @staticmethod
-    def from_servers(servers: List[Server]):
+    def from_servers(servers: List[Server]) -> Wrapper[ServerListData]:
         return Wrapper(True, ServerListData.from_servers(servers))
-
-
 
 @dataclass(frozen=True)
 class ServerListData:

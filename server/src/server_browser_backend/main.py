@@ -1,13 +1,16 @@
 from __future__ import annotations
+import json
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from flask import Flask, request, jsonify, Request
+from flask import Flask, request, jsonify, Request, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
 import argparse
 from uuid import uuid4
+from server_browser_backend import dict_util
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
+from os import path
 
 from server_browser_backend.models import UpdateRegisteredServer, Server
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
@@ -128,10 +131,25 @@ def get_servers_tbio():
     server_list = tbio.ServerListData.from_servers(servers.get_all())
     return jsonify({'Success': True, "Data": server_list}), 200
 
-from flask import send_from_directory
+@app.route('/api/tbio/GetMotd', methods=['POST'])
+@limiter.limit("60/minute")  
+def get_motd():
+    language = dict_util.get_or(request.json, "Language", str, lambda: "en")
+    
+    language_path = f"assets/motd/{language}.json"
+    default_path = f"assets/motd/en.json"
+
+    motd_path = language_path if path.exists(language_path) else default_path
+
+    print(path.exists(motd_path))
+    with open(motd_path, 'r') as f:
+        motd = json.load(f)
+        one_year_from_now = datetime.now() + timedelta(days=365)
+        return jsonify(tbio.Wrapper(True, motd, int(one_year_from_now.timestamp()))), 200
+
 @app.route('/api/v1/swagger.yaml')
 def send_swagger():
-    return send_from_directory('.', "chiv2-server-browser-api.yaml")
+    return send_from_directory('assets/', "chiv2-server-browser-api.yaml")
 
 @app.errorhandler(DictKeyError)
 def handle_dict_key_error(e):
