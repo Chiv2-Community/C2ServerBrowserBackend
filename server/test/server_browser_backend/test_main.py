@@ -2,16 +2,21 @@ import pytest
 from flask.testing import FlaskClient
 from datetime import datetime
 from server_browser_backend.main import app, servers, heartbeat_timeout, limiter, KEY_HEADER
-from server_browser_backend.models import Heartbeat, SecuredResource
 
 LOCALHOST = "127.0.0.1"
 
 limiter.enabled = False
 
+test_ports = {
+    "game": 1234,
+    "ping": 1235,
+    "a2s": 1236
+}
+
 test_server_json = {
         "name": "Test Server",
         "description": "Test Description",
-        "port": 1234,
+        "ports": test_ports,
         "player_count": 0,
         "max_players": 100,
         "current_map": "Test Map"
@@ -32,7 +37,7 @@ def test_register(client: FlaskClient):
     assert 'key' in response_json
     assert 'server' in response_json
     assert 'unique_id' in response_json['server']
-    assert response_json['server']['unique_id'] in servers
+    assert servers.exists(response_json['server']['unique_id'])
 
 def test_update(client: FlaskClient):
     servers.clear() 
@@ -42,7 +47,6 @@ def test_update(client: FlaskClient):
     response = client.put(f'/api/v1/servers/{server_id}', headers={
         KEY_HEADER: registration_response.get_json()['key'],
     }, json={
-        "port": 1234,
         "player_count": 10,
         "max_players": 100,
         "current_map": "Test Map"
@@ -50,9 +54,12 @@ def test_update(client: FlaskClient):
 
     response_json = response.get_json()
     unique_id = response_json['server']['unique_id']
+    server = servers.get(unique_id)
 
     assert response.status_code == 200
-    assert servers[unique_id].get().player_count == 10
+
+    assert server is not None
+    assert server.player_count == 10
 
 def test_update_no_key(client: FlaskClient):
     servers.clear() 
@@ -68,7 +75,6 @@ def test_update_invalid_key(client: FlaskClient):
     response = client.put(f'/api/v1/servers/{server_id}', headers={
         KEY_HEADER: registration_response.get_json()['key'] + "invalid",
     }, json={
-        "port": 1234,
         "player_count": 10,
         "max_players": 100,
         "current_map": "Test Map"
@@ -97,11 +103,20 @@ def test_heartbeat_no_key(client: FlaskClient):
     response.status_code == 400
 
 def test_heartbeat_invalid_key(client: FlaskClient):
+    servers.clear() 
+
     registration_response = client.post('/api/v1/servers', json=test_server_json)
     server_id = registration_response.get_json()['server']['unique_id']
-    response = client.post(f'/api/v1/servers/{server_id}/heartbeat', headers={
-        KEY_HEADER: registration_response.get_json()['key'] + "invalid",
-    }, json={ "port": 1234 })
+    response = client.post(
+        f'/api/v1/servers/{server_id}/heartbeat', 
+        headers={
+            KEY_HEADER: "invalid",
+            "Content-Type": "application/json"
+        }
+    )
+
+
+    print(response.json)
 
     assert response.status_code == 403
 
@@ -115,7 +130,7 @@ def test_get_servers(client: FlaskClient):
     registration = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
-        "port": 1234,
+        "ports": test_ports,
         "player_count": 0,
         "max_players": 100,
         "current_map": "Test Map"
@@ -131,7 +146,7 @@ def test_heartbeat_timeout(client: FlaskClient):
     registration_response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
-        "port": 1234,
+        "ports": test_ports,
         "player_count": 0,
         "max_players": 100,
         "current_map": "Test Map"
@@ -141,21 +156,15 @@ def test_heartbeat_timeout(client: FlaskClient):
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration. 
-    result = servers[unique_id].update(
+    result = servers.update(
+        unique_id,
         response_json["key"],
         lambda server: server.with_heartbeat(
-            Heartbeat(
-                server.unique_id,
-                server.ip_address,
-                server.port
-            ),
             datetime.now().timestamp() - heartbeat_timeout - 1
         )
     )
 
     assert result is not None
-
-    servers[unique_id] = result
 
     response = client.get('/api/v1/servers')
     assert response.status_code == 200
@@ -167,7 +176,7 @@ def test_bad_json_missing_key(client: FlaskClient):
     response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
-        "port": 1234,
+        "ports": test_ports,
         "player_count": 0,
         "max_players": 100
     })
@@ -181,7 +190,7 @@ def test_bad_json_invalid_type(client: FlaskClient):
     response = client.post('/api/v1/servers', json={
         "name": "Test Server",
         "description": "Test Description",
-        "port": 1234,
+        "ports": test_ports,
         "player_count": "0",
         "max_players": 100,
         "current_map": "Test Map"
