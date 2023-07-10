@@ -1,7 +1,9 @@
-from typing import List, Dict, Callable, Type, Generic, Any, Optional
 import json
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Generic, List, Optional, Type
+
 from server_browser_backend.type_vars import A, B
+
 
 @dataclass(frozen=True)
 class DictTypeError(Generic[A, B], Exception):

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from server_browser_backend.dict_util import get_list_or, get_or
 from typing import List
+
+from server_browser_backend.dict_util import get_list_or, get_or
 
 
 @dataclass(frozen=True)

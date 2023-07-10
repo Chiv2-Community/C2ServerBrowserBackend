@@ -1,33 +1,33 @@
 from __future__ import annotations
+
+import argparse
 import json
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from flask import Blueprint, Flask, request, jsonify, Request, send_file, send_from_directory
 from collections import defaultdict
 from datetime import datetime, timedelta
-import argparse
-from uuid import uuid4
-from server_browser_backend import dict_util
-from server_browser_backend.server_list import (
-    InvalidSecretKey,
-    SecretKeyMissing,
-    ServerList,
-)
 from os import path
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+from uuid import uuid4
 
-from server_browser_backend.models import UpdateRegisteredServer, Server
+from flask import (Blueprint, Flask, Request, jsonify, request, send_file,
+                   send_from_directory)
+
+from server_browser_backend import dict_util, playfab, tbio
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
-from server_browser_backend import tbio
-from server_browser_backend import playfab
-
-from server_browser_backend.routes.shared import get_and_validate_ip, server_list
+from server_browser_backend.models import Server, UpdateRegisteredServer
+from server_browser_backend.routes.shared import (get_and_validate_ip,
+                                                  server_list)
+from server_browser_backend.server_list import (InvalidSecretKey,
+                                                SecretKeyMissing, ServerList)
 
 tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
 
+
 @tbio_bp.route("/GetCurrentGames", methods=["POST"])
 def tbio_get_servers():
-    get_and_validate_ip() # Check if banned
+    get_and_validate_ip()  # Check if banned
     servers = tbio.ServerListData.from_servers(server_list.get_all())
     return jsonify(tbio.Wrapper(True, servers)), 200
+
 
 @tbio_bp.route("/GetMotd", methods=["POST"])
 def get_motd():
@@ -50,6 +50,7 @@ def get_motd():
 
 playfab_bp = Blueprint("chiv2_compat_playfab", __name__, url_prefix="/api/playfab")
 
+
 @playfab_bp.route("/Client/Matchmake", methods=["POST"])
 def payfab_client_matchmake():
     get_and_validate_ip()
@@ -62,9 +63,18 @@ def payfab_client_matchmake():
     if not server:
         return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
 
-    return jsonify(playfab.Wrapper(200, "OK", playfab.Game(
-        server.ip_address, 
-        server.ip_address, 
-        server.ports.game,
-        str(uuid4()),
-    ))), 200
+    return (
+        jsonify(
+            playfab.Wrapper(
+                200,
+                "OK",
+                playfab.Game(
+                    server.ip_address,
+                    server.ip_address,
+                    server.ports.game,
+                    str(uuid4()),
+                ),
+            )
+        ),
+        200,
+    )

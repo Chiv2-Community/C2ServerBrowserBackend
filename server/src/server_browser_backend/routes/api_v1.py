@@ -1,32 +1,35 @@
 from __future__ import annotations
-import json
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from flask import Flask, Blueprint, request, jsonify, Request, send_file, send_from_directory
-from datetime import datetime, timedelta
+
 import argparse
-from uuid import uuid4
-from server_browser_backend import dict_util
-from server_browser_backend.server_list import (
-    InvalidSecretKey,
-    SecretKeyMissing,
-)
-from os import getenv
-
-from server_browser_backend.models import UpdateRegisteredServer, Server
-from server_browser_backend.dict_util import DictKeyError, DictTypeError, get_list_or
+import json
+from datetime import datetime, timedelta
 from logging.config import dictConfig
+from os import getenv
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+from uuid import uuid4
 
-from server_browser_backend.routes.shared import KEY_HEADER, Banned, get_and_validate_ip, get_key, server_list, ADMIN_KEY_HEADER, ban_list
+from flask import (Blueprint, Flask, Request, current_app, jsonify, request,
+                   send_file, send_from_directory)
 
-from flask import current_app
-
+from server_browser_backend import dict_util
+from server_browser_backend.dict_util import (DictKeyError, DictTypeError,
+                                              get_list_or)
+from server_browser_backend.models import Server, UpdateRegisteredServer
+from server_browser_backend.routes.shared import (ADMIN_KEY_HEADER, KEY_HEADER,
+                                                  Banned, ban_list,
+                                                  get_and_validate_ip, get_key,
+                                                  server_list)
+from server_browser_backend.server_list import (InvalidSecretKey,
+                                                SecretKeyMissing)
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
+
 
 @api_v1_bp.route("/swagger.yaml")
 def send_swagger():
     get_and_validate_ip()
     return send_file("../../assets/chiv2-server-browser-api.yaml")
+
 
 @api_v1_bp.route("/servers", methods=["POST"])
 def register():
@@ -47,7 +50,6 @@ def register():
     )
 
     return jsonify({"refresh_before": timeout, "key": key, "server": server}), 201
-
 
 
 @api_v1_bp.route("/servers/<server_id>/heartbeat", methods=["POST"])
@@ -86,7 +88,9 @@ def get_servers():
     servers = server_list.get_all()
     return jsonify({"servers": servers}), 200
 
+
 ADMIN_KEY = getenv("ADMIN_KEY")
+
 
 def validate_admin_key(input: str):
     if ADMIN_KEY is None:
@@ -94,18 +98,20 @@ def validate_admin_key(input: str):
 
     return input == ADMIN_KEY
 
+
 @api_v1_bp.route("/admin/ban-list", methods=["POST"])
 def add_to_ban_list():
     sent_admin_key = request.headers.get(ADMIN_KEY_HEADER)
     if not validate_admin_key(sent_admin_key):
         return jsonify({}), 403
-    
+
     ip_list = get_list_or(request.json, "ban_ips", str)
     current_app.logger.info(f"Adding addresses to ban_list: {ban_list}")
 
     ban_list.extend(ip_list)
 
     return jsonify({"banned_ips": ban_list}), 200
+
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
@@ -114,6 +120,7 @@ def get_ban_list():
         return jsonify({}), 403
 
     return jsonify({"banned_ips": ban_list}), 200
+
 
 @api_v1_bp.errorhandler(DictKeyError)
 def handle_dict_key_error(e):
@@ -151,21 +158,24 @@ def handle_secret_key_missing(e):
         400,
     )
 
+
 @api_v1_bp.errorhandler(InvalidSecretKey)
 def handle_invalid_secret_key(e):
     return jsonify({"status": "forbidden"}), 403
+
 
 @api_v1_bp.errorhandler(Banned)
 def handle_banned_user(e):
     return jsonify({"status": "forbidden"}), 403
 
-def update_server(
-    server_id: str, update_server: Callable[[Server], Server]
-):
+
+def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
 
     if not server_list.exists(server_id):
-        current_app.logger.warning(f"Update failed. Server with id {server_id} not registered.")
+        current_app.logger.warning(
+            f"Update failed. Server with id {server_id} not registered."
+        )
         return (
             jsonify({"status": "not_registered", "message": "server not registered"}),
             400,

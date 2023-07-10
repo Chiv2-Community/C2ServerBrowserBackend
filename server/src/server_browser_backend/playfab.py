@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
+
 
 @dataclass(frozen=True)
 class Wrapper:
@@ -8,12 +10,14 @@ class Wrapper:
     status: str
     data: Game
 
+
 @dataclass(frozen=True)
 class Game:
     ServerHostname: str
     ServerIPV4Address: str
     ServerPort: int
     Ticket: str
+
 
 @dataclass(frozen=True)
 class Error:

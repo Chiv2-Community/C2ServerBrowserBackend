@@ -1,4 +1,4 @@
-from server_browser_backend.server_list import _SecuredResource, ServerList
+from server_browser_backend.server_list import ServerList, _SecuredResource
 
 
 def test_secured_resource_correct_key():
