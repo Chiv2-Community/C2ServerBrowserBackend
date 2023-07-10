@@ -6,7 +6,7 @@ from flask_limiter.util import get_remote_address
 from collections import defaultdict
 from datetime import datetime, timedelta
 import argparse
-from uuid import UUID, uuid4
+from uuid import uuid4
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
 
 from server_browser_backend.models import UpdateRegisteredServer, Server
@@ -76,7 +76,6 @@ def register():
 
     return jsonify({'refresh_before': timeout, 'key': key, 'server': server}), 201
 
-_A = TypeVar('_A')
 def update_server(request: Request, server_id: str, update_server: Callable[[Server], Server]):
     key = get_key(request)
 

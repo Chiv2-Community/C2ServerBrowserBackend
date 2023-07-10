@@ -34,6 +34,25 @@ class Server:
     player_count: int
     max_players: int
     mods: List[Mod]
+    
+    @staticmethod
+    def from_json(json: dict):
+        mod_objs = get_list_or(json, 'mods', dict, lambda: [])
+
+        return Server(
+            get_or(json, 'unique_id', str),
+            get_or(json, 'ip_address', str),
+            Chivalry2Ports.from_json(get_or(json, 'ports', dict)),
+            get_or(json, 'last_heartbeat', float),
+            get_or(json, 'name', str),
+            get_or(json, 'description', str),
+            get_or(json, 'current_map', str),
+            get_or(json, 'player_count', int),
+            get_or(json, 'max_players', int),
+            list(map(Mod.from_json, get_list_or(json, 'mods', dict, lambda: [])))
+
+        )
+
 
     def with_heartbeat(self, heartbeat_time: float):
         return Server(
@@ -61,28 +80,6 @@ class Server:
             update_request.player_count,
             update_request.max_players,
             self.mods
-        )
-
-    @staticmethod
-    def from_json(json: dict):
-        mod_objs = get_list_or(json, 'mods', dict, lambda: [])
-        mods = list(map(Mod.from_json, mod_objs))
-
-
-        ports_obj = get_or(json, 'ports', dict)
-        ports = Chivalry2Ports.from_json(ports_obj)
-
-        return Server(
-            get_or(json, 'unique_id', str),
-            get_or(json, 'ip_address', str),
-            ports,
-            get_or(json, 'last_heartbeat', float),
-            get_or(json, 'name', str),
-            get_or(json, 'description', str),
-            get_or(json, 'current_map', str),
-            get_or(json, 'player_count', int),
-            get_or(json, 'max_players', int),
-            mods
         )
 
 
