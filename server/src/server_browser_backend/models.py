@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from server_browser_backend.dict_util import get_list_or, get_or
-from typing import List, Dict, Callable, TypeVar, Type, Any, cast, Optional, Generic
-from abc import ABC, abstractmethod
+from typing import List
 
-A = TypeVar('A')
 
 @dataclass(frozen=True)
 class Mod:
@@ -17,10 +14,11 @@ class Mod:
     @staticmethod
     def from_json(json: dict):
         return Mod(
-            get_or(json, 'name', str),
-            get_or(json, 'organization', str),
-            get_or(json, 'version', str)
+            get_or(json, "name", str),
+            get_or(json, "organization", str),
+            get_or(json, "version", str),
         )
+
 
 @dataclass(frozen=True)
 class Server:
@@ -34,25 +32,23 @@ class Server:
     player_count: int
     max_players: int
     mods: List[Mod]
-    
+
     @staticmethod
     def from_json(json: dict):
-        mod_objs = get_list_or(json, 'mods', dict, lambda: [])
+        mod_objs = get_list_or(json, "mods", dict, lambda: [])
 
         return Server(
-            get_or(json, 'unique_id', str),
-            get_or(json, 'ip_address', str),
-            Chivalry2Ports.from_json(get_or(json, 'ports', dict)),
-            get_or(json, 'last_heartbeat', float),
-            get_or(json, 'name', str),
-            get_or(json, 'description', str),
-            get_or(json, 'current_map', str),
-            get_or(json, 'player_count', int),
-            get_or(json, 'max_players', int),
-            list(map(Mod.from_json, get_list_or(json, 'mods', dict, lambda: [])))
-
+            get_or(json, "unique_id", str),
+            get_or(json, "ip_address", str),
+            Chivalry2Ports.from_json(get_or(json, "ports", dict)),
+            get_or(json, "last_heartbeat", float),
+            get_or(json, "name", str),
+            get_or(json, "description", str),
+            get_or(json, "current_map", str),
+            get_or(json, "player_count", int),
+            get_or(json, "max_players", int),
+            list(map(Mod.from_json, get_list_or(json, "mods", dict, lambda: []))),
         )
-
 
     def with_heartbeat(self, heartbeat_time: float):
         return Server(
@@ -65,7 +61,7 @@ class Server:
             self.current_map,
             self.player_count,
             self.max_players,
-            self.mods
+            self.mods,
         )
 
     def with_update(self, update_request: UpdateRegisteredServer) -> Server:
@@ -79,7 +75,7 @@ class Server:
             update_request.current_map,
             update_request.player_count,
             update_request.max_players,
-            self.mods
+            self.mods,
         )
 
 
@@ -92,10 +88,11 @@ class UpdateRegisteredServer:
     @staticmethod
     def from_json(json: dict):
         return UpdateRegisteredServer(
-            get_or(json, 'current_map', str),
-            get_or(json, 'player_count', int),
-            get_or(json, 'max_players', int),
+            get_or(json, "current_map", str),
+            get_or(json, "player_count", int),
+            get_or(json, "max_players", int),
         )
+
 
 @dataclass(frozen=True)
 class Chivalry2Ports:
@@ -106,7 +103,7 @@ class Chivalry2Ports:
     @staticmethod
     def from_json(json: dict):
         return Chivalry2Ports(
-            get_or(json, 'game', int),
-            get_or(json, 'ping', int),
-            get_or(json, 'a2s', int)
+            get_or(json, "game", int),
+            get_or(json, "ping", int),
+            get_or(json, "a2s", int),
         )

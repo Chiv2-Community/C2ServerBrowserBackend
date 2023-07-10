@@ -8,6 +8,7 @@ def test_secured_resource_correct_key():
     assert updated is not None
     assert updated.resource == 20
 
+
 def test_secured_resource_invalid_key():
     test_resource = _SecuredResource("foo", 10)
     updated = test_resource.update("bar", lambda x: x * 2)
