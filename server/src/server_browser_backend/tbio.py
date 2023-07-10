@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from typing import Generic, List, Optional
 
 from server_browser_backend.dict_util import get_or
-from server_browser_backend.models import Server, A
+from server_browser_backend.models import Server
+from server_browser_backend.type_vars import A
+
 
 @dataclass(frozen=True)
 class Wrapper(Generic[A]):
@@ -14,6 +16,7 @@ class Wrapper(Generic[A]):
     @staticmethod
     def from_servers(servers: List[Server]) -> Wrapper[ServerListData]:
         return Wrapper(True, ServerListData.from_servers(servers))
+
 
 @dataclass(frozen=True)
 class ServerListData:
@@ -26,8 +29,9 @@ class ServerListData:
         return ServerListData(
             len(servers),
             sum(map(lambda s: s.player_count, servers)),
-            list(map(lambda s: Game.from_server(s), servers))
+            list(map(lambda s: Game.from_server(s), servers)),
         )
+
 
 @dataclass(frozen=True)
 class Game:
@@ -68,16 +72,16 @@ class Game:
                 "2",
                 server.current_map,
                 str(server.ports.ping),
-                str(server.ports.a2s), 
+                str(server.ports.a2s),
                 "0",
                 "false",
                 "6",
-                "277"
+                "277",
             ),
             int(server.last_heartbeat),
             server.ip_address,
             server.ip_address,
-            server.ports.game
+            server.ports.game,
         )
 
 

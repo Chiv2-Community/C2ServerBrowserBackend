@@ -2,7 +2,8 @@ from __future__ import annotations
 import secrets
 from typing import Callable, Dict, Generic, List, Optional, TypeVar
 from dataclasses import dataclass
-from server_browser_backend.models import A, Server
+from server_browser_backend.models import Server
+from server_browser_backend.type_vars import A
 from datetime import datetime
 
 class InvalidSecretKey(Exception):
