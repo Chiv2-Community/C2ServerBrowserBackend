@@ -1,17 +1,23 @@
+import os
 from typing import List
+import secrets
 
 from flask import request
+from server_browser_backend.ban_list import BanList
+from server_browser_backend.secured_resource import SecuredResource
 
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
+ADMIN_KEY = os.environ.get("ADMIN_KEY", secrets.token_urlsafe(128))
 
 KEY_HEADER = "x-chiv2-server-browser-key"
 
-ban_list: List[str] = []
 
 heartbeat_timeout = 65
 server_list: ServerList = ServerList(heartbeat_timeout)
+
+ban_list: BanList = BanList(ADMIN_KEY, "ban_list.txt")
 
 
 class Banned(Exception):
@@ -24,7 +30,7 @@ def get_ip() -> str:
 
 def get_and_validate_ip() -> str:
     ip = get_ip()
-    if ip in ban_list:
+    if ip in ban_list.get():
         raise Banned()
 
     return ip

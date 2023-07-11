@@ -15,7 +15,7 @@ from server_browser_backend import dict_util
 from server_browser_backend.dict_util import (DictKeyError, DictTypeError,
                                               get_list_or)
 from server_browser_backend.models import Server, UpdateRegisteredServer
-from server_browser_backend.routes.shared import (ADMIN_KEY_HEADER, KEY_HEADER,
+from server_browser_backend.routes.shared import (ADMIN_KEY_HEADER, KEY_HEADER, ADMIN_KEY,
                                                   Banned, ban_list,
                                                   get_and_validate_ip, get_key,
                                                   server_list)
@@ -88,38 +88,33 @@ def get_servers():
     servers = server_list.get_all()
     return jsonify({"servers": servers}), 200
 
-
-ADMIN_KEY = getenv("ADMIN_KEY")
-
-
-def validate_admin_key(input: str):
-    if ADMIN_KEY is None:
-        return False
-
-    return input == ADMIN_KEY
-
-
 @api_v1_bp.route("/admin/ban-list", methods=["POST"])
 def add_to_ban_list():
+    source_ip = get_and_validate_ip()
+
     sent_admin_key = request.headers.get(ADMIN_KEY_HEADER)
-    if not validate_admin_key(sent_admin_key):
-        return jsonify({}), 403
 
     ip_list = get_list_or(request.json, "ban_ips", str)
+    result = ban_list.add_all(sent_admin_key, ip_list)
+    if not result:
+        current_app.logger.warning(f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}")
+        return jsonify({}), 403
     current_app.logger.info(f"Adding addresses to ban_list: {ban_list}")
 
-    ban_list.extend(ip_list)
 
-    return jsonify({"banned_ips": ban_list}), 200
+
+    return jsonify({"banned_ips": list(ban_list.get())}), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
+    source_ip = get_and_validate_ip()
+
     sent_admin_key = request.headers.get(ADMIN_KEY_HEADER)
-    if not validate_admin_key(sent_admin_key):
+    if not ban_list.secured_ban_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"banned_ips": ban_list}), 200
+    return jsonify({"banned_ips": list(ban_list.get())}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)

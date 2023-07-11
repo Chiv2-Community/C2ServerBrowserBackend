@@ -33,12 +33,6 @@ def main() -> None:
         "--host", type=str, default="0.0.0.0", help="The interface to bind to."
     )
     parser.add_argument("--port", type=int, default=8080, help="The port to bind to.")
-    parser.add_argument(
-        "--ban-list",
-        type=str,
-        default="ban_list.txt",
-        help="File location of line separated list of banned IPs",
-    )
     args = parser.parse_args()
 
     dictConfig(
@@ -59,21 +53,6 @@ def main() -> None:
             "root": {"level": "INFO", "handlers": ["wsgi"]},
         }
     )
-
-    ban_list_location = args.ban_list
-
-    if getenv("ADMIN_KEY") is None:
-        print("WARNING: ADMIN_KEY environment variable not set. Admin routes disabled.")
-
-    try:
-        with open(ban_list_location) as f:
-            routes.ban_list.extend(f.read().splitlines())
-    except FileNotFoundError:
-        print(
-            f"WARNING: Ban list file {ban_list_location} not found. Creating empty ban list file."
-        )
-        with open(ban_list_location, "w") as f:
-            f.write("[]")
 
     app.run(host=args.host, port=args.port, threaded=True)
 

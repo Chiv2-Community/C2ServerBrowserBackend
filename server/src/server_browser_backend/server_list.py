@@ -18,7 +18,7 @@ class SecretKeyMissing(Exception):
 
 
 @dataclass(frozen=True)
-class _SecuredResource(Generic[A]):
+class SecuredResource(Generic[A]):
     """A secured resource can be fetched with no secret key, but can only be updated with the proper secret_key."""
 
     secret_key: str
@@ -29,11 +29,11 @@ class _SecuredResource(Generic[A]):
 
     def update(
         self, secret_key: str, update_func: Callable[[A], A]
-    ) -> Optional[_SecuredResource[A]]:
+    ) -> Optional[SecuredResource[A]]:
         """Validates the secret key and updates the resource with the update_func."""
         if self.validate(secret_key):
             update_result = update_func(self.resource)
-            return _SecuredResource(secret_key, update_result)
+            return SecuredResource(secret_key, update_result)
 
         return None
 
@@ -45,7 +45,7 @@ class ServerList:
     """
 
     def __init__(self, heartbeat_timeout: float = 65):
-        self.servers: Dict[str, _SecuredResource[Server]] = {}
+        self.servers: Dict[str, SecuredResource[Server]] = {}
         self.heartbeat_timeout = heartbeat_timeout
 
     def exists(self, server_id: str) -> bool:
@@ -55,7 +55,7 @@ class ServerList:
     def register(self, server: Server) -> str:
         """Registers a server and returns a secret key."""
         key = secrets.token_hex(128)
-        secured_resource = _SecuredResource(key, server)
+        secured_resource = SecuredResource(key, server)
         self.servers[server.unique_id] = secured_resource
         return key
 

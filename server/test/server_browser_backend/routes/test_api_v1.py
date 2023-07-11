@@ -5,7 +5,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
-from server_browser_backend.routes.shared import (ADMIN_KEY_HEADER, KEY_HEADER,
+from server_browser_backend.routes.shared import (ADMIN_KEY, ADMIN_KEY_HEADER, KEY_HEADER,
                                                   ban_list, heartbeat_timeout,
                                                   server_list)
 
@@ -235,7 +235,8 @@ def test_bad_json_invalid_type(client: FlaskClient):
 
 
 def test_add_to_ban_list(client: FlaskClient):
-    ban_list.clear()
+    ban_list.clear(ADMIN_KEY)
+
     ban_targets = ["12.34.56.78"]
     response = client.post(
         "/api/v1/admin/ban-list",
@@ -248,7 +249,8 @@ def test_add_to_ban_list(client: FlaskClient):
 
 
 def test_add_to_ban_list_invalid_key(client: FlaskClient):
-    ban_list.clear()
+    ban_list.clear(ADMIN_KEY)
+
     ban_targets = ["12.34.56.78"]
     response = client.post(
         "/api/v1/admin/ban-list",
