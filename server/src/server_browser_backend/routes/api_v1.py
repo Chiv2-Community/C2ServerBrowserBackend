@@ -96,7 +96,7 @@ def add_to_ban_list():
 
     current_app.logger.info(f"Adding addresses to ban_list: {shared.ban_list}")
 
-    return jsonify({"banned_ips": list(shared.ban_list.get())}), 200
+    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
@@ -107,7 +107,7 @@ def get_ban_list():
     if not shared.ban_list.secured_ban_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"banned_ips": list(shared.ban_list.get())}), 200
+    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)

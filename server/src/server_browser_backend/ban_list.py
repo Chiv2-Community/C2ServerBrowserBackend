@@ -40,7 +40,7 @@ class BanList(Sized, Iterable[str]):
 
     def save(self) -> None:
         with open(self.ban_list_path, "w") as f:
-            bans = "\n".join(list(self.get()))
+            bans = "\n".join(list(self.get_all()))
             f.write(bans)
 
     def add(self, key: str, ip: str) -> bool:
@@ -63,5 +63,5 @@ class BanList(Sized, Iterable[str]):
         result = self.secured_ban_list.update(key, lambda ban_list: set())
         return self._process_result(result)
 
-    def get(self) -> Set[str]:
+    def get_all(self) -> Set[str]:
         return self.secured_ban_list.resource

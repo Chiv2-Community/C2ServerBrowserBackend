@@ -28,7 +28,7 @@ def get_ip() -> str:
 
 def get_and_validate_ip() -> str:
     ip = get_ip()
-    if ip in ban_list.get():
+    if ip in ban_list.get_all():
         raise Banned()
 
     return ip

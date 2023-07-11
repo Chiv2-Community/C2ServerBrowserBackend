@@ -12,15 +12,15 @@ def test_load_ban_list_file():
     key = "foo"
     ban_list = BanList(key, "test/resources/test_load_ban_list.txt")
 
-    assert len(ban_list.get()) == 1
-    assert ban_list.get().pop() == "127.0.0.1"
+    assert len(ban_list.get_all()) == 1
+    assert ban_list.get_all().pop() == "127.0.0.1"
 
 
 def test_update_ban_list_file():
     clean_up_file("test/resources/test_update_ban_list.txt")
     key = "foo"
     ban_list = BanList(key, "test/resources/test_update_ban_list.txt")
-    assert len(ban_list.get()) == 0
+    assert len(ban_list.get_all()) == 0
 
     result = ban_list.add(key, "127.0.0.1")
 
@@ -36,12 +36,12 @@ def test_add_all_to_ban_list():
     clean_up_file("test/resources/test_add_all_to_ban_list.txt")
     key = "foo"
     ban_list = BanList(key, "test/resources/test_add_all_to_ban_list.txt")
-    assert len(ban_list.get()) == 0
+    assert len(ban_list.get_all()) == 0
 
     adds = ["127.0.0.1", "255.255.255.255"]
 
     result = ban_list.add_all(key, adds)
 
     assert result, "Failed to update ban list with key"
-    assert len(ban_list.get()) == 2
-    assert ban_list.get() == set(adds)
+    assert len(ban_list.get_all()) == 2
+    assert ban_list.get_all() == set(adds)
