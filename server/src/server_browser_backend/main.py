@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from logging.config import dictConfig
+
 from flask import Flask
 
 from server_browser_backend import routes

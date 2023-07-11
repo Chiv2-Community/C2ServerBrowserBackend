@@ -1,5 +1,6 @@
 from server_browser_backend.secured_resource import SecuredResource
 
+
 def test_secured_resource_correct_key():
     test_resource = SecuredResource("foo", 10)
     updated = test_resource.update("foo", lambda x: x * 2)

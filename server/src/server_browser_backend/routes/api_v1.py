@@ -4,15 +4,13 @@ from datetime import datetime
 from typing import Callable
 from uuid import uuid4
 
-from flask import (Blueprint, current_app, jsonify, request, send_file)
+from flask import Blueprint, current_app, jsonify, request, send_file
 
-from server_browser_backend.dict_util import (DictKeyError, DictTypeError,
-                                              get_list_or)
+from server_browser_backend.dict_util import DictKeyError, DictTypeError, get_list_or
 from server_browser_backend.models.base_models import Server, UpdateRegisteredServer
-from server_browser_backend.routes import shared 
-from server_browser_backend.routes.shared import get_and_validate_ip, get_key, Banned
-from server_browser_backend.server_list import (InvalidSecretKey,
-                                                SecretKeyMissing)
+from server_browser_backend.routes import shared
+from server_browser_backend.routes.shared import Banned, get_and_validate_ip, get_key
+from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
@@ -80,6 +78,7 @@ def get_servers():
     servers = shared.server_list.get_all()
     return jsonify({"servers": servers}), 200
 
+
 @api_v1_bp.route("/admin/ban-list", methods=["POST"])
 def add_to_ban_list():
     source_ip = get_and_validate_ip()
@@ -90,7 +89,9 @@ def add_to_ban_list():
     result = shared.ban_list.add_all(sent_admin_key, ip_list)
 
     if not result:
-        current_app.logger.warning(f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}")
+        current_app.logger.warning(
+            f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+        )
         return jsonify({}), 403
 
     current_app.logger.info(f"Adding addresses to ban_list: {shared.ban_list}")
@@ -141,7 +142,9 @@ def handle_dict_type_error(e):
 @api_v1_bp.errorhandler(SecretKeyMissing)
 def handle_secret_key_missing(e):
     return (
-        jsonify({"status": "no_key", "message": shared.KEY_HEADER + " header not specified"}),
+        jsonify(
+            {"status": "no_key", "message": shared.KEY_HEADER + " header not specified"}
+        ),
         400,
     )
 

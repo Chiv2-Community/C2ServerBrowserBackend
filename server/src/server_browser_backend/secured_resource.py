@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Callable, Generic, Optional
+
 from server_browser_backend.type_vars import A
 
 

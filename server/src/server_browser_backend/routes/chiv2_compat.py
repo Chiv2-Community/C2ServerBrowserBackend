@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from os import path
 from uuid import uuid4
 
-from flask import (Blueprint, jsonify, request)
+from flask import Blueprint, jsonify, request
 
 from server_browser_backend import dict_util
 from server_browser_backend.models import playfab, tbio
@@ -13,6 +13,7 @@ from server_browser_backend.routes import shared
 from server_browser_backend.routes.shared import get_and_validate_ip
 
 tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
+
 
 @tbio_bp.route("/GetCurrentGames", methods=["POST"])
 def tbio_get_servers():

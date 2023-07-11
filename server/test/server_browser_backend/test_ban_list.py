@@ -1,9 +1,12 @@
-from server_browser_backend.ban_list import BanList
 import os
 
-def clean_up_file(file_name):   
+from server_browser_backend.ban_list import BanList
+
+
+def clean_up_file(file_name):
     if os.path.exists(file_name):
         os.remove(file_name)
+
 
 def test_load_ban_list_file():
     key = "foo"
@@ -11,6 +14,7 @@ def test_load_ban_list_file():
 
     assert len(ban_list.get()) == 1
     assert ban_list.get().pop() == "127.0.0.1"
+
 
 def test_update_ban_list_file():
     clean_up_file("test/resources/test_update_ban_list.txt")
@@ -22,7 +26,7 @@ def test_update_ban_list_file():
 
     assert result, "Failed to update ban list with key"
 
-    with open("test/resources/test_update_ban_list.txt", 'r') as f:
+    with open("test/resources/test_update_ban_list.txt", "r") as f:
         lines = f.readlines()
         assert len(lines) == 1
         assert lines[0].strip() == "127.0.0.1"
@@ -41,6 +45,3 @@ def test_add_all_to_ban_list():
     assert result, "Failed to update ban list with key"
     assert len(ban_list.get()) == 2
     assert ban_list.get() == set(adds)
-
-
-    

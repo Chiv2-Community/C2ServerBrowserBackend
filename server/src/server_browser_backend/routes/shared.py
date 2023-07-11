@@ -2,8 +2,8 @@ import os
 import secrets
 
 from flask import request
-from server_browser_backend.ban_list import BanList
 
+from server_browser_backend.ban_list import BanList
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"

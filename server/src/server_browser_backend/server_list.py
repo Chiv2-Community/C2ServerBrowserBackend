@@ -3,9 +3,9 @@ from __future__ import annotations
 import secrets
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
-from server_browser_backend.secured_resource import SecuredResource
 
 from server_browser_backend.models.base_models import Server
+from server_browser_backend.secured_resource import SecuredResource
 
 
 class InvalidSecretKey(Exception):
