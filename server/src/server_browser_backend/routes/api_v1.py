@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import argparse
-import json
-from datetime import datetime, timedelta
-from logging.config import dictConfig
-from os import getenv
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
+from datetime import datetime
+from typing import Callable
 from uuid import uuid4
 
-from flask import (Blueprint, Flask, Request, current_app, jsonify, request,
-                   send_file, send_from_directory)
+from flask import (Blueprint, current_app, jsonify, request, send_file)
 
-from server_browser_backend import dict_util
 from server_browser_backend.dict_util import (DictKeyError, DictTypeError,
                                               get_list_or)
-from server_browser_backend.models import Server, UpdateRegisteredServer
-from server_browser_backend.routes.shared import (ADMIN_KEY_HEADER, KEY_HEADER, ADMIN_KEY,
-                                                  Banned, ban_list,
-                                                  get_and_validate_ip, get_key,
-                                                  server_list)
+from server_browser_backend.models.base_models import Server, UpdateRegisteredServer
+from server_browser_backend.routes import shared 
+from server_browser_backend.routes.shared import get_and_validate_ip, get_key, Banned
 from server_browser_backend.server_list import (InvalidSecretKey,
                                                 SecretKeyMissing)
 
@@ -42,8 +34,8 @@ def register():
     request.json["last_heartbeat"] = datetime.now().timestamp()
 
     server = Server.from_json(request.json)
-    key = server_list.register(server)
-    timeout = server.last_heartbeat + server_list.heartbeat_timeout
+    key = shared.server_list.register(server)
+    timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
 
     current_app.logger.info(
         f'Registered server "{server.name}" at {server.ip_address}:{server.ports.game}'
@@ -85,36 +77,36 @@ def update(server_id: str):
 @api_v1_bp.route("/servers", methods=["GET"])
 def get_servers():
     get_and_validate_ip()
-    servers = server_list.get_all()
+    servers = shared.server_list.get_all()
     return jsonify({"servers": servers}), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["POST"])
 def add_to_ban_list():
     source_ip = get_and_validate_ip()
 
-    sent_admin_key = request.headers.get(ADMIN_KEY_HEADER)
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
     ip_list = get_list_or(request.json, "ban_ips", str)
-    result = ban_list.add_all(sent_admin_key, ip_list)
+    result = shared.ban_list.add_all(sent_admin_key, ip_list)
+
     if not result:
         current_app.logger.warning(f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}")
         return jsonify({}), 403
-    current_app.logger.info(f"Adding addresses to ban_list: {ban_list}")
 
+    current_app.logger.info(f"Adding addresses to ban_list: {shared.ban_list}")
 
-
-    return jsonify({"banned_ips": list(ban_list.get())}), 200
+    return jsonify({"banned_ips": list(shared.ban_list.get())}), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
     source_ip = get_and_validate_ip()
 
-    sent_admin_key = request.headers.get(ADMIN_KEY_HEADER)
-    if not ban_list.secured_ban_list.validate(sent_admin_key):
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
+    if not shared.ban_list.secured_ban_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"banned_ips": list(ban_list.get())}), 200
+    return jsonify({"banned_ips": list(shared.ban_list.get())}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)
@@ -149,7 +141,7 @@ def handle_dict_type_error(e):
 @api_v1_bp.errorhandler(SecretKeyMissing)
 def handle_secret_key_missing(e):
     return (
-        jsonify({"status": "no_key", "message": KEY_HEADER + " header not specified"}),
+        jsonify({"status": "no_key", "message": shared.KEY_HEADER + " header not specified"}),
         400,
     )
 
@@ -167,7 +159,7 @@ def handle_banned_user(e):
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
 
-    if not server_list.exists(server_id):
+    if not shared.server_list.exists(server_id):
         current_app.logger.warning(
             f"Update failed. Server with id {server_id} not registered."
         )
@@ -176,9 +168,9 @@ def update_server(server_id: str, update_server: Callable[[Server], Server]):
             400,
         )
 
-    server = server_list.update(server_id, key, update_server)
+    server = shared.server_list.update(server_id, key, update_server)
 
-    timeout = server.last_heartbeat + server_list.heartbeat_timeout
+    timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
 
     current_app.logger.info(
         f'Update/Heartbeat received from server "{server.name}" ({server.unique_id}) at {server.ip_address}:{server.ports.game})'

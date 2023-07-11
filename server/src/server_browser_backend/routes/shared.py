@@ -1,10 +1,8 @@
 import os
-from typing import List
 import secrets
 
 from flask import request
 from server_browser_backend.ban_list import BanList
-from server_browser_backend.secured_resource import SecuredResource
 
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 

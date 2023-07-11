@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Generic, List, Optional
 
 from server_browser_backend.dict_util import get_or
-from server_browser_backend.models import Server
+from server_browser_backend.models.base_models import Server
 from server_browser_backend.type_vars import A
 
 

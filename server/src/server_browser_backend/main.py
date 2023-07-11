@@ -1,24 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import json
-from collections import defaultdict
-from datetime import datetime, timedelta
 from logging.config import dictConfig
-from os import getenv
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar
-from uuid import uuid4
+from flask import Flask
 
-from flask import (Flask, Request, jsonify, request, send_file,
-                   send_from_directory)
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
-from server_browser_backend import dict_util, playfab, routes, tbio
-from server_browser_backend.dict_util import DictKeyError, DictTypeError
-from server_browser_backend.models import Server, UpdateRegisteredServer
-from server_browser_backend.server_list import (InvalidSecretKey,
-                                                SecretKeyMissing, ServerList)
+from server_browser_backend import routes
 
 app = Flask(__name__)
 

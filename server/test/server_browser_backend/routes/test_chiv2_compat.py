@@ -4,9 +4,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
-from server_browser_backend.routes.shared import (KEY_HEADER,
-                                                  heartbeat_timeout,
-                                                  server_list)
+from server_browser_backend.routes import shared
 
 LOCALHOST = "127.0.0.1"
 
@@ -30,7 +28,7 @@ def client():
 
 
 def test_get_servers(client: FlaskClient):
-    server_list.clear()
+    shared.server_list.clear()
 
     response = client.post("/api/tbio/GetCurrentGames")
     assert response.status_code == 200
@@ -70,7 +68,7 @@ def test_motd_endpoint_fallback(client: FlaskClient):
 
 
 def test_client_matchmake(client: FlaskClient):
-    server_list.clear()
+    shared.server_list.clear()
     registration_response = client.post(
         "/api/v1/servers",
         json={
