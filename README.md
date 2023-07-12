@@ -2,8 +2,7 @@
 
 Currently things are not set up in the best way.  
 
-`client` is a VisualStudio 2022 (Community Edition) project and should open pretty seamlessly with that. The build is a little messy. Somebody please help
-`server` is a python poetry project
+`client` is a VisualStudio 2022 (Community Edition) project and should open pretty seamlessly with that. 
 
 ### Current Status
 
@@ -19,13 +18,3 @@ The client's api code was generated using refitter 0.6.0 and https://raw.githubu
 * [server](./server) contains the server backend used to host server listings
 
 For more info on the specific sub-projects, check out their respective directories.
-
-### TO-DO
-
-* Project Organization
-* Create ServerListing models in the client for use in the DataGrid
-    * Shouldn't show all fields, only name, ip, ping, current/max players, and current map
-    * Should also contain description and mods list for display in a text box to the right of the DataGrid
-* Convert `Server` api outputs to the ServerListing models 
-* Add a `connect` button.
-    * This app will replace the launcher app and forward any CLI params to the actual game executable + a command to join the selected server
