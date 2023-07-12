@@ -1,9 +1,5 @@
 # Unofficial Chivalry 2 Server Browser
 
-Currently things are not set up in the best way.  
-
-`client` is a VisualStudio 2022 (Community Edition) project and should open pretty seamlessly with that. 
-
 ### Current Status
 
 Server provides a basic game server listing api which requires a heartbeat every ~60 seconds to keep the server in the list
