@@ -1,17 +1,14 @@
+from datetime import datetime
+from os import getenv
+
 import pytest
 from flask.testing import FlaskClient
-from datetime import datetime
-from server_browser_backend.main import (
-    app,
-    servers,
-    heartbeat_timeout,
-    limiter,
-    KEY_HEADER,
-)
+
+from server_browser_backend.main import app
+from server_browser_backend.routes import shared
 
 LOCALHOST = "127.0.0.1"
 
-limiter.enabled = False
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
@@ -32,7 +29,7 @@ def client():
 
 
 def test_register(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.get_json()
@@ -41,25 +38,25 @@ def test_register(client: FlaskClient):
     assert "key" in response_json
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
-    assert servers.exists(response_json["server"]["unique_id"])
+    assert shared.server_list.exists(response_json["server"]["unique_id"])
 
 
 def test_update(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            KEY_HEADER: registration_response.get_json()["key"],
+            shared.KEY_HEADER: registration_response.get_json()["key"],
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
 
     response_json = response.get_json()
     unique_id = response_json["server"]["unique_id"]
-    server = servers.get(unique_id)
+    server = shared.server_list.get(unique_id)
 
     assert response.status_code == 200
 
@@ -68,7 +65,7 @@ def test_update(client: FlaskClient):
 
 
 def test_update_no_key(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -82,7 +79,7 @@ def test_update_invalid_key(client: FlaskClient):
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            KEY_HEADER: registration_response.get_json()["key"] + "invalid",
+            shared.KEY_HEADER: registration_response.get_json()["key"] + "invalid",
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
@@ -91,14 +88,14 @@ def test_update_invalid_key(client: FlaskClient):
 
 
 def test_heartbeat(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
         headers={
-            KEY_HEADER: registration_response.get_json()["key"],
+            shared.KEY_HEADER: registration_response.get_json()["key"],
         },
         json={"port": 1234},
     )
@@ -108,7 +105,7 @@ def test_heartbeat(client: FlaskClient):
 
 
 def test_heartbeat_no_key(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -117,22 +114,20 @@ def test_heartbeat_no_key(client: FlaskClient):
 
 
 def test_heartbeat_invalid_key(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
-        headers={KEY_HEADER: "invalid", "Content-Type": "application/json"},
+        headers={shared.KEY_HEADER: "invalid", "Content-Type": "application/json"},
     )
-
-    print(response.json)
 
     assert response.status_code == 403
 
 
 def test_get_servers(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
@@ -156,7 +151,7 @@ def test_get_servers(client: FlaskClient):
 
 
 def test_heartbeat_timeout(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     registration_response = client.post(
         "/api/v1/servers",
@@ -174,11 +169,11 @@ def test_heartbeat_timeout(client: FlaskClient):
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration.
-    result = servers.update(
+    result = shared.server_list.update(
         unique_id,
         response_json["key"],
         lambda server: server.with_heartbeat(
-            datetime.now().timestamp() - heartbeat_timeout - 1
+            datetime.now().timestamp() - shared.heartbeat_timeout - 1
         ),
     )
 
@@ -190,7 +185,7 @@ def test_heartbeat_timeout(client: FlaskClient):
 
 
 def test_bad_json_missing_key(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     response = client.post(
         "/api/v1/servers",
@@ -210,7 +205,7 @@ def test_bad_json_missing_key(client: FlaskClient):
 
 
 def test_bad_json_invalid_type(client: FlaskClient):
-    servers.clear()
+    shared.server_list.clear()
 
     response = client.post(
         "/api/v1/servers",
@@ -235,3 +230,31 @@ def test_bad_json_invalid_type(client: FlaskClient):
     assert (
         "str" in response_json["message"]
     ), "Error response did not contain the actual type of the invalid key"
+
+
+def test_add_to_ban_list(client: FlaskClient):
+    shared.ban_list.clear(shared.ADMIN_KEY)
+
+    ban_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/ban-list",
+        json={"ban_ips": ban_targets},
+        headers={shared.ADMIN_KEY_HEADER: getenv("ADMIN_KEY")},
+    )
+
+    assert response.status_code == 200
+    assert len(shared.ban_list) == 1
+
+
+def test_add_to_ban_list_invalid_key(client: FlaskClient):
+    shared.ban_list.clear(shared.ADMIN_KEY)
+
+    ban_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/ban-list",
+        json={"ban_ips": ban_targets},
+        headers={shared.ADMIN_KEY_HEADER: "beep"},
+    )
+
+    assert response.status_code == 403
+    assert len(shared.ban_list) == 0

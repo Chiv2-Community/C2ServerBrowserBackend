@@ -1,7 +1,8 @@
-from typing import List, Dict, Callable, Type, Generic, Any, Optional
-import json
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Generic, List, Optional, Type
+
 from server_browser_backend.type_vars import A, B
+
 
 @dataclass(frozen=True)
 class DictTypeError(Generic[A, B], Exception):
@@ -18,7 +19,7 @@ class DictKeyError(Generic[A], Exception):
     context: Dict[Any, Any]
 
 
-def no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:
+def _no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:
     raise DictKeyError(key, input_dict)
 
 
@@ -28,6 +29,7 @@ def get_list_or(
     list_item_type: Type[A],
     default: Optional[Callable[[], List[A]]] = None,
 ) -> List[A]:
+    """Gets a list from the dictionary, and checks that all items in the list are of the correct type"""
     lst = get_or(dictionary, key, list, default)
 
     idx = 0
@@ -47,6 +49,7 @@ def get_or(
     expected_type: Type[A],
     default: Optional[Callable[[], A]] = None,
 ) -> A:
+    """Gets a value from the dictionary, and checks that it is of the correct type"""
     if key in dictionary:
         value = dictionary[key]
         if isinstance(value, expected_type):
@@ -55,6 +58,6 @@ def get_or(
             raise DictTypeError(key, value, expected_type, type(value), dictionary)
 
     if default is None:
-        return no_key_error(key, dictionary)
+        return _no_key_error(key, dictionary)
 
     return default()
