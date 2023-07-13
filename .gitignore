@@ -1,5 +1,8 @@
 .vscode
 
+#poetry lock files are generated on build, and should not be included in the repo
+server/poetry.lock
+
 ### Swagger.yaml is only needed locally for generating models (seen in client/Swagger.cs).
 client/Swagger.yaml
 
