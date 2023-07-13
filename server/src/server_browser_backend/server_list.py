@@ -41,7 +41,9 @@ class ServerList:
         self, server_id: str, key: str, func: Callable[[Server], Server]
     ) -> Server:
         """Updates a server with the given id and key."""
-        secured_server = self.servers[server_id]
+        secured_server = self.servers.get(server_id)
+        if secured_server is None:
+            return None
         result = secured_server.update(key, func)
 
         if result is None:
@@ -50,6 +52,21 @@ class ServerList:
         self.servers[server_id] = result
 
         return result.resource
+    
+    def delete(
+        self, server_id: str, key: str
+    ) -> Server:
+        """Remove the server with the given id from the server list and return it."""
+        server = self.servers.get(server_id)
+        if server is None:
+            return None
+        
+        if server.validate(key):
+            serverResource = server.resource
+            del self.servers[server_id]
+            return serverResource
+        else:
+            raise InvalidSecretKey()
 
     def get(self, server_id: str) -> Optional[Server]:
         """Gets the server with the given id."""
