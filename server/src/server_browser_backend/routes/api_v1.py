@@ -71,6 +71,29 @@ def update(server_id: str):
         ),
     )
 
+@api_v1_bp.route("/servers/<server_id>", methods=["DELETE"])
+def delete_server(server_id: str):
+    get_and_validate_ip() 
+    key = get_key()
+
+    server = shared.server_list.delete(server_id, key)
+    if server is not None:
+        current_app.logger.info(
+            f'Deleted server with id "{server.name}" at {server.ip_address}:{server.ports.game}'
+        )
+        return (
+            jsonify({"status": "deleted", "message": "The server has been deleted"}),
+            200,
+        )
+    else:
+        current_app.logger.warning(
+        f"Deletion failed. Server with id {server_id} not registered."
+        )
+        return (
+            jsonify({"status": "not_registered", "message": "server not registered"}),
+            400,
+        )
+
 
 @api_v1_bp.route("/servers", methods=["GET"])
 def get_servers():

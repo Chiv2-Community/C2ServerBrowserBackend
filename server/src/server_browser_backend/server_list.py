@@ -50,6 +50,21 @@ class ServerList:
         self.servers[server_id] = result
 
         return result.resource
+    
+    def delete(
+        self, server_id: str, key: str
+    ) -> Server:
+        """Remove the server with the given id from the server list and return it."""
+        server = self.servers[server_id]
+        if server is None:
+            return None
+        
+        if server.validate(key):
+            serverResource = server.resource
+            del self.servers[server_id]
+            return serverResource
+        else:
+            raise InvalidSecretKey()
 
     def get(self, server_id: str) -> Optional[Server]:
         """Gets the server with the given id."""
