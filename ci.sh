@@ -1,5 +1,5 @@
 #!/bin/bash
 
 poetry install --no-root
-poetry run mypy src test
-ADMIN_KEY=test_key poetry run pytest test
+poetry run mypy src
+ADMIN_KEY=test_key poetry run pytest src   
