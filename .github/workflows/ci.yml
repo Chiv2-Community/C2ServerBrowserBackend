@@ -29,21 +29,16 @@ jobs:
             poetry-${{ hashFiles('**/poetry.lock') }}
 
       - name: Set Poetry config
-        working-directory: server
         run: |
           poetry config virtualenvs.in-project false
           poetry config virtualenvs.path ~/.virtualenvs
 
       - name: Install Dependencies
-        working-directory: server
         run: poetry install
         if: steps.cache.outputs.cache-hit != 'true'
 
-      # will enable this in a separate PR
-      #- name: Code Quality
-      #  working-directory: server
-      #  run: poetry run black . --check
+      - name: Code Quality
+        run: poetry run black . --check
 
       - name: Test with pytest
-        working-directory: server
         run: ./ci.sh
