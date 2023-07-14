@@ -31,8 +31,8 @@ class BanList(Sized, Iterable[str]):
         try:
             with open(self.ban_list_path, "r") as f:
                 entries = set(map(lambda ip: ip.strip(), f.readlines()))
-                result = self.secured_ban_list.update(
-                    key, lambda ban_list: ban_list.union(entries)
+                result = self.secured_ban_list.with_resource(
+                    key, self.secured_ban_list.resource.union(entries)
                 )
                 return self._process_result(result)
         except IOError:
@@ -44,23 +44,23 @@ class BanList(Sized, Iterable[str]):
             f.write(bans)
 
     def add(self, key: str, ip: str) -> bool:
-        result = self.secured_ban_list.update(
-            key, lambda ban_list: ban_list.union(set([ip]))
+        result = self.secured_ban_list.with_resource(
+            key, self.secured_ban_list.resource.union(set([ip]))
         )
         return self._process_result(result)
 
     def add_all(self, key: str, ips: Iterable[str]) -> bool:
-        result = self.secured_ban_list.update(key, lambda ban_list: ban_list.union(ips))
+        result = self.secured_ban_list.with_resource(key, self.secured_ban_list.resource.union(ips))
         return self._process_result(result)
 
     def remove(self, key: str, ip: str) -> bool:
-        result = self.secured_ban_list.update(
-            key, lambda ban_list: ban_list.difference(set([ip]))
+        result = self.secured_ban_list.with_resource(
+            key, self.secured_ban_list.resource.difference(set([ip]))
         )
         return self._process_result(result)
 
     def clear(self, key: str) -> bool:
-        result = self.secured_ban_list.update(key, lambda ban_list: set())
+        result = self.secured_ban_list.with_resource(key, set())
         return self._process_result(result)
 
     def get_all(self) -> Set[str]:

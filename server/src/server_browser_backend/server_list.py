@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime
+import threading
 from typing import Callable, Dict, List, Optional
 
 from server_browser_backend.models.base_models import Server
@@ -25,72 +26,81 @@ class ServerList:
     def __init__(self, heartbeat_timeout: float = 65):
         self.servers: Dict[str, SecuredResource[Server]] = {}
         self.heartbeat_timeout = heartbeat_timeout
+        self.servers_mutex = threading.Lock()
 
     def exists(self, server_id: str) -> bool:
         """Returns true if a server with the given id exists."""
-        return server_id in self.servers
+        with self.servers_mutex:
+            return server_id in self.servers
 
     def register(self, server: Server) -> str:
         """Registers a server and returns a secret key."""
-        key = secrets.token_hex(128)
-        secured_resource = SecuredResource(key, server)
-        self.servers[server.unique_id] = secured_resource
-        return key
+        with self.servers_mutex:
+            key = secrets.token_hex(128)
+            secured_resource = SecuredResource(key, server)
+            self.servers[server.unique_id] = secured_resource
+            return key
 
     def update(
         self, server_id: str, key: str, func: Callable[[Server], Server]
     ) -> Optional[Server]:
         """Updates a server with the given id and key."""
-        secured_server = self.servers.get(server_id)
-        if secured_server is None:
-            return None
-        result = secured_server.update(key, func)
+        with self.servers_mutex:
+            secured_server = self.servers.get(server_id)
+            if secured_server is None:
+                return None
+            result = secured_server.with_resource(key, func(secured_server.resource))
 
-        if result is None:
-            raise InvalidSecretKey()
+            if result is None:
+                raise InvalidSecretKey()
 
-        self.servers[server_id] = result
+            self.servers[server_id] = result
 
-        return result.resource
+            return result.resource
     
     def delete(
         self, server_id: str, key: str
     ) -> Optional[Server]:
         """Remove the server with the given id from the server list and return it."""
-        server = self.servers.get(server_id)
-        if server is None:
-            return None
-        
-        if server.validate(key):
-            serverResource = server.resource
-            del self.servers[server_id]
-            return serverResource
-        else:
-            raise InvalidSecretKey()
+        with self.servers_mutex:
+            server = self.servers.get(server_id)
+            if server is None:
+                return None
+            
+            if server.validate(key):
+                serverResource = server.resource
+                del self.servers[server_id]
+                return serverResource
+            else:
+                raise InvalidSecretKey()
 
     def get(self, server_id: str) -> Optional[Server]:
         """Gets the server with the given id."""
-        secured_server = self.servers.get(server_id)
-        if secured_server is None:
-            return None
+        with self.servers_mutex:
+            secured_server = self.servers.get(server_id)
+            if secured_server is None:
+                return None
 
-        return secured_server.resource
+            return secured_server.resource
 
     def get_unsafe(self, server_id: str) -> Server:
         """Gets the server with the given id. Raises an exception if the server does not exist."""
-        return self.servers[server_id].resource
+        with self.servers_mutex:
+            return self.servers[server_id].resource
 
     def get_all(self) -> List[Server]:
         """Gets all registered servers that have not timed out."""
-        self._process_heartbeat_timeouts(datetime.now().timestamp())
-        return [secured_server.resource for secured_server in self.servers.values()]
+        with self.servers_mutex:
+            self._process_heartbeat_timeouts(datetime.now().timestamp())
+            return [secured_server.resource for secured_server in self.servers.values()]
 
     def clear(self) -> None:
         """Clears all registered servers."""
-        self.servers.clear()
+        with self.servers_mutex:
+            self.servers.clear()
 
     def _process_heartbeat_timeouts(self, current_time: float) -> None:
-        """Removes any servers that have timed out."""
+        """Removes any servers that have timed out. No mutex here because its always called from within a mutex lock."""
         delete_keys = []
         for server_id, secured_server in self.servers.items():
             if (
