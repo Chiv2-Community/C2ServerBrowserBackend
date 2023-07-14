@@ -16,12 +16,11 @@ class SecuredResource(Generic[A]):
     def validate(self, secret_key: str) -> bool:
         return self.secret_key == secret_key
 
-    def update(
-        self, secret_key: str, update_func: Callable[[A], A]
+    def with_resource(
+        self, secret_key: str, new_resource: A
     ) -> Optional[SecuredResource[A]]:
         """Validates the secret key and updates the resource with the update_func."""
         if self.validate(secret_key):
-            update_result = update_func(self.resource)
-            return SecuredResource(secret_key, update_result)
+            return SecuredResource(secret_key, new_resource)
 
         return None

@@ -49,7 +49,7 @@ class ServerList:
             secured_server = self.servers.get(server_id)
             if secured_server is None:
                 return None
-            result = secured_server.update(key, func)
+            result = secured_server.with_resource(key, func(secured_server.resource))
 
             if result is None:
                 raise InvalidSecretKey()
