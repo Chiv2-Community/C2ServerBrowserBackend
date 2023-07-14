@@ -71,21 +71,22 @@ def update(server_id: str):
         ),
     )
 
+
 @api_v1_bp.route("/servers/<server_id>", methods=["DELETE"])
 def delete_server(server_id: str):
-    get_and_validate_ip() 
+    get_and_validate_ip()
     key = get_key()
 
     server = shared.server_list.delete(server_id, key)
     if server is None:
         current_app.logger.warning(
-        f"Deletion failed. Server with id {server_id} not registered."
+            f"Deletion failed. Server with id {server_id} not registered."
         )
         return (
             jsonify({"status": "not_registered", "message": "server not registered"}),
             404,
         )
-    
+
     current_app.logger.info(
         f'Deleted server with id "{server.name}" at {server.ip_address}:{server.ports.game}'
     )
@@ -183,7 +184,7 @@ def handle_banned_user(e):
 
 
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
-    key = get_key() 
+    key = get_key()
 
     server = shared.server_list.update(server_id, key, update_server)
     if server is None:

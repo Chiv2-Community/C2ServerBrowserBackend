@@ -1,16 +1,23 @@
-# Unofficial Chivalry 2 Server Browser
+# Server browser backend
 
-### Current Status
+This is a flask based python server which has its routes defined in OpenAPI spec [here](./assets/chiv2-server-browser-api.yaml).
 
-Server provides a basic game server listing api which requires a heartbeat every ~60 seconds to keep the server in the list
+## Running the server 
 
-Client does nothing right now except list servers from a given host. Needs lots of work on the UI, and to actually get the core function going.  
+### Docker
+The preferred method for running this server is via docker.
 
-The client's api code was generated using refitter 0.6.0 and https://raw.githubusercontent.com/Chiv2-Community/chivalry2-unofficial-server-browser/main/server/assets/chiv2-server-browser-api.yaml
+```
+docker run -p 8080:8080 -it jacoby6000/chivalry2-unofficial-server-browser-backend:latest
+```
 
-### Project Layout
+Will run the latest server and run on port 8080
 
-* [client](./client) contains the WPF windows client
-* [server](./server) contains the server backend used to host server listings
+### Poetry
+This is a poetry project, and as such dependencies are managed via poetry.  If you don't have poetry, [install it](https://python-poetry.org/docs/#installation)
 
-For more info on the specific sub-projects, check out their respective directories.
+Then the project can be run via `./run.sh`
+
+Try running with `--help` to see what options are available.
+
+Tests can be run via `./ci.sh`

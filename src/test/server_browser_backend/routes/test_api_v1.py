@@ -63,16 +63,15 @@ def test_update(client: FlaskClient):
     assert server is not None
     assert server.player_count == 10
 
+
 def test_delete(client: FlaskClient):
     shared.server_list.clear()
 
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
-    id, key = createResponse['server']['unique_id'], createResponse['key']
+    id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
-    deleteResponse = client.delete("/api/v1/servers/{}".format(id), 
-        headers={
-            shared.KEY_HEADER: key
-        }
+    deleteResponse = client.delete(
+        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key}
     )
 
     response_json = deleteResponse.get_json()
@@ -80,37 +79,36 @@ def test_delete(client: FlaskClient):
     assert response_json["status"] == "deleted"
     assert not shared.server_list.exists(id)
 
+
 def test_delete_nonexistant_server(client: FlaskClient):
     shared.server_list.clear()
 
-    deleteResponse = client.delete("/api/v1/servers/{}".format(id), 
-        headers={
-            shared.KEY_HEADER: "Invalid-unused"
-        }
+    deleteResponse = client.delete(
+        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: "Invalid-unused"}
     )
 
     assert deleteResponse.status_code == 404
+
 
 def test_delete_no_key(client: FlaskClient):
     shared.server_list.clear()
 
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
-    id, key = createResponse['server']['unique_id'], createResponse['key']
+    id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete("/api/v1/servers/{}".format(id))
 
     assert deleteResponse.status_code == 400
 
+
 def test_delete_invalid_key(client: FlaskClient):
     shared.server_list.clear()
 
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
-    id, key = createResponse['server']['unique_id'], createResponse['key']
+    id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
-    deleteResponse = client.delete("/api/v1/servers/{}".format(id), 
-        headers={
-            shared.KEY_HEADER: key + "Invalid"
-        }
+    deleteResponse = client.delete(
+        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key + "Invalid"}
     )
 
     assert deleteResponse.status_code == 403

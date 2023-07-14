@@ -50,7 +50,9 @@ class BanList(Sized, Iterable[str]):
         return self._process_result(result)
 
     def add_all(self, key: str, ips: Iterable[str]) -> bool:
-        result = self.secured_ban_list.with_resource(key, self.secured_ban_list.resource.union(ips))
+        result = self.secured_ban_list.with_resource(
+            key, self.secured_ban_list.resource.union(ips)
+        )
         return self._process_result(result)
 
     def remove(self, key: str, ip: str) -> bool:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
 import threading
+from datetime import datetime
 from typing import Callable, Dict, List, Optional
 
 from server_browser_backend.models.base_models import Server
@@ -57,16 +57,14 @@ class ServerList:
             self.servers[server_id] = result
 
             return result.resource
-    
-    def delete(
-        self, server_id: str, key: str
-    ) -> Optional[Server]:
+
+    def delete(self, server_id: str, key: str) -> Optional[Server]:
         """Remove the server with the given id from the server list and return it."""
         with self.servers_mutex:
             server = self.servers.get(server_id)
             if server is None:
                 return None
-            
+
             if server.validate(key):
                 serverResource = server.resource
                 del self.servers[server_id]
