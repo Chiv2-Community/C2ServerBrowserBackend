@@ -100,15 +100,14 @@ class ServerList:
             self.servers.clear()
 
     def _process_heartbeat_timeouts(self, current_time: float) -> None:
-        """Removes any servers that have timed out."""
-        with self.servers_mutex:
-            delete_keys = []
-            for server_id, secured_server in self.servers.items():
-                if (
-                    secured_server.resource.last_heartbeat + self.heartbeat_timeout
-                    < current_time
-                ):
-                    delete_keys.append(server_id)
+        """Removes any servers that have timed out. No mutex here because its always called from within a mutex lock."""
+        delete_keys = []
+        for server_id, secured_server in self.servers.items():
+            if (
+                secured_server.resource.last_heartbeat + self.heartbeat_timeout
+                < current_time
+            ):
+                delete_keys.append(server_id)
 
-            for server_id in delete_keys:
-                del self.servers[server_id]
+        for server_id in delete_keys:
+            del self.servers[server_id]
