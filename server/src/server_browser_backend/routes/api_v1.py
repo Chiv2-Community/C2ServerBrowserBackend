@@ -183,9 +183,10 @@ def handle_banned_user(e):
 
 
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
-    key = get_key()
+    key = get_key() 
 
-    if not shared.server_list.exists(server_id):
+    server = shared.server_list.update(server_id, key, update_server)
+    if server is None:
         current_app.logger.warning(
             f"Update failed. Server with id {server_id} not registered."
         )
@@ -193,9 +194,6 @@ def update_server(server_id: str, update_server: Callable[[Server], Server]):
             jsonify({"status": "not_registered", "message": "server not registered"}),
             400,
         )
-
-    server = shared.server_list.update(server_id, key, update_server)
-
     timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
 
     current_app.logger.info(

@@ -39,7 +39,7 @@ class ServerList:
 
     def update(
         self, server_id: str, key: str, func: Callable[[Server], Server]
-    ) -> Server:
+    ) -> Optional[Server]:
         """Updates a server with the given id and key."""
         secured_server = self.servers.get(server_id)
         if secured_server is None:
@@ -55,7 +55,7 @@ class ServerList:
     
     def delete(
         self, server_id: str, key: str
-    ) -> Server:
+    ) -> Optional[Server]:
         """Remove the server with the given id from the server list and return it."""
         server = self.servers.get(server_id)
         if server is None:
