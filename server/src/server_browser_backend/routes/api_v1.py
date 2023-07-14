@@ -71,6 +71,29 @@ def update(server_id: str):
         ),
     )
 
+@api_v1_bp.route("/servers/<server_id>", methods=["DELETE"])
+def delete_server(server_id: str):
+    get_and_validate_ip() 
+    key = get_key()
+
+    server = shared.server_list.delete(server_id, key)
+    if server is None:
+        current_app.logger.warning(
+        f"Deletion failed. Server with id {server_id} not registered."
+        )
+        return (
+            jsonify({"status": "not_registered", "message": "server not registered"}),
+            404,
+        )
+    
+    current_app.logger.info(
+        f'Deleted server with id "{server.name}" at {server.ip_address}:{server.ports.game}'
+    )
+    return (
+        jsonify({"status": "deleted", "message": "The server has been deleted"}),
+        200,
+    )
+
 
 @api_v1_bp.route("/servers", methods=["GET"])
 def get_servers():
@@ -160,9 +183,10 @@ def handle_banned_user(e):
 
 
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
-    key = get_key()
+    key = get_key() 
 
-    if not shared.server_list.exists(server_id):
+    server = shared.server_list.update(server_id, key, update_server)
+    if server is None:
         current_app.logger.warning(
             f"Update failed. Server with id {server_id} not registered."
         )
@@ -170,9 +194,6 @@ def update_server(server_id: str, update_server: Callable[[Server], Server]):
             jsonify({"status": "not_registered", "message": "server not registered"}),
             400,
         )
-
-    server = shared.server_list.update(server_id, key, update_server)
-
     timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
 
     current_app.logger.info(
