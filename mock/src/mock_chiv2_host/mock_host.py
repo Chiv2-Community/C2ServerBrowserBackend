@@ -7,7 +7,7 @@ import requests
 
 def registerServer(
     address: str,
-    port: int = 7777,
+    ports: dict[str, int],
     name: str = "Chivalry 2 Server",
     description: str = "No description",
     current_map: str = "Unknown",
@@ -16,7 +16,7 @@ def registerServer(
     mods=[],
 ):
     serverObj = {
-        "ports": {"ping": 3077, "a2s": 27015, "game": port},
+        "ports": ports,
         "name": name,
         "description": description,
         "current_map": current_map,
@@ -89,11 +89,11 @@ def main():
 
     registered_servers = []
     for server in servers:
-        print("Registering server on port " + str(server["port"]))
+        print("Registering server on port " + str(server["ports"]))
         result = registerServer(address, **server)
         print(
             "Registered server on port "
-            + str(server["port"])
+            + str(server["ports"])
             + " with unique id "
             + result["server"]["unique_id"]
         )
@@ -105,7 +105,7 @@ def main():
     while True:
         time.sleep(60)
         for server in registered_servers:
-            print("Sending heartbeat for server on port " + server["unique_id"])
+            print("Sending heartbeat for server " + server["unique_id"])
             heartbeat(address, **server)
 
 
