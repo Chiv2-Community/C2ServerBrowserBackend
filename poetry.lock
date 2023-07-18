@@ -184,6 +184,26 @@ mongodb = ["limits[mongodb]"]
 redis = ["limits[redis]"]
 
 [[package]]
+name = "gunicorn"
+version = "21.0.1"
+description = "WSGI HTTP Server for UNIX"
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "gunicorn-21.0.1-py3-none-any.whl", hash = "sha256:949880781d74f55eda34eb1a552f9c83db6edb42f2bd4f87c09e2a66b13922ea"},
+    {file = "gunicorn-21.0.1.tar.gz", hash = "sha256:b18fa5a9b22becdffc29d2586b914225a69624bb3e3a064cb04decfb2f34bfe8"},
+]
+
+[package.dependencies]
+packaging = "*"
+
+[package.extras]
+eventlet = ["eventlet (>=0.24.1)"]
+gevent = ["gevent (>=1.4.0)"]
+setproctitle = ["setproctitle"]
+tornado = ["tornado (>=0.2)"]
+
+[[package]]
 name = "importlib-resources"
 version = "6.0.0"
 description = "Read resources from Python packages"
@@ -708,4 +728,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "034d0cb0e678ab53e727e024a8a5a46e80bd861e6ac3d4d7187ec453b13d1c8c"
+content-hash = "4fe2174ffb94c8a3cb84534a09000e3a10bf41bf23562dc961b90376e3898e53"

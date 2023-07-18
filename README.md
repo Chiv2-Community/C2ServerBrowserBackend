@@ -8,8 +8,12 @@ This is a flask based python server which has its routes defined in OpenAPI spec
 The preferred method for running this server is via docker.
 
 ```
-docker run -p 8080:8080 -it jacoby6000/chivalry2-unofficial-server-browser-backend:latest
+docker run -p 8080:8080 -it jacoby6000/chivalry2-unofficial-server-browser-backend:latest \
+  -b 0.0.0.0:8080 \
+  -w 4
 ```
+
+The params passed in at the end are gunicorn arguments
 
 Will run the latest server and run on port 8080
 

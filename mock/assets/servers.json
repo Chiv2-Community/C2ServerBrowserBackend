@@ -1,6 +1,10 @@
 [
   {
-    "port":7777, 
+    "ports": {
+      "game": 7777,
+      "ping": 7778,
+      "a2s": 7779
+    }, 
     "name":"Mock Host 1", 
     "description": "Not a real server", 
     "current_map": "none", 
@@ -9,7 +13,11 @@
     "mods": []
   },
   {
-    "port":7778, 
+    "ports": {
+      "game": 7777,
+      "ping": 7778,
+      "a2s": 7779
+    }, 
     "name":"Mock Host 1", 
     "description": "Not a real server", 
     "current_map": "none", 
@@ -18,7 +26,11 @@
     "mods": []
   },
   {
-    "port":7779, 
+    "ports": {
+      "game": 7777,
+      "ping": 7778,
+      "a2s": 7779
+    }, 
     "name":"Mock Host 1", 
     "description": "Not a real server", 
     "current_map": "none", 
