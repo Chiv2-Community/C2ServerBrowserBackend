@@ -308,3 +308,29 @@ def test_add_to_ban_list_invalid_key(client: FlaskClient):
 
     assert response.status_code == 403
     assert len(shared.ban_list) == 0
+
+def test_add_to_allow_list(client: FlaskClient):
+    shared.allow_list.clear(shared.ADMIN_KEY)
+
+    allow_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/allow-list",
+        json={"allowed_ips": allow_targets},
+        headers={shared.ADMIN_KEY_HEADER: getenv("ADMIN_KEY")},
+    )
+
+    assert response.status_code == 200
+    assert len(shared.allow_list) == 1
+
+def test_add_to_allow_list_invalid_key(client: FlaskClient):
+    shared.allow_list.clear(shared.ADMIN_KEY)
+
+    allow_targets = ["12.34.56.78"]
+    response = client.post(
+        "/api/v1/admin/allow-list",
+        json={"allowed_ips": allow_targets},
+        headers={shared.ADMIN_KEY_HEADER: "beep"},
+    )
+
+    assert response.status_code == 403
+    assert len(shared.allow_list) == 0
