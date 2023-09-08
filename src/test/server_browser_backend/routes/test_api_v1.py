@@ -27,9 +27,17 @@ def client():
     with app.test_client() as client:
         yield client
 
+def prepare_test_state(allow_list=[LOCALHOST]):
+    shared.server_list.clear()
+
+    shared.allow_list.clear(shared.ADMIN_KEY)
+    shared.allow_list.add_all(shared.ADMIN_KEY, allow_list)
+
+    shared.ban_list.clear(shared.ADMIN_KEY)
+
 
 def test_register(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.get_json()
@@ -39,10 +47,21 @@ def test_register(client: FlaskClient):
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
     assert shared.server_list.exists(response_json["server"]["unique_id"])
+    assert LOCALHOST in [x.ip_address for x in shared.server_list.get_all()]
+
+
+def test_register_unauthorized(client: FlaskClient):
+    prepare_test_state(allow_list=[])
+
+    response = client.post("/api/v1/servers", json=test_server_json)
+    response_json = response.get_json()
+
+    assert response.status_code == 403
+    assert LOCALHOST not in [x.ip_address for x in shared.server_list.get_all()]
 
 
 def test_update(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -65,8 +84,8 @@ def test_update(client: FlaskClient):
 
 
 def test_delete(client: FlaskClient):
-    shared.server_list.clear()
-
+    prepare_test_state()
+    
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
@@ -81,7 +100,7 @@ def test_delete(client: FlaskClient):
 
 
 def test_delete_nonexistant_server(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     deleteResponse = client.delete(
         "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: "Invalid-unused"}
@@ -91,7 +110,7 @@ def test_delete_nonexistant_server(client: FlaskClient):
 
 
 def test_delete_no_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
@@ -102,7 +121,7 @@ def test_delete_no_key(client: FlaskClient):
 
 
 def test_delete_invalid_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
@@ -115,7 +134,7 @@ def test_delete_invalid_key(client: FlaskClient):
 
 
 def test_update_no_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -124,6 +143,8 @@ def test_update_no_key(client: FlaskClient):
 
 
 def test_update_invalid_key(client: FlaskClient):
+    prepare_test_state()
+
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
     response = client.put(
@@ -138,7 +159,7 @@ def test_update_invalid_key(client: FlaskClient):
 
 
 def test_heartbeat(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -155,7 +176,7 @@ def test_heartbeat(client: FlaskClient):
 
 
 def test_heartbeat_no_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -164,7 +185,7 @@ def test_heartbeat_no_key(client: FlaskClient):
 
 
 def test_heartbeat_invalid_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.get_json()["server"]["unique_id"]
@@ -177,7 +198,7 @@ def test_heartbeat_invalid_key(client: FlaskClient):
 
 
 def test_get_servers(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
@@ -201,7 +222,7 @@ def test_get_servers(client: FlaskClient):
 
 
 def test_heartbeat_timeout(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     registration_response = client.post(
         "/api/v1/servers",
@@ -235,7 +256,7 @@ def test_heartbeat_timeout(client: FlaskClient):
 
 
 def test_bad_json_missing_key(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     response = client.post(
         "/api/v1/servers",
@@ -255,7 +276,7 @@ def test_bad_json_missing_key(client: FlaskClient):
 
 
 def test_bad_json_invalid_type(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     response = client.post(
         "/api/v1/servers",
@@ -283,13 +304,13 @@ def test_bad_json_invalid_type(client: FlaskClient):
 
 
 def test_add_to_ban_list(client: FlaskClient):
-    shared.ban_list.clear(shared.ADMIN_KEY)
+    prepare_test_state()
 
     ban_targets = ["12.34.56.78"]
     response = client.post(
         "/api/v1/admin/ban-list",
         json={"ban_ips": ban_targets},
-        headers={shared.ADMIN_KEY_HEADER: getenv("ADMIN_KEY")},
+        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
     assert response.status_code == 200
@@ -297,7 +318,7 @@ def test_add_to_ban_list(client: FlaskClient):
 
 
 def test_add_to_ban_list_invalid_key(client: FlaskClient):
-    shared.ban_list.clear(shared.ADMIN_KEY)
+    prepare_test_state()
 
     ban_targets = ["12.34.56.78"]
     response = client.post(
@@ -310,27 +331,31 @@ def test_add_to_ban_list_invalid_key(client: FlaskClient):
     assert len(shared.ban_list) == 0
 
 def test_add_to_allow_list(client: FlaskClient):
-    shared.allow_list.clear(shared.ADMIN_KEY)
+    prepare_test_state()
 
-    allow_targets = ["12.34.56.78"]
+    allow_target = "12.34.56.78"
     response = client.post(
         "/api/v1/admin/allow-list",
-        json={"allowed_ips": allow_targets},
-        headers={shared.ADMIN_KEY_HEADER: getenv("ADMIN_KEY")},
+        json={"allow_ips": [allow_target]},
+        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
+    print(response.json)
+
     assert response.status_code == 200
-    assert len(shared.allow_list) == 1
+    assert len(shared.allow_list) == 2
+    assert allow_target in shared.allow_list.get_all()
 
 def test_add_to_allow_list_invalid_key(client: FlaskClient):
-    shared.allow_list.clear(shared.ADMIN_KEY)
+    prepare_test_state()
 
-    allow_targets = ["12.34.56.78"]
+    allow_target = "12.34.56.78"
     response = client.post(
         "/api/v1/admin/allow-list",
-        json={"allowed_ips": allow_targets},
+        json={"allow_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: "beep"},
     )
 
     assert response.status_code == 403
-    assert len(shared.allow_list) == 0
+    assert len(shared.allow_list) == 1
+    assert allow_target not in shared.allow_list.get_all()

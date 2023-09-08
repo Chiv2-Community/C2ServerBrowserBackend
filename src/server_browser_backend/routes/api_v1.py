@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from server_browser_backend.dict_util import DictKeyError, DictTypeError, get_list_or
 from server_browser_backend.models.base_models import Server, UpdateRegisteredServer
 from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import Banned, get_and_validate_ip, get_key
+from server_browser_backend.routes.shared import Banned, NotWhitelisted, get_and_validate_ip, get_key
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -212,6 +212,12 @@ def handle_invalid_secret_key(e):
 def handle_banned_user(e):
     return jsonify({"status": "forbidden"}), 403
 
+@api_v1_bp.errorhandler(NotWhitelisted)
+def handle_banned_user(e):
+    return jsonify({
+        "status": "forbidden", 
+        "message": "Contact a member of @Whitelisters on the Chivalry 2 Unchained Discord to gain authorization for server listings."
+    }), 403
 
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
