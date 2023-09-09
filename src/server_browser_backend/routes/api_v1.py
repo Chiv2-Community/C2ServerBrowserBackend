@@ -213,7 +213,7 @@ def handle_banned_user(e):
     return jsonify({"status": "forbidden"}), 403
 
 @api_v1_bp.errorhandler(NotWhitelisted)
-def handle_banned_user(e):
+def handle_not_whitelisted_server(e):
     return jsonify({
         "status": "forbidden", 
         "message": "Contact a member of @Whitelisters on the Chivalry 2 Unchained Discord to gain authorization for server listings."
