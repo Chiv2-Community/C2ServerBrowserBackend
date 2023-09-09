@@ -9,6 +9,8 @@ from server_browser_backend.server_list import SecretKeyMissing, ServerList
 ADMIN_KEY = os.environ.get("ADMIN_KEY", secrets.token_urlsafe(128))
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "config")
 
+DEBUG_MODE = os.environ.get("DEBUG_MODE", "false").lower() == "true"
+
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
 KEY_HEADER = "x-chiv2-server-browser-key"
 

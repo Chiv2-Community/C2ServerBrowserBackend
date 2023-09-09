@@ -5,9 +5,7 @@ from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
 from server_browser_backend.routes import shared
-
-LOCALHOST = "127.0.0.1"
-
+from . import prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
@@ -28,7 +26,7 @@ def client():
 
 
 def test_get_servers(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
 
     response = client.post("/api/tbio/GetCurrentGames")
     assert response.status_code == 200
@@ -52,23 +50,30 @@ def test_get_servers(client: FlaskClient):
 
 
 def test_motd_endpoint(client: FlaskClient):
+    prepare_test_state()
+
     response = client.post("/api/tbio/GetMotd", json={"Language": "test"})
     assert response.status_code == 200
     assert response.get_json()["Data"]["Motd"] == "test"
 
 
 def test_motd_endpoint_default(client: FlaskClient):
+    prepare_test_state()
+
     response = client.post("/api/tbio/GetMotd", json={})
     assert response.status_code == 200
 
 
 def test_motd_endpoint_fallback(client: FlaskClient):
+    prepare_test_state()
+
     response = client.post("/api/tbio/GetMotd", json={"Language": "not_supported"})
     assert response.status_code == 200
 
 
 def test_client_matchmake(client: FlaskClient):
-    shared.server_list.clear()
+    prepare_test_state()
+    
     registration_response = client.post(
         "/api/v1/servers",
         json={
@@ -84,7 +89,6 @@ def test_client_matchmake(client: FlaskClient):
     unique_id = registration_response.get_json()["server"]["unique_id"]
 
     response = client.post("/api/playfab/Client/Matchmake", json={"LobbyId": unique_id})
-    print(response.text)
     assert response.status_code == 200
     response_json = response.get_json()
     assert response_json["data"]["ServerHostname"] == "127.0.0.1"

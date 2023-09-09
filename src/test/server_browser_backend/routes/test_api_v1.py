@@ -6,9 +6,7 @@ from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
 from server_browser_backend.routes import shared
-
-LOCALHOST = "127.0.0.1"
-
+from . import LOCALHOST, prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
@@ -26,14 +24,6 @@ test_server_json = {
 def client():
     with app.test_client() as client:
         yield client
-
-def prepare_test_state(allow_list=[LOCALHOST]):
-    shared.server_list.clear()
-
-    shared.allow_list.clear(shared.ADMIN_KEY)
-    shared.allow_list.add_all(shared.ADMIN_KEY, allow_list)
-
-    shared.ban_list.clear(shared.ADMIN_KEY)
 
 
 def test_register(client: FlaskClient):
@@ -307,36 +297,62 @@ def test_add_to_ban_list(client: FlaskClient):
     prepare_test_state()
 
     ban_targets = ["12.34.56.78"]
-    response = client.post(
+    response = client.put(
         "/api/v1/admin/ban-list",
-        json={"ban_ips": ban_targets},
+        json={"banned_ips": ban_targets},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
     assert response.status_code == 200
     assert len(shared.ban_list) == 1
 
-
 def test_add_to_ban_list_invalid_key(client: FlaskClient):
     prepare_test_state()
 
     ban_targets = ["12.34.56.78"]
-    response = client.post(
+    response = client.put(
         "/api/v1/admin/ban-list",
-        json={"ban_ips": ban_targets},
+        json={"banned_ips": ban_targets},
         headers={shared.ADMIN_KEY_HEADER: "beep"},
     )
 
     assert response.status_code == 403
     assert len(shared.ban_list) == 0
 
+def test_remove_from_ban_list(client: FlaskClient):
+    ban_target = "12.34.56.78"
+    prepare_test_state(ban_list=[ban_target])
+
+    response = client.delete(
+        "/api/v1/admin/ban-list",
+        json={"banned_ips": [ban_target]},
+        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
+    )
+
+    assert response.status_code == 200
+    assert len(shared.ban_list) == 0
+
+def test_remove_from_ban_list_invalid_key(client: FlaskClient):
+    ban_target = "12.34.56.78"
+    prepare_test_state(ban_list=[ban_target])
+
+    response = client.delete(
+        "/api/v1/admin/ban-list",
+        json={"banned_ips": [ban_target]},
+        headers={shared.ADMIN_KEY_HEADER: 'beep'},
+    )
+
+    assert response.status_code == 403
+    assert len(shared.ban_list) == 1
+    assert ban_target in shared.ban_list.get_all()
+
 def test_add_to_allow_list(client: FlaskClient):
     prepare_test_state()
 
     allow_target = "12.34.56.78"
-    response = client.post(
+    response = client.put(
         "/api/v1/admin/allow-list",
-        json={"allow_ips": [allow_target]},
+        json={"allowed_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
@@ -350,12 +366,41 @@ def test_add_to_allow_list_invalid_key(client: FlaskClient):
     prepare_test_state()
 
     allow_target = "12.34.56.78"
-    response = client.post(
+    response = client.put(
         "/api/v1/admin/allow-list",
-        json={"allow_ips": [allow_target]},
+        json={"allowed_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: "beep"},
     )
 
     assert response.status_code == 403
     assert len(shared.allow_list) == 1
     assert allow_target not in shared.allow_list.get_all()
+
+def test_remove_from_allow_list(client: FlaskClient):
+    allow_target = "12.34.56.78"
+    prepare_test_state(allow_list=[allow_target])
+
+    response = client.delete(
+        "/api/v1/admin/allow-list",
+        json={"allowed_ips": [allow_target]},
+        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
+    )
+
+    assert response.status_code == 200
+    assert len(shared.allow_list) == 0
+
+def test_remove_from_allow_list_invalid_key(client: FlaskClient):
+    allow_target = "12.34.56.78"
+    prepare_test_state(allow_list=[allow_target])
+
+    response = client.delete(
+        "/api/v1/admin/allow-list",
+        json={"allowed_ips": [allow_target]},
+        headers={shared.ADMIN_KEY_HEADER: 'beep'},
+    )
+
+    print(response.json)
+
+    assert response.status_code == 403
+    assert len(shared.allow_list) == 1
+    assert allow_target in shared.allow_list.get_all()

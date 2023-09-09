@@ -43,10 +43,7 @@ class IpList(Sized, Iterable[str]):
             f.write(ips)
 
     def add(self, key: str, ip: str) -> bool:
-        result = self.secured_ip_list.with_resource(
-            key, self.secured_ip_list.resource.union(set([ip]))
-        )
-        return self._process_result(result)
+        return self.add_all(key, [ip])
 
     def add_all(self, key: str, ips: Iterable[str]) -> bool:
         result = self.secured_ip_list.with_resource(
@@ -55,8 +52,11 @@ class IpList(Sized, Iterable[str]):
         return self._process_result(result)
 
     def remove(self, key: str, ip: str) -> bool:
+        return self.remove_all(key, [ip])
+    
+    def remove_all(self, key: str, ips: Iterable[str]) -> bool:
         result = self.secured_ip_list.with_resource(
-            key, self.secured_ip_list.resource.difference(set([ip]))
+            key, self.secured_ip_list.resource.difference(set(ips))
         )
         return self._process_result(result)
 

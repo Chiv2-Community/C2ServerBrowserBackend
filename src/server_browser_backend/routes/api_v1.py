@@ -12,6 +12,8 @@ from server_browser_backend.routes import shared
 from server_browser_backend.routes.shared import Banned, NotWhitelisted, get_and_validate_ip, get_key
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
+import traceback
+
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
 
@@ -103,13 +105,13 @@ def get_servers():
     return jsonify({"servers": servers}), 200
 
 
-@api_v1_bp.route("/admin/ban-list", methods=["POST"])
+@api_v1_bp.route("/admin/ban-list", methods=["PUT"])
 def add_to_ban_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    ip_list = get_list_or(request.json, "ban_ips", str)
+    ip_list = get_list_or(request.json, "banned_ips", str)
     result = shared.ban_list.add_all(sent_admin_key, ip_list)
 
     if not result:
@@ -122,6 +124,24 @@ def add_to_ban_list():
 
     return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
 
+@api_v1_bp.route("/admin/ban-list", methods=["DELETE"])
+def remove_from_ban_list():
+    source_ip = get_and_validate_ip()
+
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
+
+    ip_list = get_list_or(request.json, "banned_ips", str)
+    result = shared.ban_list.remove_all(sent_admin_key, ip_list)
+
+    if not result:
+        current_app.logger.warning(
+            f"Failed to remove requested addresses ({ip_list}) from ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+        )
+        return jsonify({}), 403
+
+    current_app.logger.info(f"Removing addresses from ban_list: {shared.ban_list}")
+
+    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
@@ -133,13 +153,13 @@ def get_ban_list():
 
     return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
 
-@api_v1_bp.route("/admin/allow-list", methods=["POST"])
+@api_v1_bp.route("/admin/allow-list", methods=["PUT"])
 def add_to_allow_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    ip_list = get_list_or(request.json, "allow_ips", str)
+    ip_list = get_list_or(request.json, "allowed_ips", str)
     result = shared.allow_list.add_all(sent_admin_key, ip_list)
 
     if not result:
@@ -152,6 +172,24 @@ def add_to_allow_list():
 
     return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
 
+@api_v1_bp.route("/admin/allow-list", methods=["DELETE"])
+def delete_from_allow_list():
+    source_ip = get_and_validate_ip()
+
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
+
+    ip_list = get_list_or(request.json, "allowed_ips", str)
+    result = shared.allow_list.remove_all(sent_admin_key, ip_list)
+
+    if not result:
+        current_app.logger.warning(
+            f"Failed to remove requested addresses ({ip_list}) from allow_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+        )
+        return jsonify({}), 403
+
+    current_app.logger.info(f"Removing addresses from allow_list: {shared.allow_list}")
+
+    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
 
 @api_v1_bp.route("/admin/allow-list", methods=["GET"])
 def get_allow_list():
@@ -219,10 +257,25 @@ def handle_not_whitelisted_server(e):
         "message": "Contact a member of @Whitelisters on the Chivalry 2 Unchained Discord to gain authorization for server listings."
     }), 403
 
+@api_v1_bp.errorhandler(Exception)
+def handle_not_whitelisted_server(e):
+    if shared.DEBUG_MODE:
+        return jsonify({
+            "status": "error", 
+            "message": str(e),
+            "stack": traceback.format_exc()
+        }), 500
+    else:
+        return jsonify({
+            "status": "error", 
+            "message": "An unexpected error occurred."
+        }), 500
+
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
 
     server = shared.server_list.update(server_id, key, update_server)
+
     if server is None:
         current_app.logger.warning(
             f"Update failed. Server with id {server_id} not registered."
