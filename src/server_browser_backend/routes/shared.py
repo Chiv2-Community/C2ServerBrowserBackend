@@ -3,7 +3,7 @@ import secrets
 
 from flask import request
 
-from server_browser_backend.ban_list import BanList
+from server_browser_backend.ip_list import IpList
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
@@ -15,21 +15,34 @@ KEY_HEADER = "x-chiv2-server-browser-key"
 heartbeat_timeout = 65
 server_list: ServerList = ServerList(heartbeat_timeout)
 
-ban_list: BanList = BanList(ADMIN_KEY, "ban_list.txt")
+ban_list: IpList = IpList(ADMIN_KEY, "ban_list.txt")
+
+allow_list: IpList = IpList(ADMIN_KEY, "allow_list.txt")
 
 
 class Banned(Exception):
     pass
 
+class NotWhitelisted(Exception):
+    pass
 
 def get_ip() -> str:
     return str(request.headers.get("X-Forwarded-For", request.remote_addr))
 
+def is_whitelisted() -> bool:
+    ip = get_ip()
+    if ip in allow_list.get_all():
+        return True
+    return False
 
-def get_and_validate_ip() -> str:
+def get_and_validate_ip(registering: bool = False) -> str:
     ip = get_ip()
     if ip in ban_list.get_all():
         raise Banned()
+    
+    if registering:
+        if not is_whitelisted():
+            raise NotWhitelisted()
 
     return ip
 
