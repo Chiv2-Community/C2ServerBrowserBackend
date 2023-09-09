@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from server_browser_backend.dict_util import DictKeyError, DictTypeError, get_list_or
 from server_browser_backend.models.base_models import Server, UpdateRegisteredServer
 from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import Banned, get_and_validate_ip, get_key
+from server_browser_backend.routes.shared import Banned, NotWhitelisted, get_and_validate_ip, get_key
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -23,7 +23,7 @@ def send_swagger():
 
 @api_v1_bp.route("/servers", methods=["POST"])
 def register():
-    server_ip = get_and_validate_ip()
+    server_ip = get_and_validate_ip(registering=True)
 
     # Insert inferred params in to the json so we can build the server object from json.
     # Not the prettiest, but simplifies construction somewhat
@@ -44,7 +44,7 @@ def register():
 
 @api_v1_bp.route("/servers/<server_id>/heartbeat", methods=["POST"])
 def heartbeat(server_id: str):
-    get_and_validate_ip()
+    get_and_validate_ip(registering=True)
     return update_server(
         server_id,
         lambda server: server.with_heartbeat(datetime.now().timestamp()),
@@ -53,7 +53,7 @@ def heartbeat(server_id: str):
 
 @api_v1_bp.route("/servers/<server_id>", methods=["PUT"])
 def update(server_id: str):
-    get_and_validate_ip()
+    get_and_validate_ip(registering=True)
     if not request.json:
         return (
             jsonify(
@@ -128,10 +128,40 @@ def get_ban_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-    if not shared.ban_list.secured_ban_list.validate(sent_admin_key):
+    if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
     return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+
+@api_v1_bp.route("/admin/allow-list", methods=["POST"])
+def add_to_allow_list():
+    source_ip = get_and_validate_ip()
+
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
+
+    ip_list = get_list_or(request.json, "allow_ips", str)
+    result = shared.allow_list.add_all(sent_admin_key, ip_list)
+
+    if not result:
+        current_app.logger.warning(
+            f"Failed to add requested addresses ({ip_list}) to allow_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+        )
+        return jsonify({}), 403
+
+    current_app.logger.info(f"Adding addresses to allow_list: {shared.allow_list}")
+
+    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
+
+
+@api_v1_bp.route("/admin/allow-list", methods=["GET"])
+def get_allow_list():
+    source_ip = get_and_validate_ip()
+
+    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
+    if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
+        return jsonify({}), 403
+
+    return jsonify({"allowed_ips": list(shared.ban_list.get_all())}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)
@@ -182,6 +212,12 @@ def handle_invalid_secret_key(e):
 def handle_banned_user(e):
     return jsonify({"status": "forbidden"}), 403
 
+@api_v1_bp.errorhandler(NotWhitelisted)
+def handle_not_whitelisted_server(e):
+    return jsonify({
+        "status": "forbidden", 
+        "message": "Contact a member of @Whitelisters on the Chivalry 2 Unchained Discord to gain authorization for server listings."
+    }), 403
 
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
