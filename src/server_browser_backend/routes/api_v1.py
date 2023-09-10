@@ -199,7 +199,7 @@ def get_allow_list():
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"allowed_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)
