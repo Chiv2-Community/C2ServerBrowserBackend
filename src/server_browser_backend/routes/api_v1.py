@@ -258,7 +258,7 @@ def handle_not_whitelisted_server(e):
     }), 403
 
 @api_v1_bp.errorhandler(Exception)
-def handle_not_whitelisted_server(e):
+def handle_general_exception(e):
     if shared.DEBUG_MODE:
         return jsonify({
             "status": "error", 
