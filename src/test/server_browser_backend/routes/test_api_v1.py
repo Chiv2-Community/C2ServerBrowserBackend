@@ -73,6 +73,21 @@ def test_update(client: FlaskClient):
     assert server.player_count == 10
 
 
+def test_update_non_existent(client: FlaskClient):
+    prepare_test_state()
+
+    server_id = 'foo'
+    response = client.put(
+        f"/api/v1/servers/{server_id}",
+        headers={
+            shared.KEY_HEADER: 'bar',
+        },
+        json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_delete(client: FlaskClient):
     prepare_test_state()
     

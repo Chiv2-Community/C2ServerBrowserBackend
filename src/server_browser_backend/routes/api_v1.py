@@ -274,6 +274,17 @@ def handle_not_whitelisted_server(e):
 def update_server(server_id: str, update_server: Callable[[Server], Server]):
     key = get_key()
 
+    existing_server = [x.unique_id for x in shared.server_list.get_all()]
+
+    if server_id not in existing_server:
+        current_app.logger.warning(
+            f"Update failed. Server with id {server_id} not registered."
+        )
+        return (
+            jsonify({"status": "not_registered", "message": "server not registered"}),
+            404,
+        )
+
     server = shared.server_list.update(server_id, key, update_server)
 
     if server is None:
