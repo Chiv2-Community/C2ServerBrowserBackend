@@ -93,3 +93,29 @@ def test_client_matchmake(client: FlaskClient):
     response_json = response.get_json()
     assert response_json["data"]["ServerHostname"] == "127.0.0.1"
     assert response_json["data"]["ServerPort"] == 1234
+
+def test_client_matchmake_local(client: FlaskClient):
+    test_ip = "4.20.69.42"
+    client.environ_base["HTTP_X_FORWARDED_FOR"] = test_ip
+
+    prepare_test_state(allow_list=[test_ip])
+
+    registration_response = client.post(
+        "/api/v1/servers",
+        json={
+            "name": "Test Server",
+            "description": "Test Description",
+            "ports": test_ports,
+            "player_count": 0,
+            "max_players": 100,
+            "current_map": "Test Map",
+        },
+    )
+
+    unique_id = registration_response.get_json()["server"]["unique_id"]
+
+    response = client.post("/api/playfab/Client/Matchmake", json={"LobbyId": unique_id})
+    assert response.status_code == 200
+    response_json = response.get_json()
+    assert response_json["data"]["ServerHostname"] == "127.0.0.1"
+    assert response_json["data"]["ServerPort"] == 1234
