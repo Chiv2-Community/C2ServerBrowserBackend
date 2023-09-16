@@ -34,6 +34,22 @@ class Server:
     max_players: int
     mods: List[Mod]
 
+    @staticmethod 
+    def local_server():
+        return Server(
+            "local",
+            "127.0.0.1",
+            Chivalry2Ports(7777, 3075, 7071),
+            0,
+            "Local Server",
+            "Local Server",
+            "FFA_Courtyard",
+            0,
+            9001,
+            [],
+        )
+
+
     @staticmethod
     def from_json(json: dict):
         mod_objs = get_list_or(json, "mods", dict, lambda: [])

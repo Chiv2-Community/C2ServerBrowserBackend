@@ -32,6 +32,13 @@ class ServerListData:
             sum(map(lambda s: s.player_count, servers)),
             list(map(lambda s: Game.from_server(s), servers)),
         )
+    
+    def add_game(self, game: Game) -> ServerListData:
+        return ServerListData(
+            self.GameCount + 1,
+            self.PlayerCount + game.MaxPlayers,
+            self.Games + [game],
+        )
 
 
 @dataclass(frozen=True)
@@ -62,7 +69,7 @@ class Game:
             "40p",
             [*range(server.player_count)],
             500,
-            0,
+            1,
             Tags(
                 "dummy",
                 server.name,

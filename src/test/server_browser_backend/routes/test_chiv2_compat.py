@@ -24,13 +24,14 @@ def client():
     with app.test_client() as client:
         yield client
 
-
 def test_get_servers(client: FlaskClient):
     prepare_test_state()
 
+    source_ip = "42.0.69.0"
+
     response = client.post("/api/tbio/GetCurrentGames")
     assert response.status_code == 200
-    assert len(response.get_json()["Data"]["Games"]) == 0
+    assert len(response.get_json()["Data"]["Games"]) == 1
 
     client.post(
         "/api/v1/servers",
@@ -42,12 +43,16 @@ def test_get_servers(client: FlaskClient):
             "max_players": 100,
             "current_map": "Test Map",
         },
+        headers={"X-Forwarded-For": source_ip}
     )
 
     response = client.post("/api/tbio/GetCurrentGames")
     assert response.status_code == 200
-    assert len(response.get_json()["Data"]["Games"]) == 1
+    assert len(response.get_json()["Data"]["Games"]) == 2
 
+    ip_addresses = [server["ServerIPV4Address"] for server in response.get_json()["Data"]["Games"]]
+    assert source_ip in ip_addresses
+    assert "127.0.0.1" in ip_addresses
 
 def test_motd_endpoint(client: FlaskClient):
     prepare_test_state()

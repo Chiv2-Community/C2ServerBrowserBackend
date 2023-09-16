@@ -8,17 +8,22 @@ from uuid import uuid4
 from flask import Blueprint, jsonify, request
 
 from server_browser_backend import dict_util
-from server_browser_backend.models import playfab, tbio
+from server_browser_backend.models import playfab, tbio, base_models
 from server_browser_backend.routes import shared
 from server_browser_backend.routes.shared import get_and_validate_ip
 
 tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
+
+def add_local_server(servers: tbio.ServerListData) -> tbio.ServerListData:
+    return servers.add_game(tbio.Game.from_server(base_models.Server.local_server()))
 
 
 @tbio_bp.route("/GetCurrentGames", methods=["POST"])
 def tbio_get_servers():
     get_and_validate_ip()  # Check if banned
     servers = tbio.ServerListData.from_servers(shared.server_list.get_all())
+    servers = add_local_server(servers)
+
     return jsonify(tbio.Wrapper(True, servers)), 200
 
 
@@ -51,7 +56,11 @@ def payfab_client_matchmake():
     if not server_id:
         return jsonify(playfab.Error(400, {}, "No LobbyId provided.", {}, False)), 400
 
+
     server = shared.server_list.get(server_id)
+
+    if server_id == "local":
+        server = base_models.Server.local_server()
 
     if not server:
         return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
