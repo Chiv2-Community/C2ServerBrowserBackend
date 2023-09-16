@@ -46,7 +46,7 @@ playfab_bp = Blueprint("chiv2_compat_playfab", __name__, url_prefix="/api/playfa
 
 @playfab_bp.route("/Client/Matchmake", methods=["POST"])
 def payfab_client_matchmake():
-    client_ip = get_and_validate_ip()
+    get_and_validate_ip()
     server_id = request.json.get("LobbyId")
     if not server_id:
         return jsonify(playfab.Error(400, {}, "No LobbyId provided.", {}, False)), 400
@@ -55,8 +55,6 @@ def payfab_client_matchmake():
 
     if not server:
         return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
-    
-    return_ip = "127.0.0.1" if client_ip == server.ip_address else server.ip_address
 
     return (
         jsonify(
@@ -64,8 +62,8 @@ def payfab_client_matchmake():
                 200,
                 "OK",
                 playfab.Game(
-                    return_ip,
-                    return_ip,
+                    server.ip_address,
+                    server.ip_address,
                     server.ports.game,
                     str(uuid4()),
                 ),
