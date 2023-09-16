@@ -44,10 +44,9 @@ def test_register_unauthorized(client: FlaskClient):
     prepare_test_state(allow_list=[])
 
     response = client.post("/api/v1/servers", json=test_server_json)
-    response_json = response.get_json()
 
-    assert response.status_code == 403
-    assert LOCALHOST not in [x.ip_address for x in shared.server_list.get_all()]
+    assert response.status_code == 201
+    assert [x.name for x in shared.server_list.get_all()][0].startswith("Unverified")
 
 
 def test_update(client: FlaskClient):
@@ -64,6 +63,7 @@ def test_update(client: FlaskClient):
     )
 
     response_json = response.get_json()
+    print(response_json)
     unique_id = response_json["server"]["unique_id"]
     server = shared.server_list.get(unique_id)
 

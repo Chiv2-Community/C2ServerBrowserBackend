@@ -78,6 +78,20 @@ class Server:
             update_request.max_players,
             self.mods,
         )
+    
+    def unverified(self) -> Server:
+        return Server(
+            self.unique_id,
+            self.ip_address,
+            self.ports,
+            self.last_heartbeat,
+            "Unverified " + self.name,
+            self.description,
+            self.current_map,
+            self.player_count,
+            self.max_players,
+            self.mods,
+        )
 
 
 @dataclass(frozen=True)

@@ -25,7 +25,7 @@ def send_swagger():
 
 @api_v1_bp.route("/servers", methods=["POST"])
 def register():
-    server_ip = get_and_validate_ip(registering=True)
+    server_ip = get_and_validate_ip()
 
     # Insert inferred params in to the json so we can build the server object from json.
     # Not the prettiest, but simplifies construction somewhat
@@ -34,6 +34,9 @@ def register():
     request.json["last_heartbeat"] = datetime.now().timestamp()
 
     server = Server.from_json(request.json)
+    if not shared.is_whitelisted():
+        server = server.unverified()
+
     key = shared.server_list.register(server)
     timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
 
@@ -46,7 +49,7 @@ def register():
 
 @api_v1_bp.route("/servers/<server_id>/heartbeat", methods=["POST"])
 def heartbeat(server_id: str):
-    get_and_validate_ip(registering=True)
+    get_and_validate_ip()
     return update_server(
         server_id,
         lambda server: server.with_heartbeat(datetime.now().timestamp()),
@@ -55,7 +58,7 @@ def heartbeat(server_id: str):
 
 @api_v1_bp.route("/servers/<server_id>", methods=["PUT"])
 def update(server_id: str):
-    get_and_validate_ip(registering=True)
+    get_and_validate_ip()
     if not request.json:
         return (
             jsonify(

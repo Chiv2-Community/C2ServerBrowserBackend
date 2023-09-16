@@ -36,14 +36,10 @@ def is_whitelisted() -> bool:
         return True
     return False
 
-def get_and_validate_ip(registering: bool = False) -> str:
+def get_and_validate_ip() -> str:
     ip = get_ip()
     if ip in ban_list.get_all():
         raise Banned()
-    
-    if registering:
-        if not is_whitelisted():
-            raise NotWhitelisted()
 
     return ip
 
