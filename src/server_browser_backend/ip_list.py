@@ -4,11 +4,13 @@ from os import path
 from server_browser_backend.secured_resource import SecuredResource
 
 class IpList(Sized, Iterable[str]):
+    secured_ip_list: SecuredResource[Set[str]]
+
     def __init__(self, key: str, ip_list_path: str):
         self.ip_list_path = ip_list_path
 
         # Load the file line by line in to a set
-        initial_ip_list = set()
+        initial_ip_list: Set[str] = set()
         self.secured_ip_list = SecuredResource(key, initial_ip_list)
 
         self.load(key)
