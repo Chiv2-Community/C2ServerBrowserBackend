@@ -15,8 +15,8 @@ class Wrapper(Generic[A]):
     expiration: Optional[int] = None
 
     @staticmethod
-    def from_servers(servers: List[Server]) -> Wrapper[ServerListData]:
-        return Wrapper(True, ServerListData.from_servers(servers))
+    def from_servers(servers: List[Server], client_ip: str) -> Wrapper[ServerListData]:
+        return Wrapper(True, ServerListData.from_servers(servers, client_ip))
 
 
 @dataclass(frozen=True)

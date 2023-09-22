@@ -100,7 +100,7 @@ def test_motd_endpoint_fallback(client: FlaskClient):
     assert response.status_code == 200
 
 
-def test_client_matchmake(client: FlaskClient):
+def test_client_matchmake_2(client: FlaskClient):
     prepare_test_state()
 
     ip_address = "42.0.69.42"
@@ -152,27 +152,4 @@ def test_local_client_matchmake(client: FlaskClient):
     assert response.status_code == 200
     response_json = response.get_json()
     assert response_json["data"]["ServerHostname"] == local_ip_address
-    assert response_json["data"]["ServerPort"] == 1234
-
-def test_client_matchmake(client: FlaskClient):
-    prepare_test_state()
-    
-    registration_response = client.post(
-        "/api/v1/servers",
-        json={
-            "name": "Test Server",
-            "description": "Test Description",
-            "ports": test_ports,
-            "player_count": 0,
-            "max_players": 100,
-            "current_map": "Test Map",
-        },
-    )
-
-    unique_id = registration_response.get_json()["server"]["unique_id"]
-
-    response = client.post("/api/playfab/Client/Matchmake", json={"LobbyId": unique_id})
-    assert response.status_code == 200
-    response_json = response.get_json()
-    assert response_json["data"]["ServerHostname"] == "127.0.0.1"
     assert response_json["data"]["ServerPort"] == 1234

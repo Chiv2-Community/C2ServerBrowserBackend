@@ -61,3 +61,17 @@ def get_or(
         return _no_key_error(key, dictionary)
 
     return default()
+
+def get_or_optional(
+    dictionary: Dict[str, Any],
+    key: str,
+    expected_type: Type[A],
+) -> Optional[A]:
+    """Gets a value from the dictionary, and checks that it is of the correct type. Returns None if the key is not present."""
+    if key in dictionary:
+        value = dictionary[key]
+        if isinstance(value, expected_type):
+            return value
+        else:
+            raise DictTypeError(key, value, expected_type, type(value), dictionary)
+    return None

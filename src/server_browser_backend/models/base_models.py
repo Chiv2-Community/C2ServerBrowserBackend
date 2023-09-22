@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import List, Optional
 
-from server_browser_backend.dict_util import get_list_or, get_or
+from server_browser_backend.dict_util import get_list_or, get_or, get_or_optional
 
 @dataclass(frozen=True)
 class Mod:
@@ -42,7 +42,7 @@ class Server:
         return Server(
             get_or(json, "unique_id", str),
             get_or(json, "ip_address", str),
-            get_or(json, "local_ip_address", str, default=lambda: None),
+            get_or_optional(json, "local_ip_address", str),
             Chivalry2Ports.from_json(get_or(json, "ports", dict)),
             get_or(json, "password_protected", bool, default=lambda: False),
             get_or(json, "last_heartbeat", float),
