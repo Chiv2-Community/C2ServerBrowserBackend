@@ -26,11 +26,11 @@ class ServerListData:
     Games: List[Game]
 
     @staticmethod
-    def from_servers(servers: List[Server]):
+    def from_servers(servers: List[Server], client_ip: str) -> ServerListData:
         return ServerListData(
             len(servers),
             sum(map(lambda s: s.player_count, servers)),
-            list(map(lambda s: Game.from_server(s), servers)),
+            list(map(lambda s: Game.from_server(s, client_ip), servers)),
         )
     
     def add_game(self, game: Game) -> ServerListData:
@@ -59,7 +59,8 @@ class Game:
     ServerPort: int
 
     @staticmethod
-    def from_server(server: Server):
+    def from_server(server: Server, client_ip: str) -> Game:
+        ip_address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
         return Game(
             "paris",
             server.unique_id,
@@ -82,13 +83,13 @@ class Game:
                 str(server.ports.ping),
                 str(server.ports.a2s),
                 "0",
-                "false",
+                "true" if server.password_protected else "false",
                 "6",
                 "277",
             ),
             int(server.last_heartbeat),
-            server.ip_address,
-            server.ip_address,
+            ip_address,
+            ip_address,
             server.ports.game,
         )
 

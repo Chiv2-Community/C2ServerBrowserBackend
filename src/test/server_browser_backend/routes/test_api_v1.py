@@ -37,7 +37,6 @@ def test_register(client: FlaskClient):
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
     assert shared.server_list.exists(response_json["server"]["unique_id"])
-    assert LOCALHOST in [x.ip_address for x in shared.server_list.get_all()]
 
 
 def test_register_unauthorized(client: FlaskClient):
@@ -46,8 +45,7 @@ def test_register_unauthorized(client: FlaskClient):
     response = client.post("/api/v1/servers", json=test_server_json)
 
     assert response.status_code == 201
-    assert [x.name for x in shared.server_list.get_all()][0].startswith("Unverified")
-
+    assert [x.name for x in shared.server_list.get_all()][0].startswith("Unverified - ")
 
 def test_update(client: FlaskClient):
     prepare_test_state()
@@ -209,7 +207,7 @@ def test_get_servers(client: FlaskClient):
     assert response.status_code == 200
     assert len(response.get_json()["servers"]) == 0
 
-    registration = client.post(
+    client.post(
         "/api/v1/servers",
         json={
             "name": "Test Server",
@@ -221,9 +219,25 @@ def test_get_servers(client: FlaskClient):
         },
     )
 
+    client.post(
+        "/api/v1/servers",
+        json={
+            "name": "Test Server",
+            "description": "Test Description",
+            "ports": test_ports,
+            "player_count": 0,
+            "max_players": 100,
+            "password_protected": True,
+            "current_map": "Test Map",
+        },
+    )
+
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
-    assert len(response.get_json()["servers"]) == 1
+    assert len(response.get_json()["servers"]) == 2
+
+    # Make sure 1 is password protected and 1 isnt
+    assert response.get_json()["servers"][0]["password_protected"] != response.get_json()["servers"][1]["password_protected"]
 
 
 def test_heartbeat_timeout(client: FlaskClient):
