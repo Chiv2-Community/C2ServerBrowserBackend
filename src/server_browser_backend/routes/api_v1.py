@@ -105,7 +105,8 @@ def delete_server(server_id: str):
 def get_servers():
     get_and_validate_ip()
     servers = shared.server_list.get_all()
-    return jsonify({"servers": servers}), 200
+    server_listing_servers = [x.to_server_response() for x in servers]
+    return jsonify({"servers": server_listing_servers}), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["PUT"])
