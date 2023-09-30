@@ -50,7 +50,7 @@ class Server:
             get_or(json, "description", str),
             get_or(json, "current_map", str),
             get_or(json, "player_count", int) - 1,
-            get_or(json, "max_players", int),
+            get_or(json, "max_players", int) - 1,
             list(map(Mod.from_json, mod_objs)),
         )
 
@@ -123,7 +123,7 @@ class UpdateRegisteredServer:
         return UpdateRegisteredServer(
             get_or(json, "current_map", str),
             get_or(json, "player_count", int) - 1,
-            get_or(json, "max_players", int),
+            get_or(json, "max_players", int) - 1,
         )
 
 
