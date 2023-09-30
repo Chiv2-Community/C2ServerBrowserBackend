@@ -49,7 +49,7 @@ class Server:
             get_or(json, "name", str),
             get_or(json, "description", str),
             get_or(json, "current_map", str),
-            get_or(json, "player_count", int),
+            get_or(json, "player_count", int) - 1,
             get_or(json, "max_players", int),
             list(map(Mod.from_json, mod_objs)),
         )
@@ -122,7 +122,7 @@ class UpdateRegisteredServer:
     def from_json(json: dict):
         return UpdateRegisteredServer(
             get_or(json, "current_map", str),
-            get_or(json, "player_count", int),
+            get_or(json, "player_count", int) - 1,
             get_or(json, "max_players", int),
         )
 
