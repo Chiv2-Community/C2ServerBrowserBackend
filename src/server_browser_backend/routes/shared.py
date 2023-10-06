@@ -18,13 +18,10 @@ heartbeat_timeout = 65
 server_list: ServerList = ServerList(heartbeat_timeout)
 
 ban_list: IpList = IpList(ADMIN_KEY, f"{CONFIG_DIR}/ban_list.txt")
-allow_list: IpList = IpList(ADMIN_KEY, f"{CONFIG_DIR}/allow_list.txt")
+verified_list: IpList = IpList(ADMIN_KEY, f"{CONFIG_DIR}/verified_list.txt")
 
 
 class Banned(Exception):
-    pass
-
-class NotWhitelisted(Exception):
     pass
 
 def get_ip() -> str:
@@ -32,17 +29,14 @@ def get_ip() -> str:
 
 def is_whitelisted() -> bool:
     ip = get_ip()
-    if ip in allow_list.get_all():
-        return True
-    return False
+    return verified_list.contains(ip)
 
 def get_and_validate_ip() -> str:
     ip = get_ip()
-    if ip in ban_list.get_all():
+    if ban_list.contains(ip):
         raise Banned()
 
     return ip
-
 
 def get_key() -> str:
     key = request.headers.get(KEY_HEADER)
