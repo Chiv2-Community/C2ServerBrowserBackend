@@ -63,7 +63,6 @@ def test_update(client: FlaskClient):
     )
 
     response_json = response.get_json()
-    print(response_json)
     unique_id = response_json["server"]["unique_id"]
     server = shared.server_list.get(unique_id)
 
@@ -382,12 +381,10 @@ def test_add_to_verified_list(client: FlaskClient):
 
     allow_target = "12.34.56.78"
     response = client.put(
-        "/api/v1/admin/",
+        "/api/v1/admin/verified-list",
         json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
-
-    print(response.json)
 
     assert response.status_code == 200
     assert len(shared.verified_list) == 2
@@ -398,7 +395,7 @@ def test_add_to_verified_list_invalid_key(client: FlaskClient):
 
     allow_target = "12.34.56.78"
     response = client.put(
-        "/api/v1/admin/",
+        "/api/v1/admin/verified-list",
         json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: "beep"},
     )
@@ -412,7 +409,7 @@ def test_remove_from_verified_list(client: FlaskClient):
     prepare_test_state(verified_list=[allow_target])
 
     response = client.delete(
-        "/api/v1/admin/",
+        "/api/v1/admin/verified-list",
         json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
@@ -425,12 +422,10 @@ def test_remove_from_verified_list_invalid_key(client: FlaskClient):
     prepare_test_state(verified_list=[allow_target])
 
     response = client.delete(
-        "/api/v1/admin/",
+        "/api/v1/admin/verified-list",
         json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: 'beep'},
     )
-
-    print(response.json)
 
     assert response.status_code == 403
     assert len(shared.verified_list) == 1
