@@ -153,7 +153,7 @@ def remove_from_ban_list():
 
     current_app.logger.info(f"Removing addresses from ban_list: {shared.ban_list}")
 
-    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"banned_ips": list(map(lambda x: str(x), shared.ban_list.get_all()))}), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
@@ -163,9 +163,9 @@ def get_ban_list():
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"banned_ips": list(map(lambda x: str(x), shared.ban_list.get_all()))}), 200
 
-@api_v1_bp.route("/admin/", methods=["PUT"])
+@api_v1_bp.route("/admin/verified-list", methods=["PUT"])
 def add_to_verified_list():
     source_ip = get_and_validate_ip()
 
@@ -192,7 +192,7 @@ def add_to_verified_list():
 
     return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
-@api_v1_bp.route("/admin/", methods=["DELETE"])
+@api_v1_bp.route("/admin/verified-list", methods=["DELETE"])
 def delete_from_verified_list():
     source_ip = get_and_validate_ip()
 
@@ -209,9 +209,9 @@ def delete_from_verified_list():
 
     current_app.logger.info(f"Removing addresses from verified_list: {shared.verified_list}")
 
-    return jsonify({"verified_ips": list(shared.verified_list.get_all())}), 200
+    return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
-@api_v1_bp.route("/admin/", methods=["GET"])
+@api_v1_bp.route("/admin/verified-list", methods=["GET"])
 def get_verified_list():
     source_ip = get_and_validate_ip()
 
@@ -219,7 +219,7 @@ def get_verified_list():
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"verified_ips": list(shared.verified_list.get_all())}), 200
+    return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)
