@@ -15,8 +15,8 @@ class Wrapper(Generic[A]):
     expiration: Optional[int] = None
 
     @staticmethod
-    def from_servers(servers: List[Server], client_ip: str) -> Wrapper[ServerListData]:
-        return Wrapper(True, ServerListData.from_servers(servers, client_ip))
+    def from_servers(servers: List[Server], client_ip: Optional[str], fixed_name: Optional[str] = None) -> Wrapper[ServerListData]:
+        return Wrapper(True, ServerListData.from_servers(servers, client_ip, fixed_name))
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class ServerListData:
     Games: List[Game]
 
     @staticmethod
-    def from_servers(servers: List[Server], client_ip: str) -> ServerListData:
+    def from_servers(servers: List[Server], client_ip: Optional[str], fixed_name: Optional[str] = None) -> ServerListData:
         return ServerListData(
             len(servers),
             sum(map(lambda s: s.player_count, servers)),
@@ -59,8 +59,9 @@ class Game:
     ServerPort: int
 
     @staticmethod
-    def from_server(server: Server, client_ip: str) -> Game:
+    def from_server(server: Server, client_ip: Optional[str], fixed_name: Optional[str] = None) -> Game:
         ip_address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
+
         return Game(
             "paris",
             server.unique_id,
@@ -73,7 +74,7 @@ class Game:
             1,
             Tags(
                 "dummy",
-                server.name,
+                fixed_name if fixed_name is not None else server.name,
                 "paris",
                 "true",
                 "any",

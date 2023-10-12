@@ -85,6 +85,20 @@ def test_motd_endpoint(client: FlaskClient):
     assert response.status_code == 200
     assert response.get_json()["Data"]["Motd"] == "test"
 
+def test_banned_motd_endpoint(client: FlaskClient):
+    prepare_test_state(ban_list=['127.0.0.1'])
+
+    response = client.post("/api/tbio/GetMotd", json={"Language": "test"})
+    assert response.status_code == 200
+    assert response.get_json()["Data"]["Motd"] == "test banned"
+
+def test_banned_default_motd_endpoint(client: FlaskClient):
+    prepare_test_state(ban_list=['127.0.0.1'])
+
+    response = client.post("/api/tbio/GetMotd", json={})
+    assert response.status_code == 200
+    assert response.get_json()["Data"]["Motd"] == "This address is banned. Ensure your VPN is disabled. Contact an admin for more information."
+
 
 def test_motd_endpoint_default(client: FlaskClient):
     prepare_test_state()

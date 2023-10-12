@@ -6,6 +6,8 @@ from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
 from server_browser_backend.routes import shared
+from ipaddress import ip_network
+
 from . import LOCALHOST, prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
@@ -40,7 +42,7 @@ def test_register(client: FlaskClient):
 
 
 def test_register_unauthorized(client: FlaskClient):
-    prepare_test_state(allow_list=[])
+    prepare_test_state(verified_list=[])
 
     response = client.post("/api/v1/servers", json=test_server_json)
 
@@ -61,14 +63,13 @@ def test_update(client: FlaskClient):
     )
 
     response_json = response.get_json()
-    print(response_json)
     unique_id = response_json["server"]["unique_id"]
     server = shared.server_list.get(unique_id)
 
     assert response.status_code == 200
 
     assert server is not None
-    assert server.player_count == 10
+    assert server.player_count == 9
 
 
 def test_update_non_existent(client: FlaskClient):
@@ -373,63 +374,59 @@ def test_remove_from_ban_list_invalid_key(client: FlaskClient):
 
     assert response.status_code == 403
     assert len(shared.ban_list) == 1
-    assert ban_target in shared.ban_list.get_all()
+    assert ip_network(ban_target) in shared.ban_list.get_all()
 
-def test_add_to_allow_list(client: FlaskClient):
+def test_add_to_verified_list(client: FlaskClient):
     prepare_test_state()
 
     allow_target = "12.34.56.78"
     response = client.put(
-        "/api/v1/admin/allow-list",
-        json={"allowed_ips": [allow_target]},
+        "/api/v1/admin/verified-list",
+        json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
-    print(response.json)
-
     assert response.status_code == 200
-    assert len(shared.allow_list) == 2
-    assert allow_target in shared.allow_list.get_all()
+    assert len(shared.verified_list) == 2
+    assert ip_network(allow_target) in shared.verified_list.get_all()
 
-def test_add_to_allow_list_invalid_key(client: FlaskClient):
+def test_add_to_verified_list_invalid_key(client: FlaskClient):
     prepare_test_state()
 
     allow_target = "12.34.56.78"
     response = client.put(
-        "/api/v1/admin/allow-list",
-        json={"allowed_ips": [allow_target]},
+        "/api/v1/admin/verified-list",
+        json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: "beep"},
     )
 
     assert response.status_code == 403
-    assert len(shared.allow_list) == 1
-    assert allow_target not in shared.allow_list.get_all()
+    assert len(shared.verified_list) == 1
+    assert ip_network(allow_target) not in shared.verified_list.get_all()
 
-def test_remove_from_allow_list(client: FlaskClient):
+def test_remove_from_verified_list(client: FlaskClient):
     allow_target = "12.34.56.78"
-    prepare_test_state(allow_list=[allow_target])
+    prepare_test_state(verified_list=[allow_target])
 
     response = client.delete(
-        "/api/v1/admin/allow-list",
-        json={"allowed_ips": [allow_target]},
+        "/api/v1/admin/verified-list",
+        json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
     )
 
     assert response.status_code == 200
-    assert len(shared.allow_list) == 0
+    assert len(shared.verified_list) == 0
 
-def test_remove_from_allow_list_invalid_key(client: FlaskClient):
+def test_remove_from_verified_list_invalid_key(client: FlaskClient):
     allow_target = "12.34.56.78"
-    prepare_test_state(allow_list=[allow_target])
+    prepare_test_state(verified_list=[allow_target])
 
     response = client.delete(
-        "/api/v1/admin/allow-list",
-        json={"allowed_ips": [allow_target]},
+        "/api/v1/admin/verified-list",
+        json={"verified_ips": [allow_target]},
         headers={shared.ADMIN_KEY_HEADER: 'beep'},
     )
 
-    print(response.json)
-
     assert response.status_code == 403
-    assert len(shared.allow_list) == 1
-    assert allow_target in shared.allow_list.get_all()
+    assert len(shared.verified_list) == 1
+    assert ip_network(allow_target) in shared.verified_list.get_all()

@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from server_browser_backend.dict_util import DictKeyError, DictTypeError, get_list_or
 from server_browser_backend.models.base_models import Server, UpdateRegisteredServer
 from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import Banned, NotWhitelisted, get_and_validate_ip, get_key
+from server_browser_backend.routes.shared import Banned, get_and_validate_ip, get_key
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
 import traceback
@@ -116,17 +116,25 @@ def add_to_ban_list():
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
     ip_list = get_list_or(request.json, "banned_ips", str)
+
+    current_app.logger.info(f"{source_ip} requested to add addresses to ban_list: {ip_list}")
+    
     result = shared.ban_list.add_all(sent_admin_key, ip_list)
 
-    if not result:
+    if result == False:
         current_app.logger.warning(
             f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
         )
         return jsonify({}), 403
+    elif result == None:
+        current_app.logger.warning(
+            f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid IP address sent from {source_ip}"
+        )
+        return jsonify({}), 400
 
-    current_app.logger.info(f"Adding addresses to ban_list: {shared.ban_list}")
+    current_app.logger.info(f"Adding addresses to ban_list.")
 
-    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"banned_ips": list(map(lambda x: str(x), shared.ban_list.get_all()))}), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["DELETE"])
 def remove_from_ban_list():
@@ -145,7 +153,7 @@ def remove_from_ban_list():
 
     current_app.logger.info(f"Removing addresses from ban_list: {shared.ban_list}")
 
-    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"banned_ips": list(map(lambda x: str(x), shared.ban_list.get_all()))}), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
@@ -155,55 +163,63 @@ def get_ban_list():
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"banned_ips": list(shared.ban_list.get_all())}), 200
+    return jsonify({"banned_ips": list(map(lambda x: str(x), shared.ban_list.get_all()))}), 200
 
-@api_v1_bp.route("/admin/allow-list", methods=["PUT"])
-def add_to_allow_list():
+@api_v1_bp.route("/admin/verified-list", methods=["PUT"])
+def add_to_verified_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    ip_list = get_list_or(request.json, "allowed_ips", str)
-    result = shared.allow_list.add_all(sent_admin_key, ip_list)
+    ip_list = get_list_or(request.json, "verified_ips", str)
 
-    if not result:
+    current_app.logger.info(f"{source_ip} requested to add addresses to verified_list: {ip_list}")
+
+    result = shared.verified_list.add_all(sent_admin_key, ip_list)
+
+    if result == False:
         current_app.logger.warning(
-            f"Failed to add requested addresses ({ip_list}) to allow_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+            f"Failed to add requested addresses ({ip_list}) to verified_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
         )
         return jsonify({}), 403
+    elif result == None:
+        current_app.logger.warning(
+            f"Failed to add requested addresses ({ip_list}) to verified_list. Invalid IP address sent from {source_ip}"
+        )
+        return jsonify({}), 400
+    
+    current_app.logger.info(f"Adding addresses to verified_list")
 
-    current_app.logger.info(f"Adding addresses to allow_list: {shared.allow_list}")
+    return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
-    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
-
-@api_v1_bp.route("/admin/allow-list", methods=["DELETE"])
-def delete_from_allow_list():
+@api_v1_bp.route("/admin/verified-list", methods=["DELETE"])
+def delete_from_verified_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    ip_list = get_list_or(request.json, "allowed_ips", str)
-    result = shared.allow_list.remove_all(sent_admin_key, ip_list)
+    ip_list = get_list_or(request.json, "verified_ips", str)
+    result = shared.verified_list.remove_all(sent_admin_key, ip_list)
 
     if not result:
         current_app.logger.warning(
-            f"Failed to remove requested addresses ({ip_list}) from allow_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+            f"Failed to remove requested addresses ({ip_list}) from verified_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
         )
         return jsonify({}), 403
 
-    current_app.logger.info(f"Removing addresses from allow_list: {shared.allow_list}")
+    current_app.logger.info(f"Removing addresses from verified_list: {shared.verified_list}")
 
-    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
+    return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
-@api_v1_bp.route("/admin/allow-list", methods=["GET"])
-def get_allow_list():
+@api_v1_bp.route("/admin/verified-list", methods=["GET"])
+def get_verified_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify({}), 403
 
-    return jsonify({"allowed_ips": list(shared.allow_list.get_all())}), 200
+    return jsonify({"verified_ips": list(map(lambda x: str(x), shared.verified_list.get_all()))}), 200
 
 
 @api_v1_bp.errorhandler(DictKeyError)
@@ -253,13 +269,6 @@ def handle_invalid_secret_key(e):
 @api_v1_bp.errorhandler(Banned)
 def handle_banned_user(e):
     return jsonify({"status": "forbidden"}), 403
-
-@api_v1_bp.errorhandler(NotWhitelisted)
-def handle_not_whitelisted_server(e):
-    return jsonify({
-        "status": "forbidden", 
-        "message": "Contact a member of @Whitelisters on the Chivalry 2 Unchained Discord to gain authorization for server listings."
-    }), 403
 
 @api_v1_bp.errorhandler(Exception)
 def handle_general_exception(e):

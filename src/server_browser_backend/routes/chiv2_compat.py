@@ -16,19 +16,31 @@ tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
 
 @tbio_bp.route("/GetCurrentGames", methods=["POST"])
 def tbio_get_servers():
-    client_ip = get_and_validate_ip()  # Check if banned
-    servers = tbio.ServerListData.from_servers(shared.server_list.get_all(), client_ip)
+    banned = False
+    client_ip = None
+    try:
+        client_ip = get_and_validate_ip()
+    except shared.Banned:
+        banned = True
+
+    fixed_name = "This address is banned. Ensure your VPN is disabled." if banned else None
+    servers = tbio.ServerListData.from_servers(shared.server_list.get_all(), client_ip, fixed_name)
 
     return jsonify(tbio.Wrapper(True, servers)), 200
 
 
 @tbio_bp.route("/GetMotd", methods=["POST"])
 def get_motd():
-    get_and_validate_ip()
+    banned_suffix = ""
+    try:
+        get_and_validate_ip()
+    except shared.Banned:
+        banned_suffix = "_banned"
+
     language = dict_util.get_or(request.json, "Language", str, lambda: "en")
 
-    language_path = f"assets/motd/{language}.json"
-    default_path = f"assets/motd/en.json"
+    language_path = f"assets/motd/{language}{banned_suffix}.json"
+    default_path = f"assets/motd/en{banned_suffix}.json"
 
     motd_path = language_path if path.exists(language_path) else default_path
 
