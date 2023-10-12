@@ -8,9 +8,16 @@ This is a flask based python server which has its routes defined in OpenAPI spec
 The preferred method for running this server is via docker.
 
 ```
-docker run -p 8080:8080 -it jacoby6000/chivalry2-unofficial-server-browser-backend:latest \
-  -b 0.0.0.0:8080 \
-  -w 4
+HOST_CONFIG_DIR=$(pwd)/config
+docker run \
+  -p 8080:8080 \
+  -e ADMIN_KEY='YOUR_SECRET_KEY_FOR_MANAGING_BANS' \
+  -e CONFIG_DIR='/config' \
+  -v $HOST_CONFIG_DIR:/config \ 
+  -it \
+  jacoby6000/chivalry2-unofficial-server-browser-backend:latest \
+    -b 0.0.0.0:8080 \
+    -w 1
 ```
 
 The params passed in at the end are gunicorn arguments
