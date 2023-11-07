@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from logging.config import dictConfig
-from typing import Optional
 
 from pygelf import GelfTcpHandler
 from os import environ
 import logging
 
 from flask import Flask
-import argparse
 
 from server_browser_backend import routes
 logger = logging.getLogger()

@@ -22,6 +22,10 @@ def send_swagger():
     get_and_validate_ip()
     return send_file("../../assets/chiv2-server-browser-api.yaml")
 
+@api_v1_bp.route("/check-banned/<ip>", methods=["GET"])
+def check_banned(ip: str):
+    get_and_validate_ip()
+    return jsonify({"banned": shared.ban_list.contains(ip)}), 200
 
 @api_v1_bp.route("/servers", methods=["POST"])
 def register():

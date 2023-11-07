@@ -430,3 +430,25 @@ def test_remove_from_verified_list_invalid_key(client: FlaskClient):
     assert response.status_code == 403
     assert len(shared.verified_list) == 1
     assert ip_network(allow_target) in shared.verified_list.get_all()
+
+def test_is_banned_true(client: FlaskClient):
+    ban_target = "12.34.56.78"
+    prepare_test_state(ban_list=[ban_target])
+
+    response = client.get(f"/api/v1/check-banned/{ban_target}")
+
+    assert response.status_code == 200
+    assert response.get_json()["banned"] == True
+
+
+def test_is_banned_false(client: FlaskClient):
+    ban_target = "12.34.56.78"
+    
+    prepare_test_state(ban_list=[ban_target])
+
+    response = client.get(
+        f"/api/v1/check-banned/127.0.0.1"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["banned"] == False
