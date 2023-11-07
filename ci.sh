@@ -2,4 +2,4 @@
 
 poetry install --no-root
 poetry run mypy src
-poetry run pytest
+DEBUG_MODE=true poetry run pytest

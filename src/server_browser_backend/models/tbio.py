@@ -30,7 +30,7 @@ class ServerListData:
         return ServerListData(
             len(servers),
             sum(map(lambda s: s.player_count, servers)),
-            list(map(lambda s: Game.from_server(s, client_ip), servers)),
+            list(map(lambda s: Game.from_server(s, client_ip, fixed_name), servers)),
         )
     
     def add_game(self, game: Game) -> ServerListData:

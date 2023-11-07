@@ -1,4 +1,4 @@
-FROM python:3.10-slim-bullseye
+FROM python:3.12-slim-bookworm
 
 ARG ENV
 
@@ -24,4 +24,4 @@ COPY . /code
 RUN poetry config virtualenvs.create false \
   && poetry install --no-dev --no-interaction --no-ansi
 
-ENTRYPOINT ["poetry", "run", "gunicorn", "server_browser_backend:app"]
+ENTRYPOINT ["/code/scripts/entrypoint.sh"]
