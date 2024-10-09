@@ -38,7 +38,9 @@ def register():
     request.json["last_heartbeat"] = datetime.now().timestamp()
 
     server = Server.from_json(request.json)
-    if not shared.is_whitelisted():
+    if shared.is_whitelisted():
+        server = server.verified()
+    else:
         server = server.unverified()
 
     key = shared.server_list.register(server)

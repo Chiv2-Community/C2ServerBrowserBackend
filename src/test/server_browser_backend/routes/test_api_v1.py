@@ -39,7 +39,7 @@ def test_register(client: FlaskClient):
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
     assert shared.server_list.exists(response_json["server"]["unique_id"])
-
+    assert [x.is_verified for x in shared.server_list.get_all()][0] == True
 
 def test_register_unauthorized(client: FlaskClient):
     prepare_test_state(verified_list=[])
@@ -47,7 +47,7 @@ def test_register_unauthorized(client: FlaskClient):
     response = client.post("/api/v1/servers", json=test_server_json)
 
     assert response.status_code == 201
-    assert [x.name for x in shared.server_list.get_all()][0].startswith("Unverified - ")
+    assert [x.is_verified for x in shared.server_list.get_all()][0] == False
 
 def test_update(client: FlaskClient):
     prepare_test_state()

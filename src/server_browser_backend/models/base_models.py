@@ -33,6 +33,7 @@ class Server:
     current_map: str
     player_count: int
     max_players: int
+    is_verified: bool
     mods: List[Mod]
 
     @staticmethod
@@ -51,7 +52,8 @@ class Server:
             get_or(json, "current_map", str),
             get_or(json, "player_count", int) - 1,
             get_or(json, "max_players", int) - 1,
-            list(map(Mod.from_json, mod_objs)),
+            False,
+            list(map(Mod.from_json, mod_objs))
         )
 
     def with_heartbeat(self, heartbeat_time: float):
@@ -67,6 +69,7 @@ class Server:
             self.current_map,
             self.player_count,
             self.max_players,
+            self.is_verified,
             self.mods,
         )
 
@@ -83,6 +86,7 @@ class Server:
             update_request.current_map,
             update_request.player_count,
             update_request.max_players,
+            self.is_verified,
             self.mods,
         )
     
@@ -94,14 +98,32 @@ class Server:
             self.ports,
             self.password_protected,
             self.last_heartbeat,
-            "Unverified - " + self.name,
+            self.name,
             self.description,
             self.current_map,
             self.player_count,
             self.max_players,
+            False,
             self.mods,
         )
     
+    def verified(self) -> Server:
+        return Server(
+            self.unique_id,
+            self.ip_address,
+            self.local_ip_address,
+            self.ports,
+            self.password_protected,
+            self.last_heartbeat,
+            self.name,
+            self.description,
+            self.current_map,
+            self.player_count,
+            self.max_players,
+            True,
+            self.mods
+        )
+
     def to_server_response(self) -> dict:
         self_dict = asdict(self)
 
