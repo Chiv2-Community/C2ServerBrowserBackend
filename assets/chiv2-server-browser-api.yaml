@@ -3,6 +3,16 @@ info:
   title: Server Browser API
   version: 1.0.0
 paths:
+  /api/v1/swagger.yaml:
+    get:
+      summary: Get the swagger documentation
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/yaml:
+              schema:
+                type: string
   /api/v1/servers:
     get:
       summary: Get a list of registered game servers.
@@ -22,12 +32,12 @@ paths:
             schema:
               $ref: '#/components/schemas/ServerRegistrationRequest'
       responses:
-        '200':
+        '201':
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationResponse'
+                $ref: '#/components/schemas/RegistrationSuccessfulResponse'
   /api/v1/servers/{unique_id}:
     put:
       summary: Update the listing for a game server. This does not count as a heartbeat
@@ -69,6 +79,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UpdateSuccessfulResponse'
+    delete:
+      summary: Remove the listing for a game server.
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-KEY
+          description: The key provided at registration time
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: unique_id
+          description: The unique id of the server being updated
+          required: true
+          schema:
+            type: string
+      responses:
+        '404':
+          description: Server not registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Invalid key provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
   /api/v1/servers/{unique_id}/heartbeat:
     post:
       summary: Send a keepalive signal to stay on the server list
@@ -98,8 +147,378 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UpdateSuccessfulResponse'
+  /api/v1/check-banned/{ip}:
+    get:
+      summary: Check if an IP address is banned
+      parameters:
+        - in: path
+          name: ip
+          description: The IP address to check
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  banned:
+                    type: boolean
+  /api/v1/admin/ban-list:
+    get:
+      summary: Get the list of banned IP addresses
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      responses:
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BanListResponse'
+    put:
+      summary: Add IP addresses to the ban list
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - banned_ips
+              properties:
+                banned_ips:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '400':
+          description: Invalid IP address
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BanListResponse'
+    delete:
+      summary: Remove IP addresses from the ban list
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - banned_ips
+              properties:
+                banned_ips:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BanListResponse'
+  /api/v1/admin/verified-list:
+    get:
+      summary: Get the list of verified IP addresses
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      responses:
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifiedListResponse'
+    put:
+      summary: Add IP addresses to the verified list
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verified_ips
+              properties:
+                verified_ips:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '400':
+          description: Invalid IP address
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifiedListResponse'
+    delete:
+      summary: Remove IP addresses from the verified list
+      parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
+          description: The admin key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verified_ips
+              properties:
+                verified_ips:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '403':
+          description: Invalid admin key
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifiedListResponse'
+  /api/tbio/GetCurrentGames:
+    post:
+      summary: Get a list of servers in Chivalry 2 format
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TbioServerListResponse'
+  /api/tbio/GetMotd:
+    post:
+      summary: Get the Message of the Day
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                Language:
+                  type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TbioMotdResponse'
+  /api/playfab/Client/Matchmake:
+    post:
+      summary: Matchmake a client to a server
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - LobbyId
+              properties:
+                LobbyId:
+                  type: string
+      responses:
+        '400':
+          description: No LobbyId provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayfabErrorResponse'
+        '404':
+          description: Lobby does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayfabErrorResponse'
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayfabMatchmakeResponse'
 components:
   schemas:
+    TbioServerListResponse:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Data:
+          $ref: '#/components/schemas/TbioServerListData'
+    TbioServerListData:
+      type: object
+      properties:
+        GameCount:
+          type: integer
+        PlayerCount:
+          type: integer
+        Games:
+          type: array
+          items:
+            $ref: '#/components/schemas/TbioGame'
+    TbioGame:
+      type: object
+      properties:
+        Region:
+          type: string
+        LobbyId:
+          type: string
+        MaxPlayers:
+          type: integer
+        Official:
+          type: boolean
+        BuildVersion:
+          type: string
+        GameMode:
+          type: string
+        PlayerUserIds:
+          type: array
+          items:
+            type: string
+        RunTime:
+          type: integer
+        GameServerState:
+          type: integer
+        Tags:
+          $ref: '#/components/schemas/TbioTags'
+        LastHeartbeat:
+          type: integer
+        ServerHostname:
+          type: string
+        ServerIPV4Address:
+          type: string
+        ServerPort:
+          type: integer
+    TbioTags:
+      type: object
+      properties:
+        BuildId_s:
+          type: string
+        ServerName_s:
+          type: string
+        Region_s:
+          type: string
+        OFFICIAL_b:
+          type: string
+        Platform_s:
+          type: string
+        FFA_b:
+          type: string
+        MS_i:
+          type: string
+        MapName_s:
+          type: string
+        PingPort_i:
+          type: string
+        QueryPort_i:
+          type: string
+        T0_c:
+          type: string
+        pp_b:
+          type: string
+        t1_c:
+          type: string
+        MTIM_i:
+          type: string
+    TbioMotdResponse:
+      type: object
+      properties:
+        Success:
+          type: boolean
+        Data:
+          type: object
+        expiration:
+          type: integer
+    PlayfabMatchmakeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        status:
+          type: string
+        data:
+          $ref: '#/components/schemas/PlayfabGame'
+    PlayfabGame:
+      type: object
+      properties:
+        ServerHostname:
+          type: string
+        ServerIPV4Address:
+          type: string
+        ServerPort:
+          type: integer
+        Ticket:
+          type: string
+    PlayfabErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        data:
+          type: object
+        message:
+          type: string
+        params:
+          type: object
+        success:
+          type: boolean
     ServerUpdateRequest:
       type: object
       required:
@@ -156,6 +575,8 @@ components:
         - player_count
         - max_players
         - mods
+        - password_protected
+        - is_verified
       properties:
         unique_id:
           type: string
@@ -163,8 +584,17 @@ components:
         ip_address:
           type: string
           description: The IP address of the server
+        local_ip_address:
+          type: string
+          description: The local IP address of the server
         ports:
           $ref: '#/components/schemas/Ports'
+        password_protected:
+          type: boolean
+          description: Whether the server is password protected
+        is_verified:
+          type: boolean
+          description: Whether the server is verified
         name:
           type: string
           description: The name of the server
@@ -216,6 +646,9 @@ components:
           type: integer
           format: int32
           description: The max number of players on the server
+        password_protected:
+          type: boolean
+          description: Whether the server is password protected
         mods:
           type: array
           items:
@@ -244,7 +677,7 @@ components:
         - server
       properties:
         server:
-          $ref: '#/components/schemas/ServerRegistrationRequest'
+          $ref: '#/components/schemas/Server'
         refresh_before:
           type: number
           format: double
@@ -287,4 +720,22 @@ components:
             - no_key
             - invalid_json_body
             - forbidden
+    BanListResponse:
+      type: object
+      required:
+        - banned_ips
+      properties:
+        banned_ips:
+          type: array
+          items:
+            type: string
+    VerifiedListResponse:
+      type: object
+      required:
+        - verified_ips
+      properties:
+        verified_ips:
+          type: array
+          items:
+            type: string
   

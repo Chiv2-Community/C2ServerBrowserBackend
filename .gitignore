@@ -1,4 +1,5 @@
 .vscode
+.idea
 
 ### Swagger.yaml is only needed locally for generating models (seen in client/Swagger.cs).
 client/Swagger.yaml
