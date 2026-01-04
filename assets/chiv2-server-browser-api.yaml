@@ -583,6 +583,7 @@ components:
       type: object
       required:
         - unique_id
+        - ip_address
         - ports
         - name
         - description
@@ -597,6 +598,12 @@ components:
         unique_id:
           type: string
           description: The unique identifier of this server
+        ip_address:
+          type: string
+          description: The IP address of the server
+        local_ip_address:
+          type: string
+          description: The local IP address of the server
         ports:
           $ref: '#/components/schemas/Chivalry2Ports'
         password_protected:

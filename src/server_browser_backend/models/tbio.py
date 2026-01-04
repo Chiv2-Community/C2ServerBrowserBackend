@@ -12,11 +12,17 @@ from server_browser_backend.type_vars import A
 class Wrapper(Generic[A]):
     Success: bool
     Data: A
-    expiration: Optional[int] = None
 
     @staticmethod
     def from_servers(servers: List[Server], client_ip: Optional[str], fixed_name: Optional[str] = None) -> Wrapper[ServerListData]:
         return Wrapper(True, ServerListData.from_servers(servers, client_ip, fixed_name))
+
+
+@dataclass(frozen=True)
+class MotdResponse:
+    Success: bool
+    Data: dict
+    expiration: int
 
 
 @dataclass(frozen=True)

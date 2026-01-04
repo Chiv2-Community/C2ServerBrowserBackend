@@ -1,6 +1,6 @@
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from typing import Iterable, Iterator, Optional, Set, Sized
-from os import path
+import os
 
 from server_browser_backend.secured_resource import SecuredResource
 
@@ -37,9 +37,9 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
 
     def load(self, key: str) -> Optional[bool]:
         try:
-            if not path.exists(self.ip_list_path):
+            if not os.path.exists(self.ip_list_path):
                 return True
-            
+        
             with open(self.ip_list_path, "r") as f:
                 entries = map(lambda ip: ip.strip(), f.readlines())
                 return self.add_all(key, entries)  
@@ -50,9 +50,19 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         return self.secured_ip_list.validate(key)
 
     def save(self, key: str) -> None:
-        with open(self.ip_list_path, "w") as f:
-            ips = "\n".join(list(map(lambda x: str(x), self.get_all(key))))
-            f.write(ips)
+        temp_path = self.ip_list_path + ".tmp"
+        try:
+            with open(temp_path, "w") as f:
+                ips = "\n".join(list(map(lambda x: str(x), self.get_all(key))))
+                f.write(ips)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            os.replace(temp_path, self.ip_list_path)
+        except IOError:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
 
     def add(self, key: str, ip: str) -> Optional[bool]:
         """Returns None if the ip is invalid"""

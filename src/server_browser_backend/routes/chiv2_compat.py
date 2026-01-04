@@ -49,7 +49,7 @@ def get_motd():
         motd = json.load(f)
         one_year_from_now = datetime.now() + timedelta(days=365)
         return (
-            jsonify(tbio.Wrapper(True, motd, int(one_year_from_now.timestamp()))),
+            jsonify(tbio.MotdResponse(True, motd, int(one_year_from_now.timestamp()))),
             200,
         )
 
