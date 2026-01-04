@@ -111,3 +111,16 @@ class Tags:
     pp_b: str
     t1_c: str
     MTIM_i: str
+
+
+@dataclass(frozen=True)
+class MotdRequest:
+    language: str
+
+    @staticmethod
+    def from_json(json: dict):
+        from server_browser_backend import dict_util
+
+        return MotdRequest(
+            dict_util.get_or(json, "Language", str, lambda: "en"),
+        )

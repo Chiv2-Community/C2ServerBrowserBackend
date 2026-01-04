@@ -37,7 +37,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationSuccessfulResponse'
+                $ref: '#/components/schemas/RegistrationResponse'
   /api/v1/servers/{unique_id}:
     put:
       summary: Update the listing for a game server. This does not count as a heartbeat
@@ -59,26 +59,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServerUpdateRequest'
+              $ref: '#/components/schemas/UpdateRegisteredServer'
       responses:
         '400':
           description: Something in your request is malformed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '403':
           description: You did something you're not allowed to do with the parameters provided.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
+        '404':
+          description: Server not registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UpdateSuccessfulResponse'
+                $ref: '#/components/schemas/UpdateResponse'
     delete:
       summary: Remove the listing for a game server.
       parameters:
@@ -95,33 +101,40 @@ paths:
           schema:
             type: string
       responses:
+        '400':
+          description: Something in your request is malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '404':
           description: Server not registered
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '403':
           description: Invalid key provided
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  message:
-                    type: string
+                $ref: '#/components/schemas/StatusResponse'
   /api/v1/servers/{unique_id}/heartbeat:
     post:
       summary: Send a keepalive signal to stay on the server list
       parameters:
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-KEY
+          description: The key provided at registration time
+          required: true
+          schema:
+            type: string
         - in: path
           name: unique_id
           description: The unique id of the server being updated
@@ -134,19 +147,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '403':
           description: You did something you're not allowed to do with the parameters provided.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
+        '404':
+          description: Server not registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UpdateSuccessfulResponse'
+                $ref: '#/components/schemas/UpdateResponse'
   /api/v1/check-banned/{ip}:
     get:
       summary: Check if an IP address is banned
@@ -163,10 +182,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  banned:
-                    type: boolean
+                $ref: '#/components/schemas/BanStatusResponse'
   /api/v1/admin/ban-list:
     get:
       summary: Get the list of banned IP addresses
@@ -200,19 +216,20 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - banned_ips
-              properties:
-                banned_ips:
-                  type: array
-                  items:
-                    type: string
+              $ref: '#/components/schemas/IpListRequest'
       responses:
         '400':
           description: Invalid IP address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -233,17 +250,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - banned_ips
-              properties:
-                banned_ips:
-                  type: array
-                  items:
-                    type: string
+              $ref: '#/components/schemas/IpListRequest'
       responses:
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -263,6 +277,10 @@ paths:
       responses:
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -283,19 +301,20 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - verified_ips
-              properties:
-                verified_ips:
-                  type: array
-                  items:
-                    type: string
+              $ref: '#/components/schemas/IpListRequest'
       responses:
         '400':
           description: Invalid IP address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -316,17 +335,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - verified_ips
-              properties:
-                verified_ips:
-                  type: array
-                  items:
-                    type: string
+              $ref: '#/components/schemas/IpListRequest'
       responses:
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -519,7 +535,7 @@ components:
           type: object
         success:
           type: boolean
-    ServerUpdateRequest:
+    UpdateRegisteredServer:
       type: object
       required:
         - player_count
@@ -561,13 +577,12 @@ components:
         servers:
           type: array
           items:
-            $ref: '#/components/schemas/Server'
+            $ref: '#/components/schemas/ServerResponse'
           description: A list of servers
-    Server:
+    ServerResponse:
       type: object
       required:
         - unique_id
-        - ip_address
         - ports
         - name
         - description
@@ -581,14 +596,8 @@ components:
         unique_id:
           type: string
           description: The unique identifier of this server
-        ip_address:
-          type: string
-          description: The IP address of the server
-        local_ip_address:
-          type: string
-          description: The local IP address of the server
         ports:
-          $ref: '#/components/schemas/Ports'
+          $ref: '#/components/schemas/Chivalry2Ports'
         password_protected:
           type: boolean
           description: Whether the server is password protected
@@ -617,6 +626,10 @@ components:
           items:
             $ref: '#/components/schemas/Mod'
           description: A list of mods running on the server
+        last_heartbeat:
+          type: number
+          format: double
+          description: Unix timestamp of the last heartbeat
     ServerRegistrationRequest:
       type: object
       required:
@@ -628,7 +641,7 @@ components:
         - max_players
       properties:
         ports:
-          $ref: '#/components/schemas/Ports'
+          $ref: '#/components/schemas/Chivalry2Ports'
         name:
           type: string
           description: The name of the server
@@ -654,7 +667,10 @@ components:
           items:
             $ref: '#/components/schemas/Mod'
           description: A list of mods running on the server
-    RegistrationSuccessfulResponse:
+        local_ip_address:
+          type: string
+          description: The local IP address of the server
+    RegistrationResponse:
       type: object
       required:
         - key
@@ -669,20 +685,20 @@ components:
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
         server:
-          $ref: '#/components/schemas/Server'
-    UpdateSuccessfulResponse:
+          $ref: '#/components/schemas/ServerResponse'
+    UpdateResponse:
       type: object
       required:
         - refresh_before
         - server
       properties:
         server:
-          $ref: '#/components/schemas/Server'
+          $ref: '#/components/schemas/ServerResponse'
         refresh_before:
           type: number
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
-    Ports:
+    Chivalry2Ports:
       type: object
       required:
         - game
@@ -701,25 +717,44 @@ components:
           type: integer
           format: int32
           description: The port number the server is accepting ping requests at
+    StatusResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: The status code
+        message:
+          type: string
+          description: A human readable message about the status
+        context:
+          type: object
+          description: Optional context for the status
+    BanStatusResponse:
+      type: object
+      required:
+        - banned
+      properties:
+        banned:
+          type: boolean
+          description: Whether the IP is banned
     ErrorResponse:
       type: object
       required:
         - status
+        - message
       properties:
-        message:
-          type: string
-          description: a human readable message about the error
-        context: 
-          type: string
-          description: when json is malformed, this provides the json object containing the error.
         status:
           type: string
-          enum:
-            - banned
-            - not_registered
-            - no_key
-            - invalid_json_body
-            - forbidden
+          description: The status code
+        message:
+          type: string
+          description: A human readable message about the error
+        stack:
+          type: string
+          description: Optional stack trace
     BanListResponse:
       type: object
       required:
@@ -734,6 +769,17 @@ components:
       required:
         - verified_ips
       properties:
+        verified_ips:
+          type: array
+          items:
+            type: string
+    IpListRequest:
+      type: object
+      properties:
+        banned_ips:
+          type: array
+          items:
+            type: string
         verified_ips:
           type: array
           items:

@@ -6,6 +6,9 @@ from flask import request
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.server_list import SecretKeyMissing, ServerList
 
+class JsonMissing(Exception):
+    pass
+
 ADMIN_KEY = os.environ.get("ADMIN_KEY", secrets.token_urlsafe(128))
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "config")
 
@@ -44,3 +47,13 @@ def get_key() -> str:
         raise SecretKeyMissing()
 
     return key
+
+def get_json() -> dict:
+    if not request.is_json:
+        raise JsonMissing()
+
+    json = request.get_json(silent=True)
+    if json is None:
+        raise JsonMissing()
+
+    return json

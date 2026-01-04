@@ -112,6 +112,26 @@ def test_delete_nonexistant_server(client: FlaskClient):
 
     assert deleteResponse.status_code == 404
 
+def test_register_no_json(client: FlaskClient):
+    prepare_test_state()
+    response = client.post("/api/v1/servers", content_type="application/json")
+    assert response.status_code == 400
+    assert response.get_json()["status"] == "missing_json_body"
+
+def test_update_no_json(client: FlaskClient):
+    prepare_test_state()
+    registration_response = client.post("/api/v1/servers", json=test_server_json)
+    server_id = registration_response.get_json()["server"]["unique_id"]
+    response = client.put(
+        f"/api/v1/servers/{server_id}",
+        headers={
+            shared.KEY_HEADER: registration_response.get_json()["key"],
+        },
+        content_type="application/json"
+    )
+    assert response.status_code == 400
+    assert response.get_json()["status"] == "missing_json_body"
+
 
 def test_delete_no_key(client: FlaskClient):
     prepare_test_state()

@@ -26,3 +26,14 @@ class Error:
     message: str
     params: dict
     success: bool
+
+
+@dataclass(frozen=True)
+class MatchmakeRequest:
+    lobby_id: str
+
+    @staticmethod
+    def from_json(json: dict):
+        from server_browser_backend.dict_util import get_or
+
+        return MatchmakeRequest(get_or(json, "LobbyId", str))

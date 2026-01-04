@@ -10,7 +10,7 @@ from flask import Blueprint, jsonify, request
 from server_browser_backend import dict_util
 from server_browser_backend.models import playfab, tbio, base_models
 from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import get_and_validate_ip
+from server_browser_backend.routes.shared import get_and_validate_ip, get_json, JsonMissing
 
 tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
 
@@ -37,7 +37,8 @@ def get_motd():
     except shared.Banned:
         banned_suffix = "_banned"
 
-    language = dict_util.get_or(request.json, "Language", str, lambda: "en")
+    motd_request = tbio.MotdRequest.from_json(get_json())
+    language = motd_request.language
 
     language_path = f"assets/motd/{language}{banned_suffix}.json"
     default_path = f"assets/motd/en{banned_suffix}.json"
@@ -59,10 +60,9 @@ playfab_bp = Blueprint("chiv2_compat_playfab", __name__, url_prefix="/api/playfa
 @playfab_bp.route("/Client/Matchmake", methods=["POST"])
 def payfab_client_matchmake():
     client_ip = get_and_validate_ip()
-    server_id = request.json.get("LobbyId")
-    if not server_id:
-        return jsonify(playfab.Error(400, {}, "No LobbyId provided.", {}, False)), 400
-
+    matchmake_request = playfab.MatchmakeRequest.from_json(get_json())
+    server_id = matchmake_request.lobby_id
+    
     server = shared.server_list.get(server_id)
 
     if not server:
@@ -87,3 +87,21 @@ def payfab_client_matchmake():
         ),
         200,
     )
+
+@tbio_bp.errorhandler(JsonMissing)
+@playfab_bp.errorhandler(JsonMissing)
+def handle_json_missing(e):
+    return (
+        jsonify(
+            base_models.StatusResponse(
+                "missing_json_body",
+                "JSON body is required",
+            )
+        ),
+        400,
+    )
+
+@tbio_bp.errorhandler(Exception)
+@playfab_bp.errorhandler(Exception)
+def handle_general_exception(e):
+    raise e

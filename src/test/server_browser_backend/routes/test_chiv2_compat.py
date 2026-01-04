@@ -167,3 +167,15 @@ def test_local_client_matchmake(client: FlaskClient):
     response_json = response.get_json()
     assert response_json["data"]["ServerHostname"] == local_ip_address
     assert response_json["data"]["ServerPort"] == 1234
+
+def test_motd_no_json(client: FlaskClient):
+    prepare_test_state()
+    response = client.post("/api/tbio/GetMotd", content_type="application/json")
+    assert response.status_code == 400
+    assert response.get_json()["status"] == "missing_json_body"
+
+def test_matchmake_no_json(client: FlaskClient):
+    prepare_test_state()
+    response = client.post("/api/playfab/Client/Matchmake", content_type="application/json")
+    assert response.status_code == 400
+    assert response.get_json()["status"] == "missing_json_body"

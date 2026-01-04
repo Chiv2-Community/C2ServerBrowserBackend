@@ -49,7 +49,7 @@ def get_or(
     expected_type: Type[A],
     default: Optional[Callable[[], A]] = None,
 ) -> A:
-    """Gets a value from the dictionary, and checks that it is of the correct type"""
+    """Gets a value from the dictionary and checks that it is of the correct type"""
     if key in dictionary:
         value = dictionary[key]
         if isinstance(value, expected_type):
@@ -67,7 +67,7 @@ def get_or_optional(
     key: str,
     expected_type: Type[A],
 ) -> Optional[A]:
-    """Gets a value from the dictionary, and checks that it is of the correct type. Returns None if the key is not present."""
+    """Gets a value from the dictionary and checks that it is of the correct type. Returns None if the key is not present."""
     if key in dictionary:
         value = dictionary[key]
         if isinstance(value, expected_type):

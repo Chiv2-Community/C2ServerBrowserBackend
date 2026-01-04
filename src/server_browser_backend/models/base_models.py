@@ -21,6 +21,35 @@ class Mod:
 
 
 @dataclass(frozen=True)
+class ServerRegistrationRequest:
+    ports: Chivalry2Ports
+    password_protected: bool
+    name: str
+    description: str
+    current_map: str
+    player_count: int
+    max_players: int
+    mods: List[Mod]
+    local_ip_address: Optional[str]
+
+    @staticmethod
+    def from_json(json: dict):
+        mod_objs = get_list_or(json, "mods", dict, lambda: [])
+
+        return ServerRegistrationRequest(
+            Chivalry2Ports.from_json(get_or(json, "ports", dict)),
+            get_or(json, "password_protected", bool, default=lambda: False),
+            get_or(json, "name", str),
+            get_or(json, "description", str),
+            get_or(json, "current_map", str),
+            get_or(json, "player_count", int) - 1,
+            get_or(json, "max_players", int) - 1,
+            list(map(Mod.from_json, mod_objs)),
+            get_or_optional(json, "local_ip_address", str),
+        )
+
+
+@dataclass(frozen=True)
 class Server:
     unique_id: str
     ip_address: str
@@ -35,6 +64,26 @@ class Server:
     max_players: int
     is_verified: bool
     mods: List[Mod]
+
+    @staticmethod
+    def create_after_registration(
+        registration: ServerRegistrationRequest, unique_id: str, ip_address: str, last_heartbeat: float
+    ) -> Server:
+        return Server(
+            unique_id,
+            ip_address,
+            registration.local_ip_address,
+            registration.ports,
+            registration.password_protected,
+            last_heartbeat,
+            registration.name,
+            registration.description,
+            registration.current_map,
+            registration.player_count,
+            registration.max_players,
+            False,
+            registration.mods,
+        )
 
     @staticmethod
     def from_json(json: dict):
@@ -53,7 +102,7 @@ class Server:
             get_or(json, "player_count", int) - 1,
             get_or(json, "max_players", int) - 1,
             False,
-            list(map(Mod.from_json, mod_objs))
+            list(map(Mod.from_json, mod_objs)),
         )
 
     def with_heartbeat(self, heartbeat_time: float):
@@ -89,7 +138,7 @@ class Server:
             self.is_verified,
             self.mods,
         )
-    
+
     def unverified(self) -> Server:
         return Server(
             self.unique_id,
@@ -106,7 +155,7 @@ class Server:
             False,
             self.mods,
         )
-    
+
     def verified(self) -> Server:
         return Server(
             self.unique_id,
@@ -121,16 +170,39 @@ class Server:
             self.player_count,
             self.max_players,
             True,
-            self.mods
+            self.mods,
         )
 
-    def to_server_response(self) -> dict:
-        self_dict = asdict(self)
 
-        del self_dict["ip_address"]
-        del self_dict["local_ip_address"]
+@dataclass(frozen=True)
+class ServerResponse:
+    unique_id: str
+    ports: Chivalry2Ports
+    password_protected: bool
+    last_heartbeat: float
+    name: str
+    description: str
+    current_map: str
+    player_count: int
+    max_players: int
+    is_verified: bool
+    mods: List[Mod]
 
-        return self_dict
+    @staticmethod
+    def from_server(server: Server) -> ServerResponse:
+        return ServerResponse(
+            server.unique_id,
+            server.ports,
+            server.password_protected,
+            server.last_heartbeat,
+            server.name,
+            server.description,
+            server.current_map,
+            server.player_count,
+            server.max_players,
+            server.is_verified,
+            server.mods,
+        )
 
 
 
@@ -162,3 +234,59 @@ class Chivalry2Ports:
             get_or(json, "ping", int),
             get_or(json, "a2s", int),
         )
+
+
+@dataclass(frozen=True)
+class BanStatusResponse:
+    banned: bool
+
+
+@dataclass(frozen=True)
+class StatusResponse:
+    status: str
+    message: str
+    context: Optional[dict] = None
+
+
+@dataclass(frozen=True)
+class ErrorResponse:
+    status: str
+    message: str
+    stack: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ServerListResponse:
+    servers: List[ServerResponse]
+
+
+@dataclass(frozen=True)
+class BanListResponse:
+    banned_ips: List[str]
+
+
+@dataclass(frozen=True)
+class VerifiedListResponse:
+    verified_ips: List[str]
+
+
+@dataclass(frozen=True)
+class RegistrationResponse:
+    refresh_before: float
+    key: str
+    server: ServerResponse
+
+
+@dataclass(frozen=True)
+class UpdateResponse:
+    refresh_before: float
+    server: ServerResponse
+
+
+@dataclass(frozen=True)
+class IpListRequest:
+    ips: List[str]
+
+    @staticmethod
+    def from_json(json: dict, key: str):
+        return IpListRequest(get_list_or(json, key, str))
