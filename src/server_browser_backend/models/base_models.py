@@ -224,15 +224,15 @@ class UpdateRegisteredServer:
 @dataclass(frozen=True)
 class Chivalry2Ports:
     game: int
-    ping: int
     a2s: int
+    ping: int
 
     @staticmethod
     def from_json(json: dict):
         return Chivalry2Ports(
             get_or(json, "game", int),
-            get_or(json, "ping", int),
             get_or(json, "a2s", int),
+            get_or(json, "ping", int),
         )
 
 
@@ -272,8 +272,8 @@ class VerifiedListResponse:
 
 @dataclass(frozen=True)
 class RegistrationResponse:
-    refresh_before: float
     key: str
+    refresh_before: float
     server: ServerResponse
 
 
@@ -285,8 +285,12 @@ class UpdateResponse:
 
 @dataclass(frozen=True)
 class IpListRequest:
-    ips: List[str]
+    banned_ips: Optional[List[str]] = None
+    verified_ips: Optional[List[str]] = None
 
     @staticmethod
-    def from_json(json: dict, key: str):
-        return IpListRequest(get_list_or(json, key, str))
+    def from_json(json: dict):
+        return IpListRequest(
+            get_or_optional(json, "banned_ips", list),
+            get_or_optional(json, "verified_ips", list),
+        )

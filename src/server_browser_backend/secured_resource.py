@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from typing import Callable, Generic, Optional
 
@@ -14,7 +15,7 @@ class SecuredResource(Generic[A]):
     resource: A
 
     def validate(self, secret_key: str) -> bool:
-        return self.secret_key == secret_key
+        return secrets.compare_digest(self.secret_key, secret_key)
 
     def with_resource(
         self, secret_key: str, new_resource: A

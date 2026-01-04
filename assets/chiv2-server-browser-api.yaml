@@ -538,8 +538,8 @@ components:
     UpdateRegisteredServer:
       type: object
       required:
-        - player_count
         - current_map
+        - player_count
         - max_players
       properties:
         player_count:
@@ -592,6 +592,7 @@ components:
         - mods
         - password_protected
         - is_verified
+        - last_heartbeat
       properties:
         unique_id:
           type: string
@@ -634,11 +635,13 @@ components:
       type: object
       required:
         - ports
+        - password_protected
         - name
         - description
         - current_map
         - player_count
         - max_players
+        - mods
       properties:
         ports:
           $ref: '#/components/schemas/Chivalry2Ports'
@@ -692,12 +695,12 @@ components:
         - refresh_before
         - server
       properties:
-        server:
-          $ref: '#/components/schemas/ServerResponse'
         refresh_before:
           type: number
           format: double
           description: Unix timestamp for when the server should refresh its registration. Only present if operation was successful
+        server:
+          $ref: '#/components/schemas/ServerResponse'
     Chivalry2Ports:
       type: object
       required:

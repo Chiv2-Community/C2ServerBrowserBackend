@@ -26,12 +26,12 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
     def __len__(self) -> int:
         return len(self.secured_ip_list.resource)
 
-    def _process_result(self, result: Optional[SecuredResource[Set[IPv4Network | IPv6Network]]]) -> bool:
+    def _process_result(self, key: str, result: Optional[SecuredResource[Set[IPv4Network | IPv6Network]]]) -> bool:
         if result is None:
             return False
 
         self.secured_ip_list = result
-        self.save()
+        self.save(key)
 
         return True
 
@@ -46,9 +46,12 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         except IOError:
             return False
 
-    def save(self) -> None:
+    def validate(self, key: str) -> bool:
+        return self.secured_ip_list.validate(key)
+
+    def save(self, key: str) -> None:
         with open(self.ip_list_path, "w") as f:
-            ips = "\n".join(list(map(lambda x: str(x), self.get_all())))
+            ips = "\n".join(list(map(lambda x: str(x), self.get_all(key))))
             f.write(ips)
 
     def add(self, key: str, ip: str) -> Optional[bool]:
@@ -57,6 +60,11 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
 
     def add_all(self, key: str, str_ips: Iterable[str]) -> Optional[bool]:
         """Returns None if any of the ips are invalid"""
+
+        # Validate before performing potentially expensive operation, avoiding easy DoS attacks
+        if not self.validate(key):
+            return None
+
         try:
             ips = set(map(lambda ip: ip_network(ip), str_ips))
         except ValueError:
@@ -65,7 +73,7 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         result = self.secured_ip_list.with_resource(
             key, self.secured_ip_list.resource.union(ips)
         )
-        return self._process_result(result)
+        return self._process_result(key, result)
 
     def remove(self, key: str, ip: str) -> Optional[bool]:
         """Returns None if the ip is invalid"""
@@ -73,6 +81,11 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
     
     def remove_all(self, key: str, str_ips: Iterable[str]) -> Optional[bool]:
         """Returns None if any of the ips are invalid"""
+
+        # Validate before performing potentially expensive operation, avoiding easy DoS attacks
+        if not self.validate(key):
+            return None
+
         try:
             ips = set(map(lambda ip: ip_network(ip), str_ips))
         except ValueError:
@@ -81,13 +94,16 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         result = self.secured_ip_list.with_resource(
             key, self.secured_ip_list.resource.difference(set(ips))
         )
-        return self._process_result(result)
+        return self._process_result(key, result)
 
     def clear(self, key: str) -> bool:
         result = self.secured_ip_list.with_resource(key, set())
-        return self._process_result(result)
+        return self._process_result(key, result)
 
-    def get_all(self) -> Set[IPv4Network | IPv6Network]:
+    def get_all(self, key: str) -> Set[IPv4Network | IPv6Network]:
+        if not self.validate(key):
+            raise ValueError("Invalid secret key.")
+
         return self.secured_ip_list.resource
     
     def contains(self, ip_str: str) -> bool:

@@ -394,7 +394,7 @@ def test_remove_from_ban_list_invalid_key(client: FlaskClient):
 
     assert response.status_code == 403
     assert len(shared.ban_list) == 1
-    assert ip_network(ban_target) in shared.ban_list.get_all()
+    assert ip_network(ban_target) in shared.ban_list.get_all(shared.ADMIN_KEY)
 
 def test_add_to_verified_list(client: FlaskClient):
     prepare_test_state()
@@ -408,7 +408,7 @@ def test_add_to_verified_list(client: FlaskClient):
 
     assert response.status_code == 200
     assert len(shared.verified_list) == 2
-    assert ip_network(allow_target) in shared.verified_list.get_all()
+    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
 
 def test_add_to_verified_list_invalid_key(client: FlaskClient):
     prepare_test_state()
@@ -422,7 +422,7 @@ def test_add_to_verified_list_invalid_key(client: FlaskClient):
 
     assert response.status_code == 403
     assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) not in shared.verified_list.get_all()
+    assert ip_network(allow_target) not in shared.verified_list.get_all(shared.ADMIN_KEY)
 
 def test_remove_from_verified_list(client: FlaskClient):
     allow_target = "12.34.56.78"
@@ -449,7 +449,7 @@ def test_remove_from_verified_list_invalid_key(client: FlaskClient):
 
     assert response.status_code == 403
     assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) in shared.verified_list.get_all()
+    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
 
 def test_is_banned_true(client: FlaskClient):
     ban_target = "12.34.56.78"

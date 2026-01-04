@@ -66,8 +66,8 @@ def register():
     return (
         jsonify(
             RegistrationResponse(
-                timeout,
                 key,
+                timeout,
                 ServerResponse.from_server(server),
             )
         ),
@@ -133,27 +133,36 @@ def add_to_ban_list():
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    request_model = IpListRequest.from_json(get_json(), "banned_ips")
-    ip_list = request_model.ips
+    request_model = IpListRequest.from_json(get_json())
+    ip_list = request_model.banned_ips
 
-    current_app.logger.info(f"{source_ip} requested to add addresses to ban_list: {ip_list}")
+    if ip_list is None:
+        return jsonify(StatusResponse("invalid_request", "banned_ips is required")), 400
+
+    truncated_ip_list_string = ", ".join(ip_list[:10])
+    if len(ip_list) > 10:
+        truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
+
+    current_app.logger.info(f"{source_ip} requested to add addresses to ban_list: {truncated_ip_list_string}")
     
-    result = shared.ban_list.add_all(sent_admin_key, ip_list)
-
-    if result == False:
+    # Validate the admin key
+    if not shared.ban_list.validate(sent_admin_key):
         current_app.logger.warning(
-            f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+            f"Failed to add requested addresses to ban_list. Invalid admin key sent from {source_ip}"
         )
         return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-    elif result == None:
+
+    result = shared.ban_list.add_all(sent_admin_key, ip_list)
+
+    if result is None:
         current_app.logger.warning(
-            f"Failed to add requested addresses ({ip_list}) to ban_list. Invalid IP address sent from {source_ip}"
+            f"Failed to add requested addresses to ban_list. Invalid IP address sent from {source_ip}"
         )
         return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
 
     current_app.logger.info(f"Adding addresses to ban_list.")
 
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all())))), 200
+    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["DELETE"])
 def remove_from_ban_list():
@@ -161,19 +170,27 @@ def remove_from_ban_list():
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    request_model = IpListRequest.from_json(get_json(), "banned_ips")
-    ip_list = request_model.ips
+    request_model = IpListRequest.from_json(get_json())
+    ip_list = request_model.banned_ips
+
+    if ip_list is None:
+        return jsonify(StatusResponse("invalid_request", "banned_ips is required")), 400
+
     result = shared.ban_list.remove_all(sent_admin_key, ip_list)
 
     if not result:
+        truncated_ip_list_string = ", ".join(ip_list[:10])
+        if len(ip_list) > 10:
+            truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
+
         current_app.logger.warning(
-            f"Failed to remove requested addresses ({ip_list}) from ban_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+            f"Failed to remove requested addresses ({truncated_ip_list_string}) from ban_list. Invalid admin key sent from {source_ip}"
         )
         return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
 
     current_app.logger.info(f"Removing addresses from ban_list: {shared.ban_list}")
 
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all())))), 200
+    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
 def get_ban_list():
@@ -183,7 +200,7 @@ def get_ban_list():
     if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
         return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
 
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all())))), 200
+    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["PUT"])
 def add_to_verified_list():
@@ -191,27 +208,37 @@ def add_to_verified_list():
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    request_model = IpListRequest.from_json(get_json(), "verified_ips")
-    ip_list = request_model.ips
+    request_model = IpListRequest.from_json(get_json())
+    ip_list = request_model.verified_ips
 
-    current_app.logger.info(f"{source_ip} requested to add addresses to verified_list: {ip_list}")
+    if ip_list is None:
+        return jsonify(StatusResponse("invalid_request", "verified_ips is required")), 400
+
+    truncated_ip_list_string = ", ".join(ip_list[:10])
+    if len(ip_list) > 10:
+        truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
+
+
+    current_app.logger.info(f"{source_ip} requested to add addresses to verified_list: {truncated_ip_list_string}")
+    
+    # Validate the admin key
+    if not shared.verified_list.validate(sent_admin_key):
+        current_app.logger.warning(
+            f"Failed to add requested addresses to verified_list. Invalid admin key sent from {source_ip}"
+        )
+        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
 
     result = shared.verified_list.add_all(sent_admin_key, ip_list)
 
-    if result == False:
+    if result is None:
         current_app.logger.warning(
-            f"Failed to add requested addresses ({ip_list}) to verified_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-    elif result == None:
-        current_app.logger.warning(
-            f"Failed to add requested addresses ({ip_list}) to verified_list. Invalid IP address sent from {source_ip}"
+            f"Failed to add requested addresses to verified_list. Invalid IP address sent from {source_ip}"
         )
         return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
     
     current_app.logger.info(f"Adding addresses to verified_list")
 
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all())))), 200
+    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["DELETE"])
 def delete_from_verified_list():
@@ -219,29 +246,38 @@ def delete_from_verified_list():
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
 
-    request_model = IpListRequest.from_json(get_json(), "verified_ips")
-    ip_list = request_model.ips
+    request_model = IpListRequest.from_json(get_json())
+    ip_list = request_model.verified_ips
+
+    if ip_list is None:
+        return jsonify(StatusResponse("invalid_request", "verified_ips is required")), 400
+
     result = shared.verified_list.remove_all(sent_admin_key, ip_list)
 
     if not result:
+        truncated_ip_list_string = ", ".join(ip_list[:10])
+        if len(ip_list) > 10:
+            truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
+
         current_app.logger.warning(
-            f"Failed to remove requested addresses ({ip_list}) from verified_list. Invalid admin key ({sent_admin_key}) sent from {source_ip}"
+            f"Failed to remove requested addresses ({truncated_ip_list_string}) from verified_list. Invalid admin key sent from {source_ip}"
         )
         return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
 
     current_app.logger.info(f"Removing addresses from verified_list: {shared.verified_list}")
 
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all())))), 200
+    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["GET"])
 def get_verified_list():
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-    if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
+    if not shared.verified_list.validate(sent_admin_key):
+        current_app.logger.warning(f"Invalid admin key sent from {source_ip}")
         return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
 
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all())))), 200
+    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
 
 
 @api_v1_bp.errorhandler(JsonMissing)
