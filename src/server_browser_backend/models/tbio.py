@@ -76,7 +76,7 @@ class Game:
                 "dummy",
                 fixed_name if fixed_name is not None else server.name,
                 "paris",
-                server.is_verified ? "true" : "false",
+                str(server.is_verified).lower(),
                 "any",
                 "true",
                 "2",
