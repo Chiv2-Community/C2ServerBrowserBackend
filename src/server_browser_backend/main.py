@@ -7,6 +7,7 @@ from os import environ
 import logging
 
 from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from server_browser_backend import routes
 logger = logging.getLogger()
@@ -41,6 +42,7 @@ if graylog_host is not None:
 
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 
 app.register_blueprint(routes.playfab_bp)
 app.register_blueprint(routes.tbio_bp)

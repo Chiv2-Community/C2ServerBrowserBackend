@@ -40,9 +40,14 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
             if not os.path.exists(self.ip_list_path):
                 return True
         
+            # Read lines into memory and CLOSE the file immediately.
+            # This prevents file locking issues on Windows when add_all -> save tries to overwrite the file.
+            lines = []
             with open(self.ip_list_path, "r") as f:
-                entries = map(lambda ip: ip.strip(), f.readlines())
-                return self.add_all(key, entries)  
+                lines = f.readlines()
+            
+            entries = map(lambda ip: ip.strip(), lines)
+            return self.add_all(key, entries)  
         except IOError:
             return False
 

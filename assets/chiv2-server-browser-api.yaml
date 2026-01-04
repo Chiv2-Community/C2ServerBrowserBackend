@@ -196,6 +196,10 @@ paths:
       responses:
         '403':
           description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -366,10 +370,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                Language:
-                  type: string
+              $ref: '#/components/schemas/MotdRequest'
       responses:
         '200':
           description: Successful operation
@@ -583,7 +584,6 @@ components:
       type: object
       required:
         - unique_id
-        - ip_address
         - ports
         - name
         - description
@@ -598,12 +598,6 @@ components:
         unique_id:
           type: string
           description: The unique identifier of this server
-        ip_address:
-          type: string
-          description: The IP address of the server
-        local_ip_address:
-          type: string
-          description: The local IP address of the server
         ports:
           $ref: '#/components/schemas/Chivalry2Ports'
         password_protected:
@@ -794,4 +788,9 @@ components:
           type: array
           items:
             type: string
+    MotdRequest:
+      type: object
+      properties:
+        Language:
+          type: string
   

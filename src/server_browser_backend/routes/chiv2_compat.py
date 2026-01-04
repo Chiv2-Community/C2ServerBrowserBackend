@@ -40,6 +40,10 @@ def get_motd():
     motd_request = tbio.MotdRequest.from_json(get_json())
     language = motd_request.language
 
+    # Validate input to prevent path traversal
+    if not language.isalnum():
+        language = "en"
+
     language_path = f"assets/motd/{language}{banned_suffix}.json"
     default_path = f"assets/motd/en{banned_suffix}.json"
 

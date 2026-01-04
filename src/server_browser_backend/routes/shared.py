@@ -28,7 +28,7 @@ class Banned(Exception):
     pass
 
 def get_ip() -> str:
-    return str(request.headers.get("X-Forwarded-For", request.remote_addr))
+    return str(request.remote_addr)
 
 def is_whitelisted() -> bool:
     ip = get_ip()
