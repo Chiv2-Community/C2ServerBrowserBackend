@@ -33,6 +33,7 @@ def test_register(client: FlaskClient):
 
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.get_json()
+    refresh_before = response_json["refresh_before"]
 
     assert response.status_code == 201
     assert "key" in response_json
@@ -40,6 +41,7 @@ def test_register(client: FlaskClient):
     assert "unique_id" in response_json["server"]
     assert shared.server_list.exists(response_json["server"]["unique_id"])
     assert [x.is_verified for x in shared.server_list.get_all()][0] == True
+    assert refresh_before > datetime.now().timestamp()
 
 def test_register_unauthorized(client: FlaskClient):
     prepare_test_state(verified_list=[])
