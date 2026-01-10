@@ -96,6 +96,33 @@ def test_update(client: FlaskClient):
     assert len(server.mods) == 1
     assert server.mods[0].name == "Updated Mod"
 
+def test_update_no_mods(client: FlaskClient):
+    prepare_test_state()
+
+    registration_response = client.post("/api/v1/servers", json=test_server_json)
+    server_id = registration_response.get_json()["server"]["unique_id"]
+    response = client.put(
+        f"/api/v1/servers/{server_id}",
+        headers={
+            shared.KEY_HEADER: registration_response.get_json()["key"],
+        },
+        json={"player_count": 10, "max_players": 100, "current_map": "Test Map"}
+    )
+
+    response_json = response.get_json()
+    unique_id = response_json["server"]["unique_id"]
+    server = shared.server_list.get(unique_id)
+
+
+    assert response.status_code == 200
+
+    assert server is not None
+    assert server.player_count == 10
+    assert server.max_players == 100
+
+    # Mods should be unchanged
+    assert len(server.mods) == 2
+
 
 def test_update_non_existent(client: FlaskClient):
     prepare_test_state()

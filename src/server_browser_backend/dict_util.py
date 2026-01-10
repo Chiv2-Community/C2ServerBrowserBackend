@@ -75,3 +75,13 @@ def get_or_optional(
         else:
             raise DictTypeError(key, value, expected_type, type(value), dictionary)
     return None
+
+def get_list_or_optional(
+        dictionary: Dict[str, Any],
+        key: str,
+        list_item_type: Type[A]
+) -> Optional[List[A]]:
+    """Gets a list from the dictionary, and checks that all items in the list are of the correct type. Returns None if the key is not present."""
+    if key in dictionary:
+        return get_list_or(dictionary, key, list_item_type)
+    return None

@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import List, Optional
 
-from server_browser_backend.dict_util import get_list_or, get_or, get_or_optional
+from server_browser_backend.dict_util import get_list_or, get_or, get_or_optional, get_list_or_optional
+
 
 @dataclass(frozen=True)
 class Mod:
@@ -138,7 +139,7 @@ class Server:
             update_request.player_count,
             update_request.max_players,
             self.is_verified,
-            update_request.mods,
+            update_request.mods if update_request.mods is not None else self.mods,
         )
 
     def unverified(self) -> Server:
@@ -213,17 +214,19 @@ class UpdateRegisteredServer:
     current_map: str
     player_count: int
     max_players: int
-    mods: List[Mod]
+    mods: List[Mod] | None
 
     @staticmethod
     def from_json(json: dict):
-        mod_objs = get_list_or(json, "mods", dict, lambda: [])
+        mod_dicts = get_list_or_optional(json, "mods", dict)
+
+        mod_objs = list(map(Mod.from_json, mod_dicts)) if mod_dicts is not None else None
 
         return UpdateRegisteredServer(
             get_or(json, "current_map", str),
             get_or(json, "player_count", int),
             get_or(json, "max_players", int),
-            list(map(Mod.from_json, mod_objs)),
+            mod_objs
         )
 
 

@@ -554,12 +554,17 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
+        mods:
+          type: array
+          items:
+            $ref: '#/components/schemas/Mod'
     Mod:
       type: object
       required:
         - name
         - organization
         - version
+        - active
       properties:
         name:
           type: string
@@ -570,6 +575,10 @@ components:
         version:
           type: string
           description: The version of the mod
+        active:
+          type: boolean
+          description: Whether the mod is active on the server
+          default: false
     ServerListResponse:
       type: object
       required:
