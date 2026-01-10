@@ -10,6 +10,7 @@ class Mod:
     name: str
     organization: str
     version: str
+    active: bool = False
 
     @staticmethod
     def from_json(json: dict):
@@ -17,6 +18,7 @@ class Mod:
             get_or(json, "name", str),
             get_or(json, "organization", str),
             get_or(json, "version", str),
+            get_or(json, "active", bool, default=lambda: False),
         )
 
 
@@ -42,8 +44,8 @@ class ServerRegistrationRequest:
             get_or(json, "name", str),
             get_or(json, "description", str),
             get_or(json, "current_map", str),
-            get_or(json, "player_count", int) - 1,
-            get_or(json, "max_players", int) - 1,
+            get_or(json, "player_count", int),
+            get_or(json, "max_players", int),
             list(map(Mod.from_json, mod_objs)),
             get_or_optional(json, "local_ip_address", str),
         )
@@ -99,8 +101,8 @@ class Server:
             get_or(json, "name", str),
             get_or(json, "description", str),
             get_or(json, "current_map", str),
-            get_or(json, "player_count", int) - 1,
-            get_or(json, "max_players", int) - 1,
+            get_or(json, "player_count", int),
+            get_or(json, "max_players", int),
             False,
             list(map(Mod.from_json, mod_objs)),
         )
@@ -136,7 +138,7 @@ class Server:
             update_request.player_count,
             update_request.max_players,
             self.is_verified,
-            self.mods,
+            update_request.mods,
         )
 
     def unverified(self) -> Server:
@@ -211,13 +213,17 @@ class UpdateRegisteredServer:
     current_map: str
     player_count: int
     max_players: int
+    mods: List[Mod]
 
     @staticmethod
     def from_json(json: dict):
+        mod_objs = get_list_or(json, "mods", dict, lambda: [])
+
         return UpdateRegisteredServer(
             get_or(json, "current_map", str),
-            get_or(json, "player_count", int) - 1,
-            get_or(json, "max_players", int) - 1,
+            get_or(json, "player_count", int),
+            get_or(json, "max_players", int),
+            list(map(Mod.from_json, mod_objs)),
         )
 
 

@@ -12,6 +12,21 @@ from . import LOCALHOST, prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
+test_mods = [
+    {
+        "organization": "Active mod",
+        "name": "Test Mod",
+        "version": "1.0.0",
+        "active": True,
+    },
+    {
+        "organization": "Inactive mod",
+        "name": "Test Mod 2",
+        "version": "1.0.0",
+        "active": False,
+    }
+]
+
 test_server_json = {
     "name": "Test Server",
     "description": "Test Description",
@@ -19,6 +34,7 @@ test_server_json = {
     "player_count": 0,
     "max_players": 100,
     "current_map": "Test Map",
+    "mods": test_mods
 }
 
 
@@ -42,6 +58,9 @@ def test_register(client: FlaskClient):
     assert shared.server_list.exists(response_json["server"]["unique_id"])
     assert [x.is_verified for x in shared.server_list.get_all()][0] == True
     assert refresh_before > datetime.now().timestamp()
+    assert len(response_json["server"]["mods"]) == 2
+    assert response_json["server"]["mods"][0]["active"] == True
+    assert response_json["server"]["mods"][1]["active"] == False
 
 def test_register_unauthorized(client: FlaskClient):
     prepare_test_state(verified_list=[])
@@ -61,17 +80,21 @@ def test_update(client: FlaskClient):
         headers={
             shared.KEY_HEADER: registration_response.get_json()["key"],
         },
-        json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
+        json={"player_count": 10, "max_players": 100, "current_map": "Test Map", "mods": [{"organization": "Active mod", "name": "Updated Mod", "version": "1.0.0", "active": True}]}
     )
 
     response_json = response.get_json()
     unique_id = response_json["server"]["unique_id"]
     server = shared.server_list.get(unique_id)
 
+
     assert response.status_code == 200
 
     assert server is not None
-    assert server.player_count == 9
+    assert server.player_count == 10
+    assert server.max_players == 100
+    assert len(server.mods) == 1
+    assert server.mods[0].name == "Updated Mod"
 
 
 def test_update_non_existent(client: FlaskClient):
