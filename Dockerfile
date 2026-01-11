@@ -21,7 +21,10 @@ COPY poetry.lock pyproject.toml /code/
 # Creating folders, and files for a project:
 COPY . /code
 
+RUN chmod +x /code/scripts/entrypoint.sh
+RUN sed -i 's/\r$//' /code/scripts/entrypoint.sh
+
 RUN poetry config virtualenvs.create false \
-  && poetry install --no-dev --no-interaction --no-ansi
+  && poetry install --without dev --no-interaction --no-ansi
 
 ENTRYPOINT ["/code/scripts/entrypoint.sh"]
