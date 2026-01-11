@@ -154,6 +154,105 @@ def test_delete(client: FlaskClient):
     assert response_json["status"] == "deleted"
     assert not shared.server_list.exists(id)
 
+test_map_rotation = {
+    "maps": ["Map 1", "Map 2", "Map 3"],
+    "index": 0
+}
+
+test_server_with_rotation_json = {
+    "name": "Test Server",
+    "description": "Test Description",
+    "ports": {"game": 7777, "ping": 7778, "a2s": 27015},
+    "player_count": 0,
+    "max_players": 64,
+    "current_map": "Map 1",
+    "password_protected": False,
+    "mods": [],
+    "map_rotation": test_map_rotation
+}
+
+def test_register_with_map_rotation(client: FlaskClient):
+    prepare_test_state()
+
+    response = client.post("/api/v1/servers", json=test_server_with_rotation_json)
+    assert response.status_code == 201
+    
+    response_json = response.get_json()
+    assert "server" in response_json
+    assert "map_rotation" in response_json["server"]
+    assert response_json["server"]["map_rotation"]["maps"] == test_map_rotation["maps"]
+    assert response_json["server"]["map_rotation"]["index"] == test_map_rotation["index"]
+
+def test_update_map_rotation(client: FlaskClient):
+    prepare_test_state()
+
+    # Register
+    reg_response = client.post("/api/v1/servers", json=test_server_with_rotation_json)
+    reg_json = reg_response.get_json()
+    server_id = reg_json["server"]["unique_id"]
+    key = reg_json["key"]
+
+    # Update map rotation
+    new_rotation = {
+        "maps": ["New Map 1", "New Map 2"],
+        "index": 1
+    }
+    
+    update_json = {
+        "current_map": "New Map 2",
+        "player_count": 10,
+        "max_players": 64,
+        "map_rotation": new_rotation
+    }
+
+    update_response = client.put(
+        f"/api/v1/servers/{server_id}",
+        headers={shared.KEY_HEADER: key},
+        json=update_json
+    )
+    
+    assert update_response.status_code == 200
+    update_response_json = update_response.get_json()
+    assert update_response_json["server"]["map_rotation"]["maps"] == new_rotation["maps"]
+    assert update_response_json["server"]["map_rotation"]["index"] == new_rotation["index"]
+
+    # Verify in server list
+    list_response = client.get("/api/v1/servers")
+    assert list_response.status_code == 200
+    list_json = list_response.get_json()
+    
+    server_in_list = next(s for s in list_json["servers"] if s["unique_id"] == server_id)
+    assert server_in_list["map_rotation"]["maps"] == new_rotation["maps"]
+    assert server_in_list["map_rotation"]["index"] == new_rotation["index"]
+
+def test_update_keep_map_rotation(client: FlaskClient):
+    prepare_test_state()
+
+    # Register
+    reg_response = client.post("/api/v1/servers", json=test_server_with_rotation_json)
+    reg_json = reg_response.get_json()
+    server_id = reg_json["server"]["unique_id"]
+    key = reg_json["key"]
+
+    # Update without map rotation
+    update_json = {
+        "current_map": "Map 1",
+        "player_count": 5,
+        "max_players": 64
+    }
+
+    update_response = client.put(
+        f"/api/v1/servers/{server_id}",
+        headers={shared.KEY_HEADER: key},
+        json=update_json
+    )
+    
+    assert update_response.status_code == 200
+    update_response_json = update_response.get_json()
+    # Should still have the original map rotation
+    assert update_response_json["server"]["map_rotation"]["maps"] == test_map_rotation["maps"]
+    assert update_response_json["server"]["map_rotation"]["index"] == test_map_rotation["index"]
+
 
 def test_delete_nonexistant_server(client: FlaskClient):
     prepare_test_state()

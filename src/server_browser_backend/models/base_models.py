@@ -24,6 +24,19 @@ class Mod:
 
 
 @dataclass(frozen=True)
+class MapRotation:
+    maps: List[str]
+    index: Optional[int] = None
+
+    @staticmethod
+    def from_json(json: dict):
+        return MapRotation(
+            get_or(json, "maps", list),
+            get_or_optional(json, "index", int),
+        )
+
+
+@dataclass(frozen=True)
 class ServerRegistrationRequest:
     ports: Chivalry2Ports
     password_protected: bool
@@ -34,6 +47,7 @@ class ServerRegistrationRequest:
     max_players: int
     mods: List[Mod]
     local_ip_address: Optional[str]
+    map_rotation: Optional[MapRotation]
 
     @staticmethod
     def from_json(json: dict):
@@ -49,6 +63,7 @@ class ServerRegistrationRequest:
             get_or(json, "max_players", int),
             list(map(Mod.from_json, mod_objs)),
             get_or_optional(json, "local_ip_address", str),
+            MapRotation.from_json(json["map_rotation"]) if "map_rotation" in json else None,
         )
 
 
@@ -67,6 +82,7 @@ class Server:
     max_players: int
     is_verified: bool
     mods: List[Mod]
+    map_rotation: Optional[MapRotation]
 
     @staticmethod
     def create_after_registration(
@@ -86,6 +102,7 @@ class Server:
             registration.max_players,
             False,
             registration.mods,
+            registration.map_rotation,
         )
 
     @staticmethod
@@ -106,6 +123,7 @@ class Server:
             get_or(json, "max_players", int),
             False,
             list(map(Mod.from_json, mod_objs)),
+            MapRotation.from_json(json["map_rotation"]) if "map_rotation" in json else None,
         )
 
     def with_heartbeat(self, heartbeat_time: float):
@@ -123,6 +141,7 @@ class Server:
             self.max_players,
             self.is_verified,
             self.mods,
+            self.map_rotation,
         )
 
     def with_update(self, update_request: UpdateRegisteredServer) -> Server:
@@ -140,6 +159,7 @@ class Server:
             update_request.max_players,
             self.is_verified,
             update_request.mods if update_request.mods is not None else self.mods,
+            update_request.map_rotation if update_request.map_rotation is not None else self.map_rotation,
         )
 
     def unverified(self) -> Server:
@@ -157,6 +177,7 @@ class Server:
             self.max_players,
             False,
             self.mods,
+            self.map_rotation,
         )
 
     def verified(self) -> Server:
@@ -174,6 +195,7 @@ class Server:
             self.max_players,
             True,
             self.mods,
+            self.map_rotation,
         )
 
 
@@ -190,6 +212,7 @@ class ServerResponse:
     max_players: int
     is_verified: bool
     mods: List[Mod]
+    map_rotation: Optional[MapRotation] = None
 
     @staticmethod
     def from_server(server: Server) -> ServerResponse:
@@ -205,6 +228,7 @@ class ServerResponse:
             server.max_players,
             server.is_verified,
             server.mods,
+            server.map_rotation,
         )
 
 
@@ -215,6 +239,7 @@ class UpdateRegisteredServer:
     player_count: int
     max_players: int
     mods: List[Mod] | None
+    map_rotation: Optional[MapRotation] = None
 
     @staticmethod
     def from_json(json: dict):
@@ -226,7 +251,8 @@ class UpdateRegisteredServer:
             get_or(json, "current_map", str),
             get_or(json, "player_count", int),
             get_or(json, "max_players", int),
-            mod_objs
+            mod_objs,
+            MapRotation.from_json(json["map_rotation"]) if "map_rotation" in json else None,
         )
 
 
