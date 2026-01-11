@@ -11,3 +11,6 @@ docker buildx build . \
   -t "jacoby6000/chivalry2-unofficial-server-browser-backend:$VERSION" \
   -t "jacoby6000/chivalry2-unofficial-server-browser-backend:latest" \
   --push
+
+git tag "v$version"
+git push --tags
