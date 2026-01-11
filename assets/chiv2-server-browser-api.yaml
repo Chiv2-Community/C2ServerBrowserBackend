@@ -554,10 +554,27 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
+        map_rotation:
+          $ref: '#/components/schemas/MapRotation'
         mods:
           type: array
           items:
             $ref: '#/components/schemas/Mod'
+    MapRotation:
+      type: object
+      description: The map rotation for the server
+      required:
+        - maps
+      properties:
+        maps:
+          type: array
+          items:
+            type: string
+            description: An ordered list of maps in the rotation.
+        index:
+          type: integer
+          format: int32
+          description: The index of the current map
     Mod:
       type: object
       required:
@@ -623,6 +640,8 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
+        map_rotation:
+          $ref: '#/components/schemas/MapRotation'
         player_count:
           type: integer
           format: int32
@@ -663,6 +682,8 @@ components:
         current_map:
           type: string
           description: The current map being played on the server
+        map_rotation:
+          $ref: '#/components/schemas/MapRotation'
         player_count:
           type: integer
           format: int32
