@@ -5,7 +5,7 @@ from typing import Callable
 from uuid import uuid4
 
 from dataclasses import asdict
-from flask import Blueprint, current_app, jsonify, request, send_file
+from flask import Blueprint, current_app, jsonify, request, send_file, Response
 
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
 from server_browser_backend.models.base_models import (
@@ -22,9 +22,11 @@ from server_browser_backend.models.base_models import (
     UpdateRegisteredServer,
     UpdateResponse,
     VerifiedListResponse,
+    LoginRequest,
+    LoginResponse,
 )
 from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import Banned, JsonMissing, get_and_validate_ip, get_json, get_key
+from server_browser_backend.routes.shared import Banned, JsonMissing, get_and_validate_ip, get_json, get_key, get_ip, token_reissuer
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
 import traceback
@@ -32,18 +34,33 @@ import traceback
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
 
+@api_v1_bp.route("/auth/jwks.json", methods=["GET"])
+def jwks() -> tuple[Response, int]:
+    return jsonify(token_reissuer.get_jwks_response()), 200
+
+@api_v1_bp.route("/auth/login", methods=["POST"])
+def login() -> tuple[Response, int]:
+    try:
+        login_request = LoginRequest.from_json(get_json())
+        token = token_reissuer.validate_and_reissue(login_request.token, get_ip())
+        return jsonify(LoginResponse(token)), 200
+    except Exception as e:
+        # Re-raise to let the general exception handler handle it, 
+        # but we could also handle specific JWT errors here.
+        raise e
+
 @api_v1_bp.route("/swagger.yaml")
-def send_swagger():
+def send_swagger() -> Response:
     get_and_validate_ip()
     return send_file("../../assets/chiv2-server-browser-api.yaml")
 
 @api_v1_bp.route("/check-banned/<ip>", methods=["GET"])
-def check_banned(ip: str):
+def check_banned(ip: str) -> tuple[Response, int]:
     get_and_validate_ip()
     return jsonify(BanStatusResponse(shared.ban_list.contains(ip))), 200
 
 @api_v1_bp.route("/servers", methods=["POST"])
-def register():
+def register() -> tuple[Response, int]:
     server_ip = get_and_validate_ip()
 
     registration = ServerRegistrationRequest.from_json(get_json())
@@ -76,7 +93,7 @@ def register():
 
 
 @api_v1_bp.route("/servers/<server_id>/heartbeat", methods=["POST"])
-def heartbeat(server_id: str):
+def heartbeat(server_id: str) -> tuple[Response, int]:
     get_and_validate_ip()
     return update_server(
         server_id,
@@ -85,7 +102,7 @@ def heartbeat(server_id: str):
 
 
 @api_v1_bp.route("/servers/<server_id>", methods=["PUT"])
-def update(server_id: str):
+def update(server_id: str) -> tuple[Response, int]:
     get_and_validate_ip()
     update_request = UpdateRegisteredServer.from_json(get_json())
 
@@ -96,7 +113,7 @@ def update(server_id: str):
 
 
 @api_v1_bp.route("/servers/<server_id>", methods=["DELETE"])
-def delete_server(server_id: str):
+def delete_server(server_id: str) -> tuple[Response, int]:
     get_and_validate_ip()
     key = get_key()
 
@@ -120,7 +137,7 @@ def delete_server(server_id: str):
 
 
 @api_v1_bp.route("/servers", methods=["GET"])
-def get_servers():
+def get_servers() -> tuple[Response, int]:
     get_and_validate_ip()
     servers = shared.server_list.get_all()
     server_listing_servers = [ServerResponse.from_server(x) for x in servers]
@@ -128,7 +145,7 @@ def get_servers():
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["PUT"])
-def add_to_ban_list():
+def add_to_ban_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -165,7 +182,7 @@ def add_to_ban_list():
     return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["DELETE"])
-def remove_from_ban_list():
+def remove_from_ban_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -193,7 +210,7 @@ def remove_from_ban_list():
     return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/ban-list", methods=["GET"])
-def get_ban_list():
+def get_ban_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -203,7 +220,7 @@ def get_ban_list():
     return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["PUT"])
-def add_to_verified_list():
+def add_to_verified_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -241,7 +258,7 @@ def add_to_verified_list():
     return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["DELETE"])
-def delete_from_verified_list():
+def delete_from_verified_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -269,7 +286,7 @@ def delete_from_verified_list():
     return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
 
 @api_v1_bp.route("/admin/verified-list", methods=["GET"])
-def get_verified_list():
+def get_verified_list() -> tuple[Response, int]:
     source_ip = get_and_validate_ip()
 
     sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
@@ -281,7 +298,7 @@ def get_verified_list():
 
 
 @api_v1_bp.errorhandler(JsonMissing)
-def handle_json_missing(e):
+def handle_json_missing(e: JsonMissing) -> tuple[Response, int]:
     return (
         jsonify(
             StatusResponse(
@@ -294,7 +311,7 @@ def handle_json_missing(e):
 
 
 @api_v1_bp.errorhandler(DictKeyError)
-def handle_dict_key_error(e):
+def handle_dict_key_error(e: DictKeyError) -> tuple[Response, int]:
     return (
         jsonify(
             StatusResponse(
@@ -308,7 +325,7 @@ def handle_dict_key_error(e):
 
 
 @api_v1_bp.errorhandler(DictTypeError)
-def handle_dict_type_error(e):
+def handle_dict_type_error(e: DictTypeError) -> tuple[Response, int]:
     error_string = f"Invalid type for key '{e.key}'. Got '{e.actual_type.__name__}' with value '{e.value}', but expected '{e.expected_type.__name__}'"
     return (
         jsonify(
@@ -323,7 +340,7 @@ def handle_dict_type_error(e):
 
 
 @api_v1_bp.errorhandler(SecretKeyMissing)
-def handle_secret_key_missing(e):
+def handle_secret_key_missing(e: SecretKeyMissing) -> tuple[Response, int]:
     return (
         jsonify(
             StatusResponse("no_key", shared.KEY_HEADER + " header not specified")
@@ -333,16 +350,16 @@ def handle_secret_key_missing(e):
 
 
 @api_v1_bp.errorhandler(InvalidSecretKey)
-def handle_invalid_secret_key(e):
+def handle_invalid_secret_key(e: InvalidSecretKey) -> tuple[Response, int]:
     return jsonify(StatusResponse("forbidden", "Invalid secret key")), 403
 
 
 @api_v1_bp.errorhandler(Banned)
-def handle_banned_user(e):
+def handle_banned_user(e: Banned) -> tuple[Response, int]:
     return jsonify(StatusResponse("forbidden", "You are banned")), 403
 
 @api_v1_bp.errorhandler(Exception)
-def handle_general_exception(e):
+def handle_general_exception(e: Exception) -> tuple[Response, int]:
     current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
     if shared.DEBUG_MODE:
         return jsonify(
@@ -360,7 +377,7 @@ def handle_general_exception(e):
             )
         ), 500
 
-def update_server(server_id: str, update_server: Callable[[Server], Server]):
+def update_server(server_id: str, update_server: Callable[[Server], Server]) -> tuple[Response, int]:
     key = get_key()
 
     existing_server = [x.unique_id for x in shared.server_list.get_all()]

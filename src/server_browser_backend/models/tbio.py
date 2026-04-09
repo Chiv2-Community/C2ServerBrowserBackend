@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Dict, Any
 
 from server_browser_backend.dict_util import get_or
 from server_browser_backend.models.base_models import Server
@@ -21,7 +21,7 @@ class Wrapper(Generic[A]):
 @dataclass(frozen=True)
 class MotdResponse:
     Success: bool
-    Data: dict
+    Data: Dict[str, Any]
     expiration: int
 
 
@@ -124,7 +124,7 @@ class MotdRequest:
     language: str
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> MotdRequest:
         from server_browser_backend import dict_util
 
         return MotdRequest(

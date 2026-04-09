@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from server_browser_backend.dict_util import get_list_or, get_or, get_or_optional, get_list_or_optional
 
@@ -14,7 +14,7 @@ class Mod:
     active: bool = False
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> Mod:
         return Mod(
             get_or(json, "name", str),
             get_or(json, "organization", str),
@@ -36,7 +36,7 @@ class ServerRegistrationRequest:
     local_ip_address: Optional[str]
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> ServerRegistrationRequest:
         mod_objs = get_list_or(json, "mods", dict, lambda: [])
 
         return ServerRegistrationRequest(
@@ -217,7 +217,7 @@ class UpdateRegisteredServer:
     mods: List[Mod] | None
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> UpdateRegisteredServer:
         mod_dicts = get_list_or_optional(json, "mods", dict)
 
         mod_objs = list(map(Mod.from_json, mod_dicts)) if mod_dicts is not None else None
@@ -237,7 +237,7 @@ class Chivalry2Ports:
     ping: int
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> Chivalry2Ports:
         return Chivalry2Ports(
             get_or(json, "game", int),
             get_or(json, "a2s", int),
@@ -254,7 +254,7 @@ class BanStatusResponse:
 class StatusResponse:
     status: str
     message: str
-    context: Optional[dict] = None
+    context: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -298,8 +298,54 @@ class IpListRequest:
     verified_ips: Optional[List[str]] = None
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> IpListRequest:
         return IpListRequest(
             get_or_optional(json, "banned_ips", list),
             get_or_optional(json, "verified_ips", list),
+        )
+
+
+@dataclass(frozen=True)
+class LoginRequest:
+    token: str
+
+    @staticmethod
+    def from_json(json: Dict[str, Any]) -> LoginRequest:
+        return LoginRequest(get_or(json, "token", str))
+
+
+@dataclass(frozen=True)
+class LoginResponse:
+    token: str
+
+
+@dataclass(frozen=True)
+class Jwk:
+    kty: str
+    alg: str
+    use: str
+    kid: str
+    n: str
+    e: str
+
+    @staticmethod
+    def from_json(json: Dict[str, Any]) -> Jwk:
+        return Jwk(
+            get_or(json, "kty", str),
+            get_or(json, "alg", str),
+            get_or(json, "use", str),
+            get_or(json, "kid", str),
+            get_or(json, "n", str),
+            get_or(json, "e", str),
+        )
+
+
+@dataclass(frozen=True)
+class JwksResponse:
+    keys: List[Jwk]
+
+    @staticmethod
+    def from_json(json: Dict[str, Any]) -> JwksResponse:
+        return JwksResponse(
+            list(map(Jwk.from_json, get_list_or(json, "keys", dict)))
         )

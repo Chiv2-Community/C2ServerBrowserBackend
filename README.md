@@ -22,6 +22,7 @@ docker run \
 The server can be configured using environment variables:
 - `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
+- `SERVER_BROWSER_FQDN`: The FQDN of the server, used as the issuer for reissued tokens (default: `chivalry2-server-browser-backend`).
 - `GUNICORN_BIND`: The host and port gunicorn should bind to (default: `0.0.0.0:8080`).
 - `GUNICORN_WORKERS`: The number of gunicorn workers (default: `1`).
 - `GUNICORN_THREADS`: The number of gunicorn threads (default: `1`).

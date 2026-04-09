@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 @dataclass(frozen=True)
@@ -22,9 +22,9 @@ class Game:
 @dataclass(frozen=True)
 class Error:
     code: int
-    data: dict
+    data: Dict[str, Any]
     message: str
-    params: dict
+    params: Dict[str, Any]
     success: bool
 
 
@@ -33,7 +33,7 @@ class MatchmakeRequest:
     lobby_id: str
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: Dict[str, Any]) -> MatchmakeRequest:
         from server_browser_backend.dict_util import get_or
 
         return MatchmakeRequest(get_or(json, "LobbyId", str))

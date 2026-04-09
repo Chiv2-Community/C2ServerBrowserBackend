@@ -3,6 +3,32 @@ info:
   title: Server Browser API
   version: 1.0.0
 paths:
+  /api/v1/auth/jwks.json:
+    get:
+      summary: Get the JWKS for validating our tokens
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksResponse'
+  /api/v1/auth/login:
+    post:
+      summary: Exchange an EOS ID token for our JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
   /api/v1/swagger.yaml:
     get:
       summary: Get the swagger documentation
@@ -743,6 +769,7 @@ components:
           description: A human readable message about the status
         context:
           type: object
+          additionalProperties: true
           description: Optional context for the status
     BanStatusResponse:
       type: object
@@ -801,4 +828,51 @@ components:
       properties:
         Language:
           type: string
+    LoginRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: The EOS ID token
+    LoginResponse:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: Our short-lived JWT
+    Jwk:
+      type: object
+      required:
+        - kty
+        - alg
+        - use
+        - kid
+        - n
+        - e
+      properties:
+        kty:
+          type: string
+        alg:
+          type: string
+        use:
+          type: string
+        kid:
+          type: string
+        n:
+          type: string
+        e:
+          type: string
+    JwksResponse:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/Jwk'
   

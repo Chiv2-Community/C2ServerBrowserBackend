@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from os import path
 from uuid import uuid4
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, Response
 
 from server_browser_backend import dict_util
 from server_browser_backend.models import playfab, tbio, base_models
@@ -15,7 +15,7 @@ from server_browser_backend.routes.shared import get_and_validate_ip, get_json, 
 tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
 
 @tbio_bp.route("/GetCurrentGames", methods=["POST"])
-def tbio_get_servers():
+def tbio_get_servers() -> tuple[Response, int]:
     banned = False
     client_ip = None
     try:
@@ -30,7 +30,7 @@ def tbio_get_servers():
 
 
 @tbio_bp.route("/GetMotd", methods=["POST"])
-def get_motd():
+def get_motd() -> tuple[Response, int]:
     banned_suffix = ""
     try:
         get_and_validate_ip()
@@ -62,7 +62,7 @@ playfab_bp = Blueprint("chiv2_compat_playfab", __name__, url_prefix="/api/playfa
 
 
 @playfab_bp.route("/Client/Matchmake", methods=["POST"])
-def payfab_client_matchmake():
+def payfab_client_matchmake() -> tuple[Response, int]:
     client_ip = get_and_validate_ip()
     matchmake_request = playfab.MatchmakeRequest.from_json(get_json())
     server_id = matchmake_request.lobby_id
@@ -94,7 +94,7 @@ def payfab_client_matchmake():
 
 @tbio_bp.errorhandler(JsonMissing)
 @playfab_bp.errorhandler(JsonMissing)
-def handle_json_missing(e):
+def handle_json_missing(e: JsonMissing) -> tuple[Response, int]:
     return (
         jsonify(
             base_models.StatusResponse(
@@ -107,5 +107,5 @@ def handle_json_missing(e):
 
 @tbio_bp.errorhandler(Exception)
 @playfab_bp.errorhandler(Exception)
-def handle_general_exception(e):
+def handle_general_exception(e: Exception) -> Response:
     raise e

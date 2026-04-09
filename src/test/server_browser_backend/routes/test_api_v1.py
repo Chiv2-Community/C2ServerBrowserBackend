@@ -2,6 +2,7 @@ from datetime import datetime
 from os import getenv
 
 import pytest
+from unittest.mock import patch, MagicMock
 from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
@@ -524,3 +525,21 @@ def test_is_banned_false(client: FlaskClient):
 
     assert response.status_code == 200
     assert response.get_json()["banned"] == False
+
+def test_jwks(client: FlaskClient):
+    response = client.get("/api/v1/auth/jwks.json")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "keys" in data
+    assert len(data["keys"]) == 1
+    assert data["keys"][0]["kid"] == "server-browser-backend-key-1"
+
+@patch("server_browser_backend.token_reissuer.TokenReissuer.validate_and_reissue")
+def test_login_success(mock_reissue: MagicMock, client: FlaskClient):
+    mock_reissue.return_value = "fake-reissued-token"
+    
+    response = client.post("/api/v1/auth/login", json={"token": "fake-eos-token"})
+    
+    assert response.status_code == 200
+    assert response.get_json()["token"] == "fake-reissued-token"
+    mock_reissue.assert_called_once_with("fake-eos-token", "127.0.0.1")
