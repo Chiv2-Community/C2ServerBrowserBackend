@@ -1,4 +1,4 @@
 #!/bin/bash
 
-poetry run mypy .
-# poetry run pytest .
+uv run mypy .
+# uv run pytest .

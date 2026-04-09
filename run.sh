@@ -1,3 +1,3 @@
 #!/bin/bash
-poetry install
-poetry run gunicorn 'server_browser_backend:main()' "$@"
+uv sync
+uv run gunicorn 'server_browser_backend.main:app' "$@"

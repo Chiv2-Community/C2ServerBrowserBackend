@@ -1,4 +1,4 @@
-﻿poetry install --no-root
-poetry run mypy src
+﻿uv sync
+uv run mypy src
 $env:DEBUG_MODE = "true"
-poetry run pytest
+uv run pytest

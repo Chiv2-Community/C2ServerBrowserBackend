@@ -5,26 +5,21 @@ ARG ENV
 ENV ENV=${ENV} \
   PYTHONFAULTHANDLER=1 \
   PYTHONUNBUFFERED=1 \
-  PYTHONHASHSEED=random \
-  PIP_NO_CACHE_DIR=off \
-  PIP_DISABLE_PIP_VERSION_CHECK=on \
-  PIP_DEFAULT_TIMEOUT=100 \
-  POETRY_VERSION=1.5.1
+  PYTHONHASHSEED=random
 
-RUN apt-get update
-RUN apt-get install python3-pip python3 curl -y
-RUN pip3 install poetry
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /code
-COPY poetry.lock pyproject.toml /code/
 
-# Creating folders, and files for a project:
+# Install dependencies
+COPY pyproject.toml uv.lock /code/
+RUN uv sync --frozen --no-dev
+
+# Copy project files
 COPY . /code
 
 RUN chmod +x /code/scripts/entrypoint.sh
 RUN sed -i 's/\r$//' /code/scripts/entrypoint.sh
-
-RUN poetry config virtualenvs.create false \
-  && poetry install --without dev --no-interaction --no-ansi
 
 ENTRYPOINT ["/code/scripts/entrypoint.sh"]

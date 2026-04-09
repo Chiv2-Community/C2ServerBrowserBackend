@@ -13,19 +13,27 @@ docker run \
   -p 8080:8080 \
   -e ADMIN_KEY='YOUR_SECRET_KEY_FOR_MANAGING_BANS' \
   -e CONFIG_DIR='/config' \
-  -v $HOST_CONFIG_DIR:/config \ 
+  -e GUNICORN_WORKERS=4 \
+  -v $HOST_CONFIG_DIR:/config \
   -it \
-  jacoby6000/chivalry2-unofficial-server-browser-backend:latest \
-    -b 0.0.0.0:8080 \
-    -w 1
+  jacoby6000/chivalry2-unofficial-server-browser-backend:latest
 ```
 
-The params passed in at the end are gunicorn arguments
+The server can be configured using environment variables:
+- `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
+- `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
+- `GUNICORN_BIND`: The host and port gunicorn should bind to (default: `0.0.0.0:8080`).
+- `GUNICORN_WORKERS`: The number of gunicorn workers (default: `1`).
+- `GUNICORN_THREADS`: The number of gunicorn threads (default: `1`).
+- `GUNICORN_LOG_LEVEL`: The gunicorn log level (default: `info`).
+- `GUNICORN_TIMEOUT`: The gunicorn timeout in seconds (default: `30`).
+
+Any additional arguments passed to the docker run command will be passed directly to gunicorn.
 
 Will run the latest server and run on port 8080
 
-### Poetry
-This is a poetry project, and as such dependencies are managed via poetry.  If you don't have poetry, [install it](https://python-poetry.org/docs/#installation)
+### UV
+This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.
 
 Then the project can be run via `./run.sh`
 
