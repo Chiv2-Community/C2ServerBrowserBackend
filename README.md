@@ -58,3 +58,28 @@ Then the project can be run via `./run.sh`
 Try running with `--help` to see what options are available.
 
 Tests can be run via `./ci.sh`
+
+## Publishing
+
+The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
+the tagged commit to Docker Hub when a `vMAJOR.MINOR.PATCH` tag is pushed.
+The Docker tags are the version without `v` and `latest`.
+The version comes from the Git tag, not `pyproject.toml`.
+
+Configure these repository Actions secrets before publishing:
+- `DOCKERHUB_USERNAME`: Docker Hub account with push access to
+  `jacoby6000/chivalry2-unofficial-server-browser-backend`.
+- `DOCKERHUB_TOKEN`: Docker Hub access token with write permission.
+
+After the workflow is merged into `main`, tag the desired release commit:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag v1.1.0
+git push origin refs/tags/v1.1.0
+```
+
+Use a new version for each release. Every successful publish also updates `latest`.
+Do not run `publish.sh` or `publish.ps1` for tag-triggered releases; those scripts
+publish images and create tags themselves.
