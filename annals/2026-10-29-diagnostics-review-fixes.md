@@ -23,3 +23,7 @@ After the [earlier review](2026-10-29-uncommitted-server-listing-review.md), the
 ## Consequences and reconsideration
 
 The source fix restores the tested listing compatibility while retaining opt-in disclosure, but exposes more accepted truthy spellings and leaves stricter IP parsing. Before committing, verify all response shapes, schema nullability, invalid inputs, and tests against the current working tree. Reconsider if disclosure, environment configuration, or accepted address formats change. No issue, PR, release, author rationale beyond the agent's stated compatibility goal, or evidence of final acceptance is available.
+
+## Subsequent developments (2026-10-29)
+
+The default `include_ip=False` in the source fix was superseded by the user's requirement for explicit arguments. The later test run covers that change; the earlier run described above did not. See [explicit address disclosure](2026-10-29-explicit-address-disclosure.md). Other decisions and open contract questions in this record remain applicable.
