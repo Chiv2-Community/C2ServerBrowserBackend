@@ -83,6 +83,24 @@ def test_get_servers(client: FlaskClient):
     assert "ip_address" not in listed_server
     assert "local_ip_address" not in listed_server
 
+
+def test_get_servers_can_expose_registered_ips_for_diagnostics(client: FlaskClient, monkeypatch: pytest.MonkeyPatch):
+    prepare_test_state()
+    source_ip = "42.0.69.0"
+    local_ip = "192.168.1.24"
+    response = client.post(
+        "/api/v1/servers",
+        json={**test_server_json, "local_ip_address": local_ip},
+        headers={"X-Forwarded-For": source_ip},
+    )
+    assert response.status_code == 201
+
+    monkeypatch.setenv("EXPOSE_REGISTERED_IPS", "1")
+    listing = client.get("/api/v1/servers", headers={"X-Forwarded-For": source_ip})
+    listed_server = listing.get_json()["servers"][0]
+    assert listed_server["ip_address"] == source_ip
+    assert listed_server["local_ip_address"] == local_ip
+
 def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: FlaskClient):
     prepare_test_state()
 

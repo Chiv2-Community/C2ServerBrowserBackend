@@ -632,6 +632,13 @@ components:
         unique_id:
           type: string
           description: The unique identifier of this server
+        ip_address:
+          type: string
+          description: Observed registration source; included only when diagnostics are enabled
+        local_ip_address:
+          type: string
+          nullable: true
+          description: Advertised address; included only when diagnostics are enabled
         ports:
           $ref: '#/components/schemas/Chivalry2Ports'
         password_protected:
@@ -875,4 +882,3 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Jwk'
-  

@@ -28,6 +28,8 @@ The server can be configured using environment variables:
 - `GUNICORN_THREADS`: The number of gunicorn threads (default: `1`).
 - `GUNICORN_LOG_LEVEL`: The gunicorn log level (default: `info`).
 - `GUNICORN_TIMEOUT`: The gunicorn timeout in seconds (default: `30`).
+- `EXPOSE_REGISTERED_IPS`: Set to `1` to include observed and advertised IP
+  fields in `/api/v1/servers` for diagnostics; omitted by default.
 
 Any additional arguments passed to the docker run command will be passed directly to gunicorn.
 
