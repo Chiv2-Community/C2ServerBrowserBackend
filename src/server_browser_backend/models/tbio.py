@@ -6,6 +6,7 @@ from typing import Generic, List, Optional, Dict, Any
 from server_browser_backend.dict_util import get_or
 from server_browser_backend.models.base_models import Server
 from server_browser_backend.type_vars import A
+import ipaddress
 
 
 @dataclass(frozen=True)
@@ -65,9 +66,18 @@ class Game:
     ServerPort: int
 
     @staticmethod
+    def format_address(address: str) -> str:
+        """Format an address for the legacy Chivalry endpoint field."""
+        if address.startswith("[") and address.endswith("]"):
+            address = address[1:-1]
+        if ipaddress.ip_address(address).version == 6:
+            return f"[{address}]"
+        return address
+
+    @staticmethod
     def from_server(server: Server, client_ip: Optional[str], fixed_name: Optional[str] = None) -> Game:
         ip_address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
-
+        endpoint_address = Game.format_address(ip_address)
         return Game(
             "paris",
             server.unique_id,
@@ -95,8 +105,8 @@ class Game:
                 "277",
             ),
             int(server.last_heartbeat),
-            ip_address,
-            ip_address,
+            endpoint_address,
+            endpoint_address,
             server.ports.game,
         )
 

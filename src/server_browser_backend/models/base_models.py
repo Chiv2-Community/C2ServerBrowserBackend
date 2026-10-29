@@ -208,6 +208,20 @@ class ServerResponse:
         )
 
 
+@dataclass(frozen=True)
+class ServerResponseWithIP(ServerResponse):
+    ip_address: str
+    local_ip_address: str | None
+
+    @staticmethod
+    def from_server(server: Server) -> ServerResponseWithIP:
+        response = ServerResponse.from_server(server)
+        return ServerResponseWithIP(
+            **vars(response),
+            ip_address=server.ip_address,
+            local_ip_address=server.local_ip_address,
+        )
+
 
 @dataclass(frozen=True)
 class UpdateRegisteredServer:
@@ -266,7 +280,12 @@ class ErrorResponse:
 
 @dataclass(frozen=True)
 class ServerListResponse:
-    servers: List[ServerResponse]
+    servers: List[ServerResponse | ServerResponseWithIP]
+
+    @staticmethod
+    def from_servers(servers: List[Server], include_ip: bool) -> ServerListResponse:
+        response_type = ServerResponseWithIP if include_ip else ServerResponse
+        return ServerListResponse([response_type.from_server(server) for server in servers])
 
 
 @dataclass(frozen=True)

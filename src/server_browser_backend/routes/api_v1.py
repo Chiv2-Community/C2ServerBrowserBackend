@@ -4,10 +4,10 @@ from datetime import datetime
 from typing import Callable
 from uuid import uuid4
 
-from dataclasses import asdict
 from flask import Blueprint, current_app, jsonify, request, send_file, Response
 
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
+from server_browser_backend.env import show_registered_ips
 from server_browser_backend.models.base_models import (
     BanListResponse,
     BanStatusResponse,
@@ -15,8 +15,8 @@ from server_browser_backend.models.base_models import (
     IpListRequest,
     RegistrationResponse,
     Server,
-    ServerListResponse,
     ServerRegistrationRequest,
+    ServerListResponse,
     ServerResponse,
     StatusResponse,
     UpdateRegisteredServer,
@@ -140,8 +140,8 @@ def delete_server(server_id: str) -> tuple[Response, int]:
 def get_servers() -> tuple[Response, int]:
     get_and_validate_ip()
     servers = shared.server_list.get_all()
-    server_listing_servers = [ServerResponse.from_server(x) for x in servers]
-    return jsonify(ServerListResponse(server_listing_servers)), 200
+    response = ServerListResponse.from_servers(servers, include_ip=show_registered_ips())
+    return jsonify(response), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["PUT"])
