@@ -31,6 +31,21 @@ The server can be configured using environment variables:
 
 Any additional arguments passed to the docker run command will be passed directly to gunicorn.
 
+### Dual-stack IPv4/IPv6 binding
+
+Keep the default `0.0.0.0:8080` bind for IPv4-only deployments. On a normal
+Linux dual-stack host, run Gunicorn with one IPv6 wildcard listener:
+
+```bash
+GUNICORN_BIND='[::]:8080' ./run.sh
+```
+
+This accepts IPv6 and IPv4-mapped connections when the host's IPv6 socket mode
+allows it. Confirm with `ss -ltnp` and allow TCP 8080 for both address families.
+If the host uses IPv6-only sockets, pass separate Gunicorn `--bind` arguments
+instead of relying on the wildcard socket.
+
+
 Will run the latest server and run on port 8080
 
 ### UV
