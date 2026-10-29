@@ -16,7 +16,7 @@ docker run \
   -e GUNICORN_WORKERS=4 \
   -v $HOST_CONFIG_DIR:/config \
   -it \
-  jacoby6000/chivalry2-unofficial-server-browser-backend:latest
+  ghcr.io/chiv2-community/c2serverbrowserbackend:latest
 ```
 
 The server can be configured using environment variables:
@@ -62,14 +62,15 @@ Tests can be run via `./ci.sh`
 ## Publishing
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
-the tagged commit to Docker Hub when a `vMAJOR.MINOR.PATCH` tag is pushed.
+the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
+`vMAJOR.MINOR.PATCH` tag is pushed.
 The Docker tags are the version without `v` and `latest`.
 The version comes from the Git tag, not `pyproject.toml`.
 
-Configure these repository Actions secrets before publishing:
-- `DOCKERHUB_USERNAME`: Docker Hub account with push access to
-  `jacoby6000/chivalry2-unofficial-server-browser-backend`.
-- `DOCKERHUB_TOKEN`: Docker Hub access token with write permission.
+The workflow authenticates with the built-in `GITHUB_TOKEN` using
+`packages: write`; no registry secrets are required. Organization policies must
+allow the workflow to create packages. After the first publish, set the package
+visibility to public in its GitHub package settings to allow anonymous pulls.
 
 After the workflow is merged into `main`, tag the desired release commit:
 
@@ -82,4 +83,4 @@ git push origin refs/tags/v1.1.0
 
 Use a new version for each release. Every successful publish also updates `latest`.
 Do not run `publish.sh` or `publish.ps1` for tag-triggered releases; those scripts
-publish images and create tags themselves.
+publish to Docker Hub and create tags themselves.
