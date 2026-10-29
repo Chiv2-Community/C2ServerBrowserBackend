@@ -30,3 +30,5 @@ Until corrected and tested, the proposed implementation cannot establish working
 ## Subsequent developments (2026-10-29)
 
 The proposed null-key listing and rejection of already-bracketed IPv6 described above were superseded in the uncommitted fixes; the original review findings remain historical. The startup and caller problems were addressed in the source patch, with tests reported passing then. See [diagnostic listing and IPv6 review fixes](2026-10-29-diagnostics-review-fixes.md) for the later implementation, current working-tree differences, and remaining uncertainties.
+
+The null-key shape later reappeared in the supplied conversation after the user requested model-owned selection; the current working tree differs again. See [model-owned address selection](2026-10-29-model-owned-address-selection.md). This does not reinstate the original broken proposal.

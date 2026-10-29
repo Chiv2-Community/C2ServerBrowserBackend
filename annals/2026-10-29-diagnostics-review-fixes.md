@@ -27,3 +27,5 @@ The source fix restores the tested listing compatibility while retaining opt-in 
 ## Subsequent developments (2026-10-29)
 
 The default `include_ip=False` in the source fix was superseded by the user's requirement for explicit arguments. The later test run covers that change; the earlier run described above did not. See [explicit address disclosure](2026-10-29-explicit-address-disclosure.md). Other decisions and open contract questions in this record remain applicable.
+
+The source fix's listing key omission and route-level filtering were subsequently superseded in the supplied conversation by model-owned selection with null values; later working-tree evidence differs again. See [model-owned address selection](2026-10-29-model-owned-address-selection.md).

@@ -21,3 +21,7 @@ The earlier record's uncertainty about test coverage of the current explicit-arg
 ## Reconsideration and follow-up
 
 Reconsider if response disclosure or compatibility requirements change. Before release, reconcile registration/update response shapes and schema nullability, and address remaining type-checking and invalid-address questions identified in the earlier review. The supplied session may not contain all historical context.
+
+## Subsequent developments (2026-10-29)
+
+The claim that the listing removes disabled address keys describes the earlier implementation; it was superseded in the supplied conversation by model-owned selection and null serialization. The explicit-argument decision remains. See [model-owned address selection](2026-10-29-model-owned-address-selection.md) for subsequent working-tree uncertainty.
