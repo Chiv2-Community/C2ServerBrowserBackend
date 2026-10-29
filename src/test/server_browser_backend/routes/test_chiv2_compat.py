@@ -5,7 +5,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from server_browser_backend.main import app
-from server_browser_backend.routes import shared
+from server_browser_backend.routes import chiv2_compat, shared
 from . import prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
@@ -193,6 +193,34 @@ def test_compat_serializes_parsed_ips(client: FlaskClient, joining_locally, publ
     )
     assert match.status_code == 200
     assert match.get_json()["data"]["ServerHostname"] == expected
+
+
+def test_tbio_parses_client_ip_once_per_listing(client: FlaskClient, monkeypatch):
+    prepare_test_state()
+    source_ip = "2001:db8::1"
+    for name in ("First", "Second"):
+        registration = client.post(
+            "/api/v1/servers",
+            json={**test_server_json, "name": name, "local_ip_address": "fd00::1"},
+            headers={"X-Forwarded-For": source_ip},
+        )
+        assert registration.status_code == 201
+
+    parsed_inputs = []
+
+    def parse_client_ip(address):
+        parsed_inputs.append(address)
+        return ip_address(address)
+
+    monkeypatch.setattr(chiv2_compat, "parse_ip_address", parse_client_ip)
+    response = client.post(
+        "/api/tbio/GetCurrentGames", headers={"X-Forwarded-For": source_ip}
+    )
+    assert response.status_code == 200
+    games = response.get_json()["Data"]["Games"]
+    assert len(games) == 2
+    assert all(game["ServerHostname"] == "[fd00::1]" for game in games)
+    assert parsed_inputs == [source_ip]
 
 
 def test_motd_endpoint(client: FlaskClient):

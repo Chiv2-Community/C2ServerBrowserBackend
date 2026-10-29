@@ -20,7 +20,7 @@ def tbio_get_servers() -> tuple[Response, int]:
     banned = False
     client_ip = None
     try:
-        client_ip = get_and_validate_ip()
+        client_ip = parse_ip_address(get_and_validate_ip())
     except shared.Banned:
         banned = True
 
