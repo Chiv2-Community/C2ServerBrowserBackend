@@ -65,9 +65,16 @@ class Game:
     ServerPort: int
 
     @staticmethod
+    def format_address(address: str) -> str:
+        """Format an address for the legacy Chivalry endpoint field."""
+        if ":" in address and not address.startswith("["):
+            return f"[{address}]"
+        return address
+
+    @staticmethod
     def from_server(server: Server, client_ip: Optional[str], fixed_name: Optional[str] = None) -> Game:
         ip_address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
-
+        endpoint_address = Game.format_address(ip_address)
         return Game(
             "paris",
             server.unique_id,
@@ -95,8 +102,8 @@ class Game:
                 "277",
             ),
             int(server.last_heartbeat),
-            ip_address,
-            ip_address,
+            endpoint_address,
+            endpoint_address,
             server.ports.game,
         )
 
