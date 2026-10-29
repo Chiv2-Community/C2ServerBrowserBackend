@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from ipaddress import ip_address
 
 import pytest
 
@@ -11,13 +12,13 @@ from server_browser_backend.models.base_models import (
 )
 
 
-@pytest.mark.parametrize("local_ip", [None, "192.168.1.24"])
+@pytest.mark.parametrize("public_ip, local_ip", [("42.0.69.0", None), ("42.0.69.0", "192.168.1.24"), ("2001:db8::1", "fd00::1")])
 @pytest.mark.parametrize("include_ip", [False, True])
-def test_from_servers_selects_response_model(include_ip, local_ip):
+def test_from_servers_selects_response_model(include_ip, public_ip, local_ip):
     server = Server(
         unique_id="test-server",
-        ip_address="42.0.69.0",
-        local_ip_address=local_ip,
+        ip_address=ip_address(public_ip),
+        local_ip_address=ip_address(local_ip) if local_ip is not None else None,
         ports=Chivalry2Ports(game=1234, a2s=1235, ping=1236),
         password_protected=False,
         last_heartbeat=1.0,
@@ -39,7 +40,7 @@ def test_from_servers_selects_response_model(include_ip, local_ip):
     assert data["ports"]["game"] == server.ports.game
     if include_ip:
         assert type(response) is ServerResponseWithIP
-        assert data["ip_address"] == server.ip_address
+        assert data["ip_address"] == public_ip
         assert data["local_ip_address"] == local_ip
     else:
         assert type(response) is ServerResponse

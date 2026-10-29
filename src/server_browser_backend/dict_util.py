@@ -1,7 +1,37 @@
 from dataclasses import dataclass
+from ipaddress import IPv6Address, ip_address
 from typing import Any, Callable, Dict, Generic, List, Optional, Type
 
 from server_browser_backend.type_vars import A, B
+from server_browser_backend.ip_address import IPAddress
+
+
+def _require_type(expected_type: Type[A], value: Any) -> A:
+    if not isinstance(value, expected_type):
+        raise ValueError(f"Expected {expected_type.__name__}")
+    return value
+
+
+def decode_primitive(expected_type: Type[A]) -> Callable[[Any], A]:
+    return lambda value: _require_type(expected_type, value)
+
+
+def decode_ip_address(value: Any) -> IPAddress:
+    address = _require_type(str, value)
+    if address.startswith("[") and address.endswith("]"):
+        return IPAddress(IPv6Address(address[1:-1]))
+    return IPAddress(ip_address(address))
+
+
+TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
+    str: decode_primitive(str),
+    int: decode_primitive(int),
+    float: decode_primitive(float),
+    bool: decode_primitive(bool),
+    list: decode_primitive(list),
+    dict: decode_primitive(dict),
+    IPAddress: decode_ip_address,
+}
 
 
 @dataclass(frozen=True)
@@ -49,13 +79,21 @@ def get_or(
     expected_type: Type[A],
     default: Optional[Callable[[], A]] = None,
 ) -> A:
-    """Gets a value from the dictionary and checks that it is of the correct type"""
+    """Get a typed value, using a registered decoder when needed."""
     if key in dictionary:
         value = dictionary[key]
         if isinstance(value, expected_type):
             return value
-        else:
-            raise DictTypeError(key, value, expected_type, type(value), dictionary)
+        decoder = TYPE_DECODERS.get(expected_type)
+        if decoder is not None:
+            try:
+                parsed = decoder(value)
+            except ValueError:
+                pass
+            else:
+                if isinstance(parsed, expected_type):
+                    return parsed
+        raise DictTypeError(key, value, expected_type, type(value), dictionary)
 
     if default is None:
         return _no_key_error(key, dictionary)
@@ -69,11 +107,7 @@ def get_or_optional(
 ) -> Optional[A]:
     """Gets a value from the dictionary and checks that it is of the correct type. Returns None if the key is not present."""
     if key in dictionary:
-        value = dictionary[key]
-        if isinstance(value, expected_type):
-            return value
-        else:
-            raise DictTypeError(key, value, expected_type, type(value), dictionary)
+        return get_or(dictionary, key, expected_type)
     return None
 
 def get_list_or_optional(

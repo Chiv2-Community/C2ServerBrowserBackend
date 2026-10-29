@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv6Address, ip_address as parse_ip_address
 from typing import List, Optional, Dict, Any
 
 from server_browser_backend.dict_util import get_list_or, get_or, get_or_optional, get_list_or_optional
+from server_browser_backend.ip_address import IPAddress
 
 
 @dataclass(frozen=True)
@@ -33,11 +35,12 @@ class ServerRegistrationRequest:
     player_count: int
     max_players: int
     mods: List[Mod]
-    local_ip_address: Optional[str]
+    local_ip_address: Optional[IPv4Address | IPv6Address]
 
     @staticmethod
     def from_json(json: Dict[str, Any]) -> ServerRegistrationRequest:
         mod_objs = get_list_or(json, "mods", dict, lambda: [])
+        local_ip_address = get_or_optional(json, "local_ip_address", IPAddress)
 
         return ServerRegistrationRequest(
             Chivalry2Ports.from_json(get_or(json, "ports", dict)),
@@ -48,15 +51,15 @@ class ServerRegistrationRequest:
             get_or(json, "player_count", int),
             get_or(json, "max_players", int),
             list(map(Mod.from_json, mod_objs)),
-            get_or_optional(json, "local_ip_address", str),
+            local_ip_address.value if local_ip_address is not None else None,
         )
 
 
 @dataclass(frozen=True)
 class Server:
     unique_id: str
-    ip_address: str
-    local_ip_address: Optional[str]
+    ip_address: IPv4Address | IPv6Address
+    local_ip_address: Optional[IPv4Address | IPv6Address]
     ports: Chivalry2Ports
     password_protected: bool
     last_heartbeat: float
@@ -74,7 +77,7 @@ class Server:
     ) -> Server:
         return Server(
             unique_id,
-            ip_address,
+            parse_ip_address(ip_address),
             registration.local_ip_address,
             registration.ports,
             registration.password_protected,
@@ -91,11 +94,12 @@ class Server:
     @staticmethod
     def from_json(json: dict):
         mod_objs = get_list_or(json, "mods", dict, lambda: [])
+        local_ip_address = get_or_optional(json, "local_ip_address", IPAddress)
 
         return Server(
             get_or(json, "unique_id", str),
-            get_or(json, "ip_address", str),
-            get_or_optional(json, "local_ip_address", str),
+            get_or(json, "ip_address", IPAddress).value,
+            local_ip_address.value if local_ip_address is not None else None,
             Chivalry2Ports.from_json(get_or(json, "ports", dict)),
             get_or(json, "password_protected", bool, default=lambda: False),
             get_or(json, "last_heartbeat", float),
@@ -218,8 +222,8 @@ class ServerResponseWithIP(ServerResponse):
         response = ServerResponse.from_server(server)
         return ServerResponseWithIP(
             **vars(response),
-            ip_address=server.ip_address,
-            local_ip_address=server.local_ip_address,
+            ip_address=str(server.ip_address),
+            local_ip_address=str(server.local_ip_address) if server.local_ip_address is not None else None,
         )
 
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+from ipaddress import ip_address
 
 import pytest
 from flask.testing import FlaskClient
@@ -154,6 +155,44 @@ def test_ipv6_local_address_is_source_matching_local_client_override(client: Fla
     )
     game = response.get_json()["Data"]["Games"][0]
     assert game["ServerHostname"] == source_ip
+
+
+@pytest.mark.parametrize("joining_locally", [False, True])
+@pytest.mark.parametrize(
+    "public_ip, client_ip, local_ip",
+    [
+        ("192.0.2.1", "192.0.2.1", "192.168.1.1"),
+        ("2001:db8::1", "2001:0db8:0:0:0:0:0:1", "fd00::1"),
+    ],
+)
+def test_compat_serializes_parsed_ips(client: FlaskClient, joining_locally, public_ip, client_ip, local_ip):
+    prepare_test_state()
+    registration = client.post(
+        "/api/v1/servers",
+        json={**test_server_json, "local_ip_address": local_ip},
+        headers={"X-Forwarded-For": public_ip},
+    )
+    assert registration.status_code == 201
+    server_id = registration.get_json()["server"]["unique_id"]
+    server = shared.server_list.get(server_id)
+    assert server is not None
+    assert server.ip_address == ip_address(public_ip)
+    assert server.local_ip_address == ip_address(local_ip)
+    headers = {"X-Forwarded-For": client_ip if joining_locally else "192.0.2.2"}
+    expected = local_ip if joining_locally else public_ip
+
+    games = client.post("/api/tbio/GetCurrentGames", headers=headers)
+    assert games.status_code == 200
+    game = games.get_json()["Data"]["Games"][0]
+    legacy_address = f"[{expected}]" if ip_address(expected).version == 6 else expected
+    assert game["ServerHostname"] == legacy_address
+    assert game["ServerIPV4Address"] == legacy_address
+
+    match = client.post(
+        "/api/playfab/Client/Matchmake", json={"LobbyId": server_id}, headers=headers
+    )
+    assert match.status_code == 200
+    assert match.get_json()["data"]["ServerHostname"] == expected
 
 
 def test_motd_endpoint(client: FlaskClient):

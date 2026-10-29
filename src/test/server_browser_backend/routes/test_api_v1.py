@@ -71,6 +71,17 @@ def test_register_unauthorized(client: FlaskClient):
     assert response.status_code == 201
     assert [x.is_verified for x in shared.server_list.get_all()][0] == False
 
+
+def test_register_invalid_local_ip(client: FlaskClient):
+    prepare_test_state()
+    response = client.post(
+        "/api/v1/servers", json={**test_server_json, "local_ip_address": "invalid"}
+    )
+    assert response.status_code == 400
+    assert response.get_json()["status"] == "invalid_json_body"
+    assert "local_ip_address" in response.get_json()["message"]
+    assert shared.server_list.get_all() == []
+
 def test_update(client: FlaskClient):
     prepare_test_state()
 
@@ -96,6 +107,80 @@ def test_update(client: FlaskClient):
     assert server.max_players == 100
     assert len(server.mods) == 1
     assert server.mods[0].name == "Updated Mod"
+
+@pytest.mark.parametrize("heartbeat", [False, True])
+@pytest.mark.parametrize(
+    "registered_ip, requester_ip, allowed",
+    [
+        ("127.0.0.1", "127.0.0.1", True),
+        ("127.0.0.1", "127.0.0.2", False),
+        ("2001:db8::1", "2001:0db8:0:0:0:0:0:1", True),
+        ("2001:db8::1", "2001:db8::2", False),
+        ("127.0.0.1", "2001:db8::1", False),
+    ],
+)
+def test_update_requester_ip(client: FlaskClient, heartbeat, registered_ip, requester_ip, allowed):
+    prepare_test_state()
+    registration_response = client.post(
+        "/api/v1/servers",
+        json=test_server_json,
+        environ_overrides={"REMOTE_ADDR": registered_ip},
+    ).get_json()
+    server_id = registration_response["server"]["unique_id"]
+    path = f"/api/v1/servers/{server_id}"
+    if heartbeat:
+        path += "/heartbeat"
+
+    response = client.open(
+        path,
+        method="POST" if heartbeat else "PUT",
+        headers={shared.KEY_HEADER: registration_response["key"]},
+        json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
+        environ_overrides={"REMOTE_ADDR": requester_ip},
+    )
+
+    if allowed:
+        assert response.status_code == 200
+    else:
+        assert response.status_code == 401
+        assert response.get_json() == {
+            "status": "unauthorized",
+            "message": "Invalid IP address",
+            "context": None,
+        }
+        assert shared.server_list.get(server_id) is None
+        retry_response = client.open(
+            path,
+            method="POST" if heartbeat else "PUT",
+            headers={shared.KEY_HEADER: registration_response["key"]},
+            json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
+            environ_overrides={"REMOTE_ADDR": registered_ip},
+        )
+        assert retry_response.status_code == 404
+
+
+@pytest.mark.parametrize("heartbeat", [False, True])
+def test_changed_ip_invalid_key_preserves_registration(client: FlaskClient, heartbeat):
+    prepare_test_state()
+    registration = client.post("/api/v1/servers", json=test_server_json).get_json()
+    server_id = registration["server"]["unique_id"]
+    original_server = shared.server_list.get(server_id)
+    path = f"/api/v1/servers/{server_id}"
+    if heartbeat:
+        path += "/heartbeat"
+
+    response = client.open(
+        path,
+        method="POST" if heartbeat else "PUT",
+        headers={shared.KEY_HEADER: registration["key"] + "invalid"},
+        json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
+        environ_overrides={"REMOTE_ADDR": "127.0.0.2"},
+    )
+
+    assert response.status_code == 403
+    assert response.get_json()["message"] == "Invalid secret key"
+    assert shared.server_list.get(server_id) == original_server
+
 
 def test_update_no_mods(client: FlaskClient):
     prepare_test_state()
