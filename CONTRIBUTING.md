@@ -4,8 +4,10 @@
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
-`vMAJOR.MINOR.PATCH` tag is pushed.
-The Docker tags are the version without `v` and `latest`.
+`vMAJOR.MINOR.PATCH` tag, optionally followed by `+build.metadata`, is pushed.
+Plain release tags publish the version without `v` and update `latest`.
+Tags with build metadata do not update `latest`; Docker tags replace `+` with `_`
+(for example, `v1.1.0+abc123` publishes only `1.1.0_abc123`).
 The version comes from the Git tag, not `pyproject.toml`.
 
 The workflow caches uv dependencies and stores Docker build layers in the GHCR
@@ -26,6 +28,6 @@ git tag v1.1.0
 git push origin refs/tags/v1.1.0
 ```
 
-Use a new version for each release. Every successful publish also updates `latest`.
+Use a new version for each release. Prerelease tags are not supported.
 Do not run `publish.sh` or `publish.ps1` for tag-triggered releases; those scripts
 publish to Docker Hub and create tags themselves.
