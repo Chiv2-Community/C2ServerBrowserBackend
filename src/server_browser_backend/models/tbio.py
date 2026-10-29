@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from ipaddress import ip_address as parse_ip_address
+from ipaddress import IPv4Address, IPv6Address
 from typing import Generic, List, Optional, Dict, Any
 
 from server_browser_backend.dict_util import get_or
@@ -15,7 +15,7 @@ class Wrapper(Generic[A]):
     Data: A
 
     @staticmethod
-    def from_servers(servers: List[Server], client_ip: Optional[str], fixed_name: Optional[str] = None) -> Wrapper[ServerListData]:
+    def from_servers(servers: List[Server], client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> Wrapper[ServerListData]:
         return Wrapper(True, ServerListData.from_servers(servers, client_ip, fixed_name))
 
 
@@ -33,7 +33,7 @@ class ServerListData:
     Games: List[Game]
 
     @staticmethod
-    def from_servers(servers: List[Server], client_ip: Optional[str], fixed_name: Optional[str] = None) -> ServerListData:
+    def from_servers(servers: List[Server], client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> ServerListData:
         return ServerListData(
             len(servers),
             sum(map(lambda s: s.player_count, servers)),
@@ -66,21 +66,17 @@ class Game:
     ServerPort: int
 
     @staticmethod
-    def format_address(address: str) -> str:
+    def format_address(address: IPv4Address | IPv6Address) -> str:
         """Format an address for the legacy Chivalry endpoint field."""
-        try:
-            parsed = parse_ip_address(address)
-        except ValueError:
-            return address
-        if parsed.version == 6:
+        if address.version == 6:
             return f"[{address}]"
-        return address
+        return str(address)
 
     @staticmethod
-    def from_server(server: Server, client_ip: Optional[str], fixed_name: Optional[str] = None) -> Game:
-        joining_locally = client_ip is not None and parse_ip_address(client_ip) == server.ip_address
+    def from_server(server: Server, client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> Game:
+        joining_locally = client_ip == server.ip_address
         ip_address = server.local_ip_address if joining_locally and server.local_ip_address is not None else server.ip_address
-        endpoint_address = Game.format_address(str(ip_address))
+        endpoint_address = Game.format_address(ip_address)
         return Game(
             "paris",
             server.unique_id,
