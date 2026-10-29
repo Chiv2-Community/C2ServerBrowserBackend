@@ -1,6 +1,6 @@
 [project]
 name = "chivalry2-unofficial-server-browser-backend"
-version = "1.0.0"
+version = "1.1.0"
 description = "A server browser backend for unofficial chivalry2 servers. Keeps track of live servers with a heartbeat, and allows clients to list them. Probably usable for other unofficial gameservers."
 authors = [{name = "Jacob Barber", email = "Jacoby6000@gmail.com"}]
 license = {text = "GPL3"}
