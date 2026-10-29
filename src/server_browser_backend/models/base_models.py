@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address as parse_ip_address
 from typing import List, Optional, Dict, Any
 
@@ -212,6 +212,20 @@ class ServerResponse:
         )
 
 
+@dataclass(frozen=True)
+class ServerResponseWithIP(ServerResponse):
+    ip_address: str
+    local_ip_address: str | None
+
+    @staticmethod
+    def from_server(server: Server) -> ServerResponseWithIP:
+        response = ServerResponse.from_server(server)
+        return ServerResponseWithIP(
+            **vars(response),
+            ip_address=str(server.ip_address),
+            local_ip_address=str(server.local_ip_address) if server.local_ip_address is not None else None,
+        )
+
 
 @dataclass(frozen=True)
 class UpdateRegisteredServer:
@@ -270,7 +284,12 @@ class ErrorResponse:
 
 @dataclass(frozen=True)
 class ServerListResponse:
-    servers: List[ServerResponse]
+    servers: List[ServerResponse | ServerResponseWithIP]
+
+    @staticmethod
+    def from_servers(servers: List[Server], include_ip: bool) -> ServerListResponse:
+        response_type = ServerResponseWithIP if include_ip else ServerResponse
+        return ServerListResponse([response_type.from_server(server) for server in servers])
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from ipaddress import ip_address
+from ipaddress import IPv6Address, ip_address
 from typing import Any, Callable, Dict, Generic, List, Optional, Type
 
 from server_browser_backend.type_vars import A, B
@@ -16,6 +16,13 @@ def decode_primitive(expected_type: Type[A]) -> Callable[[Any], A]:
     return lambda value: _require_type(expected_type, value)
 
 
+def decode_ip_address(value: Any) -> IPAddress:
+    address = _require_type(str, value)
+    if address.startswith("[") and address.endswith("]"):
+        return IPAddress(IPv6Address(address[1:-1]))
+    return IPAddress(ip_address(address))
+
+
 TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
     str: decode_primitive(str),
     int: decode_primitive(int),
@@ -23,7 +30,7 @@ TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
     bool: decode_primitive(bool),
     list: decode_primitive(list),
     dict: decode_primitive(dict),
-    IPAddress: lambda value: IPAddress(ip_address(_require_type(str, value))),
+    IPAddress: decode_ip_address,
 }
 
 

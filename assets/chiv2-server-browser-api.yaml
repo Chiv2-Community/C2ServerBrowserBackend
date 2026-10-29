@@ -612,7 +612,9 @@ components:
         servers:
           type: array
           items:
-            $ref: '#/components/schemas/ServerResponse'
+            anyOf:
+              - $ref: '#/components/schemas/ServerResponse'
+              - $ref: '#/components/schemas/ServerResponseWithIP'
           description: A list of servers
     ServerResponse:
       type: object
@@ -666,6 +668,21 @@ components:
           type: number
           format: double
           description: Unix timestamp of the last heartbeat
+    ServerResponseWithIP:
+      allOf:
+        - $ref: '#/components/schemas/ServerResponse'
+        - type: object
+          required:
+            - ip_address
+            - local_ip_address
+          properties:
+            ip_address:
+              type: string
+              description: Observed registration source; included when diagnostics are enabled
+            local_ip_address:
+              type: string
+              nullable: true
+              description: Advertised address; null if no address is registered
     ServerRegistrationRequest:
       type: object
       required:
@@ -875,4 +892,3 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Jwk'
-  

@@ -78,6 +78,84 @@ def test_get_servers(client: FlaskClient):
     assert response.get_json()["Data"]["Games"][0]["ServerIPV4Address"] == local_ip
     assert response.get_json()["Data"]["Games"][1]["ServerIPV4Address"] == garbage_ip
 
+    listing = client.get("/api/v1/servers", headers={"X-Forwarded-For": source_ip})
+    assert listing.status_code == 200
+    listed_server = listing.get_json()["servers"][0]
+    assert "ip_address" not in listed_server
+    assert "local_ip_address" not in listed_server
+
+
+def test_get_servers_can_expose_registered_ips_for_diagnostics(client: FlaskClient, monkeypatch: pytest.MonkeyPatch):
+    prepare_test_state()
+    source_ip = "42.0.69.0"
+    local_ip = "192.168.1.24"
+    response = client.post(
+        "/api/v1/servers",
+        json={**test_server_json, "local_ip_address": local_ip},
+        headers={"X-Forwarded-For": source_ip},
+    )
+    assert response.status_code == 201
+
+    monkeypatch.setenv("EXPOSE_REGISTERED_IPS", "1")
+    listing = client.get("/api/v1/servers", headers={"X-Forwarded-For": source_ip})
+    listed_server = listing.get_json()["servers"][0]
+    assert listed_server["ip_address"] == source_ip
+    assert listed_server["local_ip_address"] == local_ip
+
+@pytest.mark.parametrize("bracketed", [False, True])
+def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: FlaskClient, bracketed: bool):
+    prepare_test_state()
+
+    source_ip = "42.0.69.0"
+    ipv6 = "2a0c:d242:903b:ba00::ff99"
+    response = client.post(
+        "/api/v1/servers",
+        json={
+            "name": "IPv6 Server",
+            "description": "IPv6 test",
+            "ports": test_ports,
+            "player_count": 0,
+            "max_players": 64,
+            "current_map": "Test Map",
+            "local_ip_address": f"[{ipv6}]" if bracketed else ipv6,
+        },
+        headers={"X-Forwarded-For": source_ip},
+    )
+    assert response.status_code == 201
+
+    response = client.post("/api/tbio/GetCurrentGames", headers={"X-Forwarded-For": source_ip})
+    game = response.get_json()["Data"]["Games"][0]
+    assert game["ServerHostname"] == f"[{ipv6}]"
+    assert game["ServerIPV4Address"] == f"[{ipv6}]"
+
+
+def test_ipv6_local_address_is_source_matching_local_client_override(client: FlaskClient):
+    prepare_test_state()
+
+    source_ip = "42.0.69.0"
+    local_ipv6 = "2a0c:d242:903b:ba00::ff99"
+    response = client.post(
+        "/api/v1/servers",
+        json={
+            "name": "Remote IPv6 Selection",
+            "description": "IPv6 selection test",
+            "ports": test_ports,
+            "player_count": 0,
+            "max_players": 64,
+            "current_map": "Test Map",
+            "local_ip_address": local_ipv6,
+        },
+        headers={"X-Forwarded-For": source_ip},
+    )
+    assert response.status_code == 201
+
+    response = client.post(
+        "/api/tbio/GetCurrentGames",
+        headers={"X-Forwarded-For": "42.0.69.1"},
+    )
+    game = response.get_json()["Data"]["Games"][0]
+    assert game["ServerHostname"] == source_ip
+
 
 @pytest.mark.parametrize("joining_locally", [False, True])
 @pytest.mark.parametrize(
@@ -106,8 +184,9 @@ def test_compat_serializes_parsed_ips(client: FlaskClient, joining_locally, publ
     games = client.post("/api/tbio/GetCurrentGames", headers=headers)
     assert games.status_code == 200
     game = games.get_json()["Data"]["Games"][0]
-    assert game["ServerHostname"] == expected
-    assert game["ServerIPV4Address"] == expected
+    legacy_address = f"[{expected}]" if ip_address(expected).version == 6 else expected
+    assert game["ServerHostname"] == legacy_address
+    assert game["ServerIPV4Address"] == legacy_address
 
     match = client.post(
         "/api/playfab/Client/Matchmake", json={"LobbyId": server_id}, headers=headers

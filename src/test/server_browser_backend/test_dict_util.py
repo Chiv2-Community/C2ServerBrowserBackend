@@ -31,6 +31,9 @@ def test_get_ip_address(getter, expected_type, value):
         (IPAddress, None),
         (IPAddress, True),
         (IPAddress, []),
+        (IPAddress, "[192.0.2.1]"),
+        (IPAddress, "[invalid]"),
+        (IPAddress, "[2001:db8::1"),
     ],
 )
 def test_get_invalid_ip_address(getter, expected_type, value):
@@ -49,6 +52,12 @@ def test_get_missing_ip_address():
     assert get_or({}, "ip", IPAddress, lambda: default) is default
     with pytest.raises(DictKeyError):
         get_or({}, "ip", IPAddress)
+
+
+@pytest.mark.parametrize("getter", [get_or, get_or_optional])
+def test_get_bracketed_ipv6_address(getter):
+    parsed = getter({"ip": "[2001:0db8:0:0:0:0:0:1]"}, "ip", IPAddress)
+    assert parsed == IPAddress(IPv6Address("2001:db8::1"))
 
 
 def test_get_does_not_coerce_other_types():
