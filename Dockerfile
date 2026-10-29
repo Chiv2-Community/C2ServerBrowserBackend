@@ -14,10 +14,11 @@ WORKDIR /code
 
 # Install dependencies
 COPY pyproject.toml uv.lock /code/
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy project files
 COPY . /code
+RUN uv sync --frozen --no-dev
 
 RUN chmod +x /code/scripts/entrypoint.sh
 RUN sed -i 's/\r$//' /code/scripts/entrypoint.sh
