@@ -101,7 +101,8 @@ def test_get_servers_can_expose_registered_ips_for_diagnostics(client: FlaskClie
     assert listed_server["ip_address"] == source_ip
     assert listed_server["local_ip_address"] == local_ip
 
-def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: FlaskClient):
+@pytest.mark.parametrize("bracketed", [False, True])
+def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: FlaskClient, bracketed: bool):
     prepare_test_state()
 
     source_ip = "42.0.69.0"
@@ -115,7 +116,7 @@ def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: FlaskClie
             "player_count": 0,
             "max_players": 64,
             "current_map": "Test Map",
-            "local_ip_address": ipv6,
+            "local_ip_address": f"[{ipv6}]" if bracketed else ipv6,
         },
         headers={"X-Forwarded-For": source_ip},
     )

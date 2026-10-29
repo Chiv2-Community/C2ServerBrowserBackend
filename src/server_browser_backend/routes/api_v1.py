@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-import os
 from typing import Callable
 from uuid import uuid4
 
-from dataclasses import asdict
 from flask import Blueprint, current_app, jsonify, request, send_file, Response
 
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
+from server_browser_backend.env import show_registered_ips
 from server_browser_backend.models.base_models import (
     BanListResponse,
     BanStatusResponse,
@@ -17,6 +16,7 @@ from server_browser_backend.models.base_models import (
     RegistrationResponse,
     Server,
     ServerRegistrationRequest,
+    ServerListResponse,
     ServerResponse,
     StatusResponse,
     UpdateRegisteredServer,
@@ -32,14 +32,6 @@ from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissin
 import traceback
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
-
-
-def _server_response_dict(server: Server) -> dict:
-    response = asdict(ServerResponse.from_server(server))
-    if os.getenv("EXPOSE_REGISTERED_IPS") == "1":
-        response["ip_address"] = server.ip_address
-        response["local_ip_address"] = server.local_ip_address
-    return response
 
 
 @api_v1_bp.route("/auth/jwks.json", methods=["GET"])
@@ -148,7 +140,8 @@ def delete_server(server_id: str) -> tuple[Response, int]:
 def get_servers() -> tuple[Response, int]:
     get_and_validate_ip()
     servers = shared.server_list.get_all()
-    return jsonify({"servers": [_server_response_dict(server) for server in servers]}), 200
+    response = ServerListResponse.from_servers(servers, include_ip=show_registered_ips())
+    return jsonify(response), 200
 
 
 @api_v1_bp.route("/admin/ban-list", methods=["PUT"])

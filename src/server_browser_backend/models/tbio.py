@@ -6,6 +6,7 @@ from typing import Generic, List, Optional, Dict, Any
 from server_browser_backend.dict_util import get_or
 from server_browser_backend.models.base_models import Server
 from server_browser_backend.type_vars import A
+import ipaddress
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,9 @@ class Game:
     @staticmethod
     def format_address(address: str) -> str:
         """Format an address for the legacy Chivalry endpoint field."""
-        if ":" in address and not address.startswith("["):
+        if address.startswith("[") and address.endswith("]"):
+            address = address[1:-1]
+        if ipaddress.ip_address(address).version == 6:
             return f"[{address}]"
         return address
 
