@@ -97,6 +97,7 @@ def test_compat_serializes_parsed_ips(client: FlaskClient, joining_locally, publ
     assert registration.status_code == 201
     server_id = registration.get_json()["server"]["unique_id"]
     server = shared.server_list.get(server_id)
+    assert server is not None
     assert server.ip_address == ip_address(public_ip)
     assert server.local_ip_address == ip_address(local_ip)
     headers = {"X-Forwarded-For": client_ip if joining_locally else "192.0.2.2"}
