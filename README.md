@@ -16,7 +16,7 @@ docker run \
   -e GUNICORN_WORKERS=4 \
   -v $HOST_CONFIG_DIR:/config \
   -it \
-  jacoby6000/chivalry2-unofficial-server-browser-backend:latest
+  ghcr.io/chiv2-community/c2serverbrowserbackend:latest
 ```
 
 The server can be configured using environment variables:
@@ -58,3 +58,5 @@ Then the project can be run via `./run.sh`
 Try running with `--help` to see what options are available.
 
 Tests can be run via `./ci.sh`
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for publishing instructions.
