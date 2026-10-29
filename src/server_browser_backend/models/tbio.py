@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from ipaddress import ip_address as parse_ip_address
 from typing import Generic, List, Optional, Dict, Any
 
 from server_browser_backend.dict_util import get_or
@@ -66,7 +67,8 @@ class Game:
 
     @staticmethod
     def from_server(server: Server, client_ip: Optional[str], fixed_name: Optional[str] = None) -> Game:
-        ip_address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
+        joining_locally = client_ip is not None and parse_ip_address(client_ip) == server.ip_address
+        ip_address = server.local_ip_address if joining_locally and server.local_ip_address is not None else server.ip_address
 
         return Game(
             "paris",
@@ -95,8 +97,8 @@ class Game:
                 "277",
             ),
             int(server.last_heartbeat),
-            ip_address,
-            ip_address,
+            str(ip_address),
+            str(ip_address),
             server.ports.game,
         )
 

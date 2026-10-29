@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from ipaddress import ip_address
 from typing import Callable
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from dataclasses import asdict
 from flask import Blueprint, current_app, jsonify, request, send_file, Response
 
 from server_browser_backend.dict_util import DictKeyError, DictTypeError
+from server_browser_backend.iterable_util import find
 from server_browser_backend.models.base_models import (
     BanListResponse,
     BanStatusResponse,
@@ -64,9 +66,12 @@ def register() -> tuple[Response, int]:
     server_ip = get_and_validate_ip()
 
     registration = ServerRegistrationRequest.from_json(get_json())
-    server = Server.create_after_registration(
-        registration, str(uuid4()), server_ip, datetime.now().timestamp()
-    )
+    try:
+        server = Server.create_after_registration(
+            registration, str(uuid4()), server_ip, datetime.now().timestamp()
+        )
+    except ValueError:
+        return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
 
     if shared.is_whitelisted():
         server = server.verified()
@@ -380,9 +385,11 @@ def handle_general_exception(e: Exception) -> tuple[Response, int]:
 def update_server(server_id: str, update_server: Callable[[Server], Server]) -> tuple[Response, int]:
     key = get_key()
 
-    existing_server = [x.unique_id for x in shared.server_list.get_all()]
+    existing_server = find(
+        shared.server_list.get_all(), lambda server: server.unique_id == server_id
+    )
 
-    if server_id not in existing_server:
+    if existing_server is None:
         current_app.logger.warning(
             f"Update failed. Server with id {server_id} not registered."
         )
@@ -390,6 +397,13 @@ def update_server(server_id: str, update_server: Callable[[Server], Server]) -> 
             jsonify(StatusResponse("not_registered", "server not registered")),
             404,
         )
+
+    if ip_address(get_ip()) != existing_server.ip_address:
+        shared.server_list.delete(server_id, key)
+        current_app.logger.warning(
+            f"Registration invalidated. Invalid IP address for server with id {server_id}."
+        )
+        return jsonify(StatusResponse("unauthorized", "Invalid IP address")), 401
 
     server = shared.server_list.update(server_id, key, update_server)
 
