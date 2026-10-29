@@ -8,6 +8,10 @@ the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
 The Docker tags are the version without `v` and `latest`.
 The version comes from the Git tag, not `pyproject.toml`.
 
+The workflow caches uv dependencies and stores Docker build layers in the GHCR
+`buildcache` tag for reuse across releases. This tag is build cache, not a runnable
+release image.
+
 The workflow authenticates with the built-in `GITHUB_TOKEN` using
 `packages: write`; no registry secrets are required. Organization policies must
 allow the workflow to create packages. After the first publish, set the package
