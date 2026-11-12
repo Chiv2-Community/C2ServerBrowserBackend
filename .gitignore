@@ -1,6 +1,8 @@
 .vscode
 .idea
 /annals/
+/packages/server-browser-api/src/server_browser_api/contract.json
+/packages/server-browser-api/src/server_browser_api/openapi.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -16,6 +16,7 @@ from openapi_spec_validator import validate
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "packages/server-browser-api/src/server_browser_api"
+BUILD_RESOURCES = {Path("contract.json"), Path("openapi.yaml")}
 
 
 def require_local_references(value: object) -> None:
@@ -33,8 +34,8 @@ def require_local_references(value: object) -> None:
 def same_sources(left: Path, right: Path) -> bool:
     if not right.is_dir():
         return False
-    left_files = {p.relative_to(left) for p in left.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
-    right_files = {p.relative_to(right) for p in right.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+    left_files = {p.relative_to(left) for p in left.rglob("*") if p.is_file() and "__pycache__" not in p.parts} - BUILD_RESOURCES
+    right_files = {p.relative_to(right) for p in right.rglob("*") if p.is_file() and "__pycache__" not in p.parts} - BUILD_RESOURCES
     return left_files == right_files and all(filecmp.cmp(left / p, right / p, shallow=False) for p in left_files)
 
 

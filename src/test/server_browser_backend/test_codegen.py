@@ -35,3 +35,13 @@ def test_codegen_rejects_external_references(reference):
 
 def test_codegen_accepts_local_component_references():
     generation.require_local_references({"schema": {"$ref": "#/components/schemas/LoginRequest"}})
+
+
+def test_generated_drift_check_ignores_build_resources(tmp_path):
+    expected = tmp_path / "expected"
+    actual = tmp_path / "actual"
+    expected.mkdir()
+    actual.mkdir()
+    (expected / "contract.json").write_text("{}")
+    (actual / "openapi.yaml").write_text("stale build output")
+    assert generation.same_sources(expected, actual)
