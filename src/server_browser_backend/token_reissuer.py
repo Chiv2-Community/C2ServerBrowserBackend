@@ -48,10 +48,6 @@ class TokenReissuer:
         return JwksResponse(keys=[jwk])
 
     def validate_and_reissue(self, eos_token: str, client_ip: str) -> str:
-        if jwt is None:
-            raise RuntimeError("PyJWT library not installed")
-
-
         # Get the signing key from the EOS JWKS
         if isinstance(self.eos_jwks, str):
             # It's a URL

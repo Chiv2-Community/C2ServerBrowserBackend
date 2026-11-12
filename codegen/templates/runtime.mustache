@@ -1,7 +1,7 @@
 """Generated transport support. DO NOT EDIT; change codegen/templates instead."""
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 from ipaddress import IPv4Address, IPv6Address, ip_address
@@ -12,6 +12,7 @@ from types import UnionType
 from typing import Union
 
 from fastapi import Request, Response
+from fastapi.encoders import jsonable_encoder as to_wire
 from starlette.responses import JSONResponse
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer, TypeAdapter, ValidationError
 from openapi_schema_validator import OAS30Validator
@@ -220,20 +221,6 @@ class ApiResponse(Generic[R]):
     body: R
     status: int = 200
     content_type: str = "application/json"
-
-
-def to_wire(value: Any) -> Any:
-    if isinstance(value, (IPv4Address, IPv6Address)):
-        return str(value)
-    if isinstance(value, BaseModel):
-        return value.model_dump(mode="json", by_alias=True)
-    if is_dataclass(value) and not isinstance(value, type):
-        return {definition.metadata.get("json_name", definition.name): to_wire(getattr(value, definition.name)) for definition in fields(value)}
-    if isinstance(value, list):
-        return [to_wire(item) for item in value]
-    if isinstance(value, dict):
-        return {key: to_wire(item) for key, item in value.items()}
-    return value
 
 
 def render_response(result: ApiResponse[Any]) -> Response:

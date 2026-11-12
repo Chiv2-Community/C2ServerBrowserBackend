@@ -13,6 +13,7 @@ from server_browser_api.models import ServerListResponse, ServerRegistrationRequ
 from server_browser_api.runtime import ApiResponse, contract
 from server_browser_backend.main import app
 from server_browser_backend.routes.api_v1 import BrowserApi
+from server_browser_backend.routes import shared
 
 from . import prepare_test_state
 
@@ -88,6 +89,23 @@ def test_oas_is_authoritative_and_no_implicit_docs_routes_exist():
     with TestClient(app) as client:
         for path in ("/docs", "/redoc", "/openapi.json"):
             assert client.get(path).status_code == 404
+
+
+def test_general_exception_handler_preserves_debug_traceback(monkeypatch):
+    prepare_test_state()
+    monkeypatch.setattr(shared, "DEBUG_MODE", True)
+
+    def fail_listing():
+        raise RuntimeError("listing failed")
+
+    monkeypatch.setattr(shared.server_list, "get_all", fail_listing)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/servers")
+    assert response.status_code == 500
+    body = response.json()
+    assert body["message"] == "listing failed"
+    assert "fail_listing" in body["stack"]
+    assert "RuntimeError: listing failed" in body["stack"]
 
 
 def test_forwarded_ip_uses_one_proxy_hop_and_does_not_leak_between_requests():

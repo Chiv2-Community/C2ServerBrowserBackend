@@ -24,6 +24,7 @@ from server_browser_api.runtime import (
 )
 from server_browser_backend.env import show_registered_ips
 from server_browser_backend.iterable_util import find
+from server_browser_backend.ip_list import IpList
 from server_browser_backend.models.base_models import Server, server_listing, server_response
 from server_browser_backend.routes import shared
 from server_browser_backend.routes.shared import (
@@ -103,17 +104,9 @@ class BrowserApi(BaseApiV1Api):
 
     def _change_ban_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
         key = credential or ""
-        if body.banned_ips is None:
-            return status("invalid_request", "banned_ips is required", 400)
-        if not shared.ban_list.validate(key):
-            logger.warning("Ban-list change denied for %s: invalid admin key", get_ip(request))
-            return status("forbidden", "Invalid admin key", 403)
-        if remove:
-            if not shared.ban_list.remove_all(key, body.banned_ips):
-                return status("forbidden", "Invalid admin key", 403)
-        elif shared.ban_list.add_all(key, body.banned_ips) is None:
-            return status("invalid_ip", "Invalid IP address", 400)
-        logger.info("%s changed ban list: %s %s entries", get_ip(request), "remove" if remove else "add", len(body.banned_ips))
+        error = change_ip_list(request, shared.ban_list, body.banned_ips, "banned_ips", "ban", key, remove)
+        if error is not None:
+            return error
         return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in shared.ban_list.get_all(key)]))
 
     def get_ban_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
@@ -130,17 +123,9 @@ class BrowserApi(BaseApiV1Api):
 
     def _change_verified_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
         key = credential or ""
-        if body.verified_ips is None:
-            return status("invalid_request", "verified_ips is required", 400)
-        if not shared.verified_list.validate(key):
-            logger.warning("Verified-list change denied for %s: invalid admin key", get_ip(request))
-            return status("forbidden", "Invalid admin key", 403)
-        if remove:
-            if not shared.verified_list.remove_all(key, body.verified_ips):
-                return status("forbidden", "Invalid admin key", 403)
-        elif shared.verified_list.add_all(key, body.verified_ips) is None:
-            return status("invalid_ip", "Invalid IP address", 400)
-        logger.info("%s changed verified list: %s %s entries", get_ip(request), "remove" if remove else "add", len(body.verified_ips))
+        error = change_ip_list(request, shared.verified_list, body.verified_ips, "verified_ips", "verified", key, remove)
+        if error is not None:
+            return error
         return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in shared.verified_list.get_all(key)]))
 
     def get_verified_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
@@ -153,40 +138,55 @@ class BrowserApi(BaseApiV1Api):
 api_v1_router = create_router(BrowserApi())
 
 
-def handle_json_missing(request: Request, error: JsonMissing) -> Response:
+def change_ip_list(request: Request, ip_list: IpList, ips: list[str] | None, field: str, label: str, key: str, remove: bool) -> ApiResponse[StatusResponse] | None:
+    if ips is None:
+        return status("invalid_request", f"{field} is required", 400)
+    if not ip_list.validate(key):
+        logger.warning("%s-list change denied for %s: invalid admin key", label.capitalize(), get_ip(request))
+        return status("forbidden", "Invalid admin key", 403)
+    if remove:
+        if not ip_list.remove_all(key, ips):
+            return status("forbidden", "Invalid admin key", 403)
+    elif ip_list.add_all(key, ips) is None:
+        return status("invalid_ip", "Invalid IP address", 400)
+    logger.info("%s changed %s list: %s %s entries", get_ip(request), label, "remove" if remove else "add", len(ips))
+    return None
+
+
+async def handle_json_missing(request: Request, error: JsonMissing) -> Response:
     return render_response(status("missing_json_body", "JSON body is required", 400))
 
 
-def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:
+async def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:
     return render_response(ApiResponse(StatusResponse(
         status="invalid_json_body", message=f"Missing key '{error.key}'", context=error.context,
     ), 400))
 
 
-def handle_dict_type_error(request: Request, error: DictTypeError) -> Response:
+async def handle_dict_type_error(request: Request, error: DictTypeError) -> Response:
     message = f"Invalid type for key '{error.key}'. Got '{error.actual_type.__name__}' with value '{error.value}', but expected '{error.expected_type.__name__}'"
     return render_response(ApiResponse(StatusResponse(
         status="invalid_json_body", message=message, context=error.context,
     ), 400))
 
 
-def handle_secret_key_missing(request: Request, error: SecretKeyMissing) -> Response:
+async def handle_secret_key_missing(request: Request, error: SecretKeyMissing) -> Response:
     return render_response(status("no_key", shared.KEY_HEADER + " header not specified", 400))
 
 
-def handle_schema_validation(request: Request, error: SchemaValidationError) -> Response:
+async def handle_schema_validation(request: Request, error: SchemaValidationError) -> Response:
     return render_response(status("invalid_json_body", str(error), 400))
 
 
-def handle_invalid_secret_key(request: Request, error: InvalidSecretKey) -> Response:
+async def handle_invalid_secret_key(request: Request, error: InvalidSecretKey) -> Response:
     return render_response(status("forbidden", "Invalid secret key", 403))
 
 
-def handle_banned_user(request: Request, error: Banned) -> Response:
+async def handle_banned_user(request: Request, error: Banned) -> Response:
     return render_response(status("forbidden", "You are banned", 403))
 
 
-def handle_general_exception(request: Request, error: Exception) -> Response:
+async def handle_general_exception(request: Request, error: Exception) -> Response:
     logger.error("Unhandled exception: %s", error, exc_info=True)
     if shared.DEBUG_MODE:
         return render_response(ApiResponse(ErrorResponse(

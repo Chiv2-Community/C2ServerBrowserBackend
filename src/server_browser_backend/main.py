@@ -6,7 +6,7 @@ from pygelf import GelfTcpHandler
 from os import environ
 import logging
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from starlette.types import ASGIApp, Scope, Receive, Send
 from server_browser_api.runtime import automatic_options, contract, DictKeyError, DictTypeError, JsonMissing, SchemaValidationError
 from server_browser_backend.routes import api_v1
@@ -81,26 +81,14 @@ app = ContractFastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_
 app.add_middleware(ForwardedHeaders)
 
 
-async def handle_api_exception(request: Request, error: Exception) -> Response:
-    if isinstance(error, JsonMissing):
-        return api_v1.handle_json_missing(request, error)
-    if isinstance(error, DictKeyError):
-        return api_v1.handle_dict_key_error(request, error)
-    if isinstance(error, DictTypeError):
-        return api_v1.handle_dict_type_error(request, error)
-    if isinstance(error, SchemaValidationError):
-        return api_v1.handle_schema_validation(request, error)
-    if isinstance(error, SecretKeyMissing):
-        return api_v1.handle_secret_key_missing(request, error)
-    if isinstance(error, InvalidSecretKey):
-        return api_v1.handle_invalid_secret_key(request, error)
-    if isinstance(error, Banned):
-        return api_v1.handle_banned_user(request, error)
-    return api_v1.handle_general_exception(request, error)
-
-
-for error_type in (JsonMissing, DictKeyError, DictTypeError, SchemaValidationError, SecretKeyMissing, InvalidSecretKey, Banned, Exception):
-    app.add_exception_handler(error_type, handle_api_exception)
+app.exception_handler(JsonMissing)(api_v1.handle_json_missing)
+app.exception_handler(DictKeyError)(api_v1.handle_dict_key_error)
+app.exception_handler(DictTypeError)(api_v1.handle_dict_type_error)
+app.exception_handler(SchemaValidationError)(api_v1.handle_schema_validation)
+app.exception_handler(SecretKeyMissing)(api_v1.handle_secret_key_missing)
+app.exception_handler(InvalidSecretKey)(api_v1.handle_invalid_secret_key)
+app.exception_handler(Banned)(api_v1.handle_banned_user)
+app.exception_handler(Exception)(api_v1.handle_general_exception)
 
 app.include_router(routes.compat_router)
 app.include_router(routes.api_v1_router)
