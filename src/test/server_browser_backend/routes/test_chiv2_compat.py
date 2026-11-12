@@ -3,7 +3,6 @@ from ipaddress import ip_address
 import pytest
 from fastapi.testclient import TestClient
 
-from server_browser_backend.main import app
 from server_browser_backend.routes import chiv2_compat, shared
 from . import prepare_test_state
 
@@ -18,11 +17,6 @@ test_server_json = {
     "current_map": "Test Map",
 }
 
-
-@pytest.fixture
-def client():
-    with TestClient(app, client=("127.0.0.1", 50000), raise_server_exceptions=False) as client:
-        yield client
 
 def test_get_servers(client: TestClient):
     prepare_test_state()

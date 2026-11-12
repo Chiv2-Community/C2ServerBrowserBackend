@@ -1,4 +1,4 @@
-"""Exercise the generated boundary without the legacy test-client adapter."""
+"""Exercise generated routing, execution, and request validation."""
 import asyncio
 import threading
 

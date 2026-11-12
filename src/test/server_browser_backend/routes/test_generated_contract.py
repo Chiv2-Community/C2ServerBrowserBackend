@@ -10,7 +10,6 @@ from typing import get_args
 
 import pytest
 import yaml
-from fastapi.testclient import TestClient
 from openapi_schema_validator import OAS30Validator
 from openapi_spec_validator import validate
 
@@ -34,13 +33,6 @@ REGISTRATION = {
     "player_count": 2, "max_players": 32,
     "ports": {"game": 7777, "ping": 7778, "a2s": 7779},
 }
-
-
-@pytest.fixture
-def client():
-    prepare_test_state()
-    with TestClient(app, client=("127.0.0.1", 50000), raise_server_exceptions=False) as client:
-        yield client
 
 
 def assert_response_contract(path, method, response):
