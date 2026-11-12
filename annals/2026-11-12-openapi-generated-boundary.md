@@ -23,3 +23,7 @@ The agent explicitly corrected its earlier broad compatibility assertion: **perf
 ## Follow-up and reconsideration
 
 Before claiming drop-in equivalence, run differential request sequences against baseline `80e1fae0e635d6ae1619ab75ea87a9add50749ef` and the candidate with controlled time, UUIDs and signing keys; compare status, headers, bodies and persistent state, including failure ordering, and document intentional differences. Validate real plugin and launcher integration. Reconsider generator or templates if contract fidelity, maintainability or interoperability cannot be demonstrated. The source's later compatibility qualification supersedes its earlier broad success assertion; it does not prove every original behavior differs.
+
+## Subsequent developments (2026-11-12)
+
+The agent later proposed FastAPI instead of the Flask selection described above. This is an unapproved alternative, not a superseding decision; see [FastAPI alternative](2026-11-12-fastapi-migration-proposal.md).
