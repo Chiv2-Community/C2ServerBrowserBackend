@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from server_browser_api.apis.api_v1_api import create_router
 from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.models import ServerListResponse, ServerRegistrationRequest
+from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest
 from server_browser_api.runtime import ApiResponse, contract
 from server_browser_backend.main import app
 from server_browser_backend.routes.api_v1 import BrowserApi
@@ -141,6 +141,8 @@ def test_pydantic_defaults_are_independent_and_models_are_frozen():
     first = ServerRegistrationRequest.from_json(registration)
     second = ServerRegistrationRequest.from_json(registration)
     assert first.mods == second.mods == [] and first.mods is not second.mods
+    first.mods.append(Mod(name="first only", organization="test", version="1"))
+    assert second.mods == []
     with pytest.raises(ValueError, match="frozen"):
         first.name = "changed"
 

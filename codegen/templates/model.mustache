@@ -25,7 +25,7 @@ from {{packageName}}.runtime import WireModel
 {{^anyOf}}
 class {{classname}}({{#vendorExtensions.x-python-parent}}{{name}}{{/vendorExtensions.x-python-parent}}{{^vendorExtensions.x-python-parent}}WireModel{{/vendorExtensions.x-python-parent}}):
 {{#vars}}
-    {{name}}: {{{dataType}}}{{#isNullable}} | None{{/isNullable}}{{^required}}{{^defaultValue}}{{^isNullable}} | None{{/isNullable}}{{/defaultValue}}{{/required}} = Field({{#defaultValue}}default_factory=lambda: {{{.}}}, {{/defaultValue}}{{^required}}{{^defaultValue}}default=None, {{/defaultValue}}{{/required}}alias="{{baseName}}", json_schema_extra={"format": "{{dataFormat}}", "nullable": {{#isNullable}}True{{/isNullable}}{{^isNullable}}False{{/isNullable}}})
+    {{name}}: {{{dataType}}}{{#isNullable}} | None{{/isNullable}}{{^required}}{{^defaultValue}}{{^isNullable}} | None{{/isNullable}}{{/defaultValue}}{{/required}} = Field({{#defaultValue}}default={{{.}}}, {{/defaultValue}}{{^required}}{{^defaultValue}}default=None, {{/defaultValue}}{{/required}}alias="{{baseName}}", json_schema_extra={"format": "{{dataFormat}}", "nullable": {{#isNullable}}True{{/isNullable}}{{^isNullable}}False{{/isNullable}}})
 {{/vars}}
 {{^vars}}
     pass

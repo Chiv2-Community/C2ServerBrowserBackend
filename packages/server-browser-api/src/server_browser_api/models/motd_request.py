@@ -7,4 +7,4 @@ from typing import Any, Dict, List, Optional, Union
 from server_browser_api.runtime import WireModel
 
 class MotdRequest(WireModel):
-    language: str = Field(default_factory=lambda: 'en', alias="Language", json_schema_extra={"format": "", "nullable": False})
+    language: str = Field(default='en', alias="Language", json_schema_extra={"format": "", "nullable": False})

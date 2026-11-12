@@ -16,6 +16,6 @@ class ServerRegistrationRequest(WireModel):
     current_map: str = Field(alias="current_map", json_schema_extra={"format": "", "nullable": False})
     player_count: int = Field(alias="player_count", json_schema_extra={"format": "int32", "nullable": False})
     max_players: int = Field(alias="max_players", json_schema_extra={"format": "int32", "nullable": False})
-    password_protected: bool = Field(default_factory=lambda: False, alias="password_protected", json_schema_extra={"format": "", "nullable": False})
-    mods: List[Mod] = Field(default_factory=lambda: [], alias="mods", json_schema_extra={"format": "", "nullable": False})
+    password_protected: bool = Field(default=False, alias="password_protected", json_schema_extra={"format": "", "nullable": False})
+    mods: List[Mod] = Field(default=[], alias="mods", json_schema_extra={"format": "", "nullable": False})
     local_ip_address: IPAddress | None = Field(default=None, alias="local_ip_address", json_schema_extra={"format": "ip-address", "nullable": False})

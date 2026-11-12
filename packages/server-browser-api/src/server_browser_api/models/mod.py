@@ -10,4 +10,4 @@ class Mod(WireModel):
     name: str = Field(alias="name", json_schema_extra={"format": "", "nullable": False})
     organization: str = Field(alias="organization", json_schema_extra={"format": "", "nullable": False})
     version: str = Field(alias="version", json_schema_extra={"format": "", "nullable": False})
-    active: bool = Field(default_factory=lambda: False, alias="active", json_schema_extra={"format": "", "nullable": False})
+    active: bool = Field(default=False, alias="active", json_schema_extra={"format": "", "nullable": False})
