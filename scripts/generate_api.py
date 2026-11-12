@@ -31,16 +31,25 @@ def require_local_references(value: object) -> None:
             require_local_references(child)
 
 
+def source_files(directory: Path) -> set[Path]:
+    return {
+        path.relative_to(directory)
+        for path in directory.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    } - BUILD_RESOURCES
+
+
 def same_sources(left: Path, right: Path) -> bool:
     if not right.is_dir():
         return False
-    left_files = {p.relative_to(left) for p in left.rglob("*") if p.is_file() and "__pycache__" not in p.parts} - BUILD_RESOURCES
-    right_files = {p.relative_to(right) for p in right.rglob("*") if p.is_file() and "__pycache__" not in p.parts} - BUILD_RESOURCES
+    left_files = source_files(left)
+    right_files = source_files(right)
     return left_files == right_files and all(filecmp.cmp(left / p, right / p, shallow=False) for p in left_files)
 
 
 def generate(check: bool) -> None:
-    spec = yaml.safe_load((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
+    text = (ROOT / "assets/chiv2-server-browser-api.yaml").read_text()
+    spec = yaml.safe_load(text)
     require_local_references(spec)
     validate(spec)
     operations = [operation for path in spec["paths"].values() for method, operation in path.items() if method in {"get", "put", "post", "delete", "patch", "options", "head"}]
@@ -70,7 +79,7 @@ def generate(check: bool) -> None:
                 source.unlink()
         (generated / "models/extra_models.py").unlink(missing_ok=True)
         (generated / "contract.json").write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n")
-        (generated / "openapi.yaml").write_text((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
+        (generated / "openapi.yaml").write_text(text)
         for source in generated.rglob("*.py"):
             ast.parse(source.read_text(), filename=str(source))
         if check:

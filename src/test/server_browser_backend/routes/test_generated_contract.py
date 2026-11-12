@@ -10,6 +10,7 @@ from typing import get_args
 
 import pytest
 import yaml
+from fastapi.testclient import TestClient
 from openapi_schema_validator import OAS30Validator
 from openapi_spec_validator import validate
 
@@ -26,7 +27,6 @@ from server_browser_backend.routes.api_v1 import BrowserApi
 from server_browser_backend.routes.chiv2_compat import CompatibilityApi
 
 from . import prepare_test_state
-from .client import ApiClient
 
 ROOT = Path(__file__).resolve().parents[4]
 REGISTRATION = {
@@ -36,14 +36,21 @@ REGISTRATION = {
 }
 
 
+@pytest.fixture
+def client():
+    prepare_test_state()
+    with TestClient(app, client=("127.0.0.1", 50000), raise_server_exceptions=False) as client:
+        yield client
+
+
 def assert_response_contract(path, method, response):
     operation = contract()["paths"][path][method.lower()]
     declaration = operation["responses"].get(str(response.status_code), operation["responses"].get("default"))
     assert declaration is not None
-    media_type = response.content_type.split(";")[0]
+    media_type = response.headers["content-type"].split(";")[0]
     schema = declaration["content"][media_type]["schema"]
     if media_type == "application/json":
-        OAS30Validator({"components": contract()["components"], **schema}).validate(response.get_json())
+        OAS30Validator({"components": contract()["components"], **schema}).validate(response.json())
 
 
 def test_spec_is_valid_and_generated_resources_match_source():
@@ -140,81 +147,70 @@ def test_required_fields_are_not_silently_defaulted():
         ServerRegistrationRequest.from_json({key: value for key, value in REGISTRATION.items() if key != "name"})
 
 
-def test_nullable_diagnostic_address_round_trips():
-    prepare_test_state()
-    with ApiClient() as client:
-        registration = client.post("/api/v1/servers", json=REGISTRATION)
-        value = {**registration.get_json()["server"], "ip_address": "127.0.0.1", "local_ip_address": None}
-        assert to_wire(ServerResponseWithIP.from_json(value)) == value
-        listing = ServerListResponse.from_json({"servers": [value]})
-        assert isinstance(listing.servers[0], ServerResponseWithIP)
-        assert to_wire(listing) == {"servers": [value]}
+def test_nullable_diagnostic_address_round_trips(client):
+    registration = client.post("/api/v1/servers", json=REGISTRATION)
+    value = {**registration.json()["server"], "ip_address": "127.0.0.1", "local_ip_address": None}
+    assert to_wire(ServerResponseWithIP.from_json(value)) == value
+    listing = ServerListResponse.from_json({"servers": [value]})
+    assert isinstance(listing.servers[0], ServerResponseWithIP)
+    assert to_wire(listing) == {"servers": [value]}
 
 
-def test_all_successful_api_flows_match_response_schemas():
-    prepare_test_state()
-    with ApiClient() as client:
-        response = client.post("/api/v1/servers", json=REGISTRATION)
-        assert response.status_code == 201
-        assert_response_contract("/api/v1/servers", "post", response)
-        registration = response.get_json()
-        server_id = registration["server"]["unique_id"]
-        headers = {shared.KEY_HEADER: registration["key"]}
-        admin_headers = {shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}
-        requests = [
-            ("/api/v1/servers", "/api/v1/servers", "GET", {}),
-            ("/api/v1/auth/jwks.json", "/api/v1/auth/jwks.json", "GET", {}),
-            ("/api/v1/check-banned/{ip}", "/api/v1/check-banned/192.0.2.1", "GET", {}),
-            ("/api/tbio/GetCurrentGames", "/api/tbio/GetCurrentGames", "POST", {}),
-            ("/api/tbio/GetMotd", "/api/tbio/GetMotd", "POST", {"json": {}}),
-            ("/api/playfab/Client/Matchmake", "/api/playfab/Client/Matchmake", "POST", {"json": {"LobbyId": server_id}}),
-            ("/api/v1/servers/{server_id}", f"/api/v1/servers/{server_id}", "PUT", {"headers": headers, "json": {"current_map": "Next", "player_count": 2, "max_players": 32}}),
-            ("/api/v1/servers/{server_id}/heartbeat", f"/api/v1/servers/{server_id}/heartbeat", "POST", {"headers": headers}),
-        ]
-        for name, field in (("ban-list", "banned_ips"), ("verified-list", "verified_ips")):
-            path = f"/api/v1/admin/{name}"
-            requests += [(path, path, method, {"headers": admin_headers, **({"json": {field: ["192.0.2.1"]}} if method != "GET" else {})}) for method in ("PUT", "GET", "DELETE")]
-        requests += [("/api/v1/servers/{server_id}", f"/api/v1/servers/{server_id}", "DELETE", {"headers": headers})]
-        for template, path, method, kwargs in requests:
-            response = client.open(path, method=method, **kwargs)
-            assert response.status_code == 200, (path, response.get_data(as_text=True))
-            assert_response_contract(template, method, response)
+def test_all_successful_api_flows_match_response_schemas(client):
+    response = client.post("/api/v1/servers", json=REGISTRATION)
+    assert response.status_code == 201
+    assert_response_contract("/api/v1/servers", "post", response)
+    registration = response.json()
+    server_id = registration["server"]["unique_id"]
+    headers = {shared.KEY_HEADER: registration["key"]}
+    admin_headers = {shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}
+    requests = [
+        ("/api/v1/servers", "/api/v1/servers", "GET", {}),
+        ("/api/v1/auth/jwks.json", "/api/v1/auth/jwks.json", "GET", {}),
+        ("/api/v1/check-banned/{ip}", "/api/v1/check-banned/192.0.2.1", "GET", {}),
+        ("/api/tbio/GetCurrentGames", "/api/tbio/GetCurrentGames", "POST", {}),
+        ("/api/tbio/GetMotd", "/api/tbio/GetMotd", "POST", {"json": {}}),
+        ("/api/playfab/Client/Matchmake", "/api/playfab/Client/Matchmake", "POST", {"json": {"LobbyId": server_id}}),
+        ("/api/v1/servers/{server_id}", f"/api/v1/servers/{server_id}", "PUT", {"headers": headers, "json": {"current_map": "Next", "player_count": 2, "max_players": 32}}),
+        ("/api/v1/servers/{server_id}/heartbeat", f"/api/v1/servers/{server_id}/heartbeat", "POST", {"headers": headers}),
+    ]
+    for name, field in (("ban-list", "banned_ips"), ("verified-list", "verified_ips")):
+        path = f"/api/v1/admin/{name}"
+        requests += [(path, path, method, {"headers": admin_headers, **({"json": {field: ["192.0.2.1"]}} if method != "GET" else {})}) for method in ("PUT", "GET", "DELETE")]
+    requests += [("/api/v1/servers/{server_id}", f"/api/v1/servers/{server_id}", "DELETE", {"headers": headers})]
+    for template, path, method, kwargs in requests:
+        response = client.request(method, path, **kwargs)
+        assert response.status_code == 200, (path, response.text)
+        assert_response_contract(template, method, response)
 
 
 @pytest.mark.parametrize("value", [None, [], "body", 1, True])
-def test_invalid_json_body_returns_400_without_mutation(value):
-    prepare_test_state()
-    with ApiClient() as client:
-        response = client.post("/api/v1/servers", data=json.dumps(value), content_type="application/json")
-        assert response.status_code == 400
-        assert shared.server_list.get_all() == []
-        assert_response_contract("/api/v1/servers", "post", response)
+def test_invalid_json_body_returns_400_without_mutation(client, value):
+    response = client.post("/api/v1/servers", content=json.dumps(value), headers={"Content-Type": "application/json"})
+    assert response.status_code == 400
+    assert shared.server_list.get_all() == []
+    assert_response_contract("/api/v1/servers", "post", response)
 
 
 @pytest.mark.parametrize("path,body", [
     ("/api/tbio/GetMotd", {"Language": 1}),
     ("/api/playfab/Client/Matchmake", {}),
 ])
-def test_compat_validation_errors_are_json_400(path, body):
-    prepare_test_state()
-    with ApiClient() as client:
-        response = client.post(path, json=body)
-        assert response.status_code == 400
-        assert response.get_json()["status"] == "invalid_json_body"
+def test_compat_validation_errors_are_json_400(client, path, body):
+    response = client.post(path, json=body)
+    assert response.status_code == 400
+    assert response.json()["status"] == "invalid_json_body"
 
 
 @pytest.mark.parametrize("list_name,field", [("ban-list", "banned_ips"), ("verified-list", "verified_ips")])
-def test_legacy_invalid_removal_response_is_preserved(list_name, field):
-    prepare_test_state()
-    with ApiClient() as client:
-        response = client.delete(f"/api/v1/admin/{list_name}", headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}, json={field: ["invalid"]})
-        assert response.status_code == 403
-        assert response.get_json()["message"] == "Invalid admin key"
+def test_legacy_invalid_removal_response_is_preserved(client, list_name, field):
+    response = client.request("DELETE", f"/api/v1/admin/{list_name}", headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}, json={field: ["invalid"]})
+    assert response.status_code == 403
+    assert response.json()["message"] == "Invalid admin key"
 
 
-def test_banned_request_policy_runs_before_body_decoding():
+def test_banned_request_policy_runs_before_body_decoding(client):
     prepare_test_state(ban_list=["127.0.0.1"])
-    with ApiClient() as client:
-        response = client.post("/api/v1/servers", json={})
-        assert response.status_code == 403
-        assert response.get_json()["message"] == "You are banned"
+    response = client.post("/api/v1/servers", json={})
+    assert response.status_code == 403
+    assert response.json()["message"] == "You are banned"

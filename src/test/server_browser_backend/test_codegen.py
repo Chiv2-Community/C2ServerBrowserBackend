@@ -45,3 +45,16 @@ def test_generated_drift_check_ignores_build_resources(tmp_path):
     (expected / "contract.json").write_text("{}")
     (actual / "openapi.yaml").write_text("stale build output")
     assert generation.same_sources(expected, actual)
+
+
+def test_generated_drift_check_ignores_bytecode_but_compares_nested_sources(tmp_path):
+    expected = tmp_path / "expected"
+    actual = tmp_path / "actual"
+    for directory in (expected, actual):
+        (directory / "models").mkdir(parents=True)
+        (directory / "models/model.py").write_text("generated\n")
+    (actual / "models/__pycache__").mkdir()
+    (actual / "models/__pycache__/model.pyc").write_bytes(b"bytecode")
+    assert generation.same_sources(expected, actual)
+    (actual / "models/model.py").write_text("hand edit\n")
+    assert not generation.same_sources(expected, actual)

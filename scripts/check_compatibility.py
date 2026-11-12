@@ -7,6 +7,7 @@ evidence, not proof of equivalence for every possible input.
 from __future__ import annotations
 
 import difflib
+from copy import deepcopy
 import argparse
 import json
 import os
@@ -175,7 +176,7 @@ def main() -> None:
         differences = []
         known_differences = []
         for name in sorted(old.keys() | new.keys()):
-            expected = json.loads(json.dumps(old.get(name)))
+            expected = deepcopy(old.get(name))
             # Exact, narrow allowances. State/file/other response changes still fail.
             if not strict and name in {"ban-list:unauthorized", "verified-list:unauthorized"}:
                 assert expected["status"] == 500
