@@ -61,6 +61,11 @@ class Server:
     def with_heartbeat(self, heartbeat_time: float) -> Server:
         return replace(self, last_heartbeat=heartbeat_time)
 
+    def address_for(self, client_ip: IPv4Address | IPv6Address | None) -> IPv4Address | IPv6Address:
+        if client_ip == self.ip_address and self.local_ip_address is not None:
+            return self.local_ip_address
+        return self.ip_address
+
     def with_update(self, update_request: UpdateRegisteredServer) -> Server:
         return replace(
             self, current_map=update_request.current_map,

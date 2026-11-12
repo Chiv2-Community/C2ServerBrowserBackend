@@ -56,7 +56,7 @@ class CompatibilityApi(BaseChiv2CompatApi):
             return ApiResponse(PlayfabErrorResponse(
                 code=404, data={}, message="Lobby does not exist", params={}, success=False,
             ), 404)
-        address = server.local_ip_address if parse_ip_address(client_ip) == server.ip_address and server.local_ip_address is not None else server.ip_address
+        address = server.address_for(parse_ip_address(client_ip))
         return ApiResponse(PlayfabMatchmakeResponse(
             code=200, status="OK", data=PlayfabGame(
                 server_hostname=address, server_ipv4_address=address,

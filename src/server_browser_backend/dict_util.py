@@ -1,9 +1,8 @@
-from ipaddress import IPv6Address, ip_address
 from typing import Any, Callable, Dict, Generic, List, Optional, Type
 
 from server_browser_backend.type_vars import A, B
 from server_browser_backend.ip_address import IPAddress
-from server_browser_api.runtime import DictKeyError, DictTypeError
+from server_browser_api.runtime import DictKeyError, DictTypeError, parse_ip_address
 
 
 def _require_type(expected_type: Type[A], value: Any) -> A:
@@ -17,10 +16,7 @@ def decode_primitive(expected_type: Type[A]) -> Callable[[Any], A]:
 
 
 def decode_ip_address(value: Any) -> IPAddress:
-    address = _require_type(str, value)
-    if address.startswith("[") and address.endswith("]"):
-        return IPAddress(IPv6Address(address[1:-1]))
-    return IPAddress(ip_address(address))
+    return IPAddress(parse_ip_address(_require_type(str, value)))
 
 
 TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {

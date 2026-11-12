@@ -30,6 +30,11 @@ def test_server_stores_parsed_addresses(public_ip, local_ip, address_type):
     assert isinstance(server.ip_address, address_type)
     assert server.ip_address == ip_address(public_ip)
     assert server.local_ip_address == (ip_address(local_ip) if local_ip else None)
+    assert server.address_for(server.ip_address) is (
+        server.local_ip_address if server.local_ip_address is not None else server.ip_address
+    )
+    assert server.address_for(ip_address("198.51.100.2")) is server.ip_address
+    assert server.address_for(None) is server.ip_address
 
     serialized = to_wire(asdict(server))
     serialized["ip_address"] = str(server.ip_address)

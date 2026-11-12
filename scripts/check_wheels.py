@@ -92,15 +92,19 @@ finally:
 '''
 
 
+def check_contract(wheel: Path, expected: dict) -> None:
+    with ZipFile(wheel) as archive:
+        assert json.loads(archive.read("server_browser_api/contract.json")) == expected
+        assert yaml.safe_load(archive.read("server_browser_api/openapi.yaml")) == expected
+
+
 def main() -> None:
     wheels = sorted((ROOT / "dist").glob("*.whl"))
     if len(wheels) != 2:
         raise SystemExit("Build both packages and retain only their current wheels in dist/.")
     expected = yaml.safe_load((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
     api_wheel = next(wheel for wheel in wheels if wheel.name.startswith("server_browser_api-"))
-    with ZipFile(api_wheel) as archive:
-        assert json.loads(archive.read("server_browser_api/contract.json")) == expected
-        assert yaml.safe_load(archive.read("server_browser_api/openapi.yaml")) == expected
+    check_contract(api_wheel, expected)
     with tempfile.TemporaryDirectory(prefix="server-browser-wheel-smoke-") as temporary:
         directory = Path(temporary)
         api_sdist = next((ROOT / "dist").glob("server_browser_api-*.tar.gz"))
@@ -110,9 +114,7 @@ def main() -> None:
             assert not any(name.endswith(("/server_browser_api/contract.json", "/server_browser_api/openapi.yaml")) for name in names)
         rebuilt = directory / "rebuilt"
         subprocess.run(["uv", "build", "--wheel", str(api_sdist), "--out-dir", str(rebuilt)], cwd=directory, check=True)
-        with ZipFile(next(rebuilt.glob("*.whl"))) as archive:
-            assert json.loads(archive.read("server_browser_api/contract.json")) == expected
-            assert yaml.safe_load(archive.read("server_browser_api/openapi.yaml")) == expected
+        check_contract(next(rebuilt.glob("*.whl")), expected)
         environment = directory / "venv"
         subprocess.run(["uv", "venv", str(environment)], check=True)
         python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")

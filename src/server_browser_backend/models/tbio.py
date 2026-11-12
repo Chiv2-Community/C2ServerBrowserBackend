@@ -10,7 +10,7 @@ def game_from_server(
     server: Server, client_ip: IPv4Address | IPv6Address | None,
     fixed_name: str | None = None,
 ) -> TbioGame:
-    address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
+    address = server.address_for(client_ip)
     return TbioGame(
         region="paris", lobby_id=server.unique_id, max_players=server.max_players,
         official=server.is_verified, build_version="dummy", game_mode="40p",
