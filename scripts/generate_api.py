@@ -68,8 +68,7 @@ def generate(check: bool) -> None:
                 or source.relative_to(generated).as_posix() in ("__init__.py", "runtime.py", "py.typed")
             ):
                 source.unlink()
-        for example in ("models/extra_models.py",):
-            (generated / example).unlink(missing_ok=True)
+        (generated / "models/extra_models.py").unlink(missing_ok=True)
         (generated / "contract.json").write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n")
         (generated / "openapi.yaml").write_text((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
         for source in generated.rglob("*.py"):

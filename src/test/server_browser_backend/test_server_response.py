@@ -3,14 +3,13 @@ from ipaddress import ip_address
 
 import pytest
 
-from server_browser_backend.models.base_models import (
+from server_browser_api.models import (
     Chivalry2Ports,
-    Server,
     ServerListResponse,
     ServerResponse,
     ServerResponseWithIP,
-    server_listing,
 )
+from server_browser_backend.models.base_models import Server, server_listing
 
 
 @pytest.mark.parametrize("public_ip, local_ip", [("42.0.69.0", None), ("42.0.69.0", "192.168.1.24"), ("2001:db8::1", "fd00::1")])

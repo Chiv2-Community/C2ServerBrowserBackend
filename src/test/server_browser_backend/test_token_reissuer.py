@@ -2,7 +2,7 @@
 import time
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from server_browser_backend.models.base_models import Jwk, JwksResponse
+from server_browser_api.models import Jwk, JwksResponse
 from server_browser_backend.token_reissuer import TokenReissuer
 
 import jwt

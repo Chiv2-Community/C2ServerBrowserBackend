@@ -7,7 +7,7 @@ from starlette.concurrency import run_in_threadpool
 {{{import}}}
 {{/imports}}
 from {{apiPackage}}.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
-from {{packageName}}.runtime import decode_model, read_body, read_parameter, render_response
+from {{packageName}}.runtime import read_body, read_parameter, render_response
 
 {{#operations}}
 def create_router(implementation: Base{{classname}}) -> APIRouter:
@@ -18,7 +18,7 @@ def create_router(implementation: Base{{classname}}) -> APIRouter:
     async def {{operationId}}(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "{{operationId}}")
 {{#bodyParam}}
-        {{paramName}} = decode_model({{dataType}}, await read_body(request))
+        {{paramName}} = {{dataType}}.from_json(await read_body(request))
 {{/bodyParam}}
 {{#allParams}}
 {{#isPathParam}}

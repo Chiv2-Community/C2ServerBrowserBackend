@@ -21,13 +21,12 @@ from server_browser_backend.routes import shared
 
 class CompatibilityApi(BaseChiv2CompatApi):
     def tbio_get_servers(self, request: Request) -> ApiResponse[TbioServerListResponse]:
-        banned = False
+        name = None
         client_ip = None
         try:
             client_ip = parse_ip_address(shared.get_and_validate_ip(request))
         except shared.Banned:
-            banned = True
-        name = "This address is banned. Ensure your VPN is disabled." if banned else None
+            name = "This address is banned. Ensure your VPN is disabled."
         data = server_list_data(shared.server_list.get_all(), client_ip, name)
         return ApiResponse(TbioServerListResponse(success=True, data=data))
 

@@ -19,7 +19,7 @@ from server_browser_api.models.update_registered_server import UpdateRegisteredS
 from server_browser_api.models.update_response import UpdateResponse
 from server_browser_api.models.verified_list_response import VerifiedListResponse
 from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.runtime import decode_model, read_body, read_parameter, render_response
+from server_browser_api.runtime import read_body, read_parameter, render_response
 
 def create_router(implementation: BaseApiV1Api) -> APIRouter:
     router = APIRouter()
@@ -33,7 +33,7 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/auth/login", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="login", response_model=None)
     async def login(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "login")
-        login_request = decode_model(LoginRequest, await read_body(request))
+        login_request = LoginRequest.from_json(await read_body(request))
         result = await run_in_threadpool(implementation.login, request, login_request=login_request)
         return render_response(result)
 
@@ -52,14 +52,14 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/servers", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="register", response_model=None)
     async def register(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "register")
-        server_registration_request = decode_model(ServerRegistrationRequest, await read_body(request))
+        server_registration_request = ServerRegistrationRequest.from_json(await read_body(request))
         result = await run_in_threadpool(implementation.register, request, server_registration_request=server_registration_request)
         return render_response(result)
 
     @router.api_route("/api/v1/servers/{server_id}", methods=["PUT"] + (["HEAD"] if "PUT" == "GET" else []), operation_id="update", response_model=None)
     async def update(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "update")
-        update_registered_server = decode_model(UpdateRegisteredServer, await read_body(request))
+        update_registered_server = UpdateRegisteredServer.from_json(await read_body(request))
         x_chiv2_server_browser_key = read_parameter("update", "header", "X-CHIV2-SERVER-BROWSER-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-KEY"), application_validated=True)
         server_id = read_parameter("update", "path", "server_id", request.path_params.get("server_id"))
         result = await run_in_threadpool(implementation.update, request, x_chiv2_server_browser_key=x_chiv2_server_browser_key, server_id=server_id, update_registered_server=update_registered_server)
@@ -98,7 +98,7 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/admin/ban-list", methods=["PUT"] + (["HEAD"] if "PUT" == "GET" else []), operation_id="add_to_ban_list", response_model=None)
     async def add_to_ban_list(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "add_to_ban_list")
-        ip_list_request = decode_model(IpListRequest, await read_body(request))
+        ip_list_request = IpListRequest.from_json(await read_body(request))
         x_chiv2_server_browser_admin_key = read_parameter("add_to_ban_list", "header", "X-CHIV2-SERVER-BROWSER-ADMIN-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-ADMIN-KEY"), application_validated=True)
         result = await run_in_threadpool(implementation.add_to_ban_list, request, x_chiv2_server_browser_admin_key=x_chiv2_server_browser_admin_key, ip_list_request=ip_list_request)
         return render_response(result)
@@ -106,7 +106,7 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/admin/ban-list", methods=["DELETE"] + (["HEAD"] if "DELETE" == "GET" else []), operation_id="remove_from_ban_list", response_model=None)
     async def remove_from_ban_list(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "remove_from_ban_list")
-        ip_list_request = decode_model(IpListRequest, await read_body(request))
+        ip_list_request = IpListRequest.from_json(await read_body(request))
         x_chiv2_server_browser_admin_key = read_parameter("remove_from_ban_list", "header", "X-CHIV2-SERVER-BROWSER-ADMIN-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-ADMIN-KEY"), application_validated=True)
         result = await run_in_threadpool(implementation.remove_from_ban_list, request, x_chiv2_server_browser_admin_key=x_chiv2_server_browser_admin_key, ip_list_request=ip_list_request)
         return render_response(result)
@@ -121,7 +121,7 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/admin/verified-list", methods=["PUT"] + (["HEAD"] if "PUT" == "GET" else []), operation_id="add_to_verified_list", response_model=None)
     async def add_to_verified_list(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "add_to_verified_list")
-        ip_list_request = decode_model(IpListRequest, await read_body(request))
+        ip_list_request = IpListRequest.from_json(await read_body(request))
         x_chiv2_server_browser_admin_key = read_parameter("add_to_verified_list", "header", "X-CHIV2-SERVER-BROWSER-ADMIN-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-ADMIN-KEY"), application_validated=True)
         result = await run_in_threadpool(implementation.add_to_verified_list, request, x_chiv2_server_browser_admin_key=x_chiv2_server_browser_admin_key, ip_list_request=ip_list_request)
         return render_response(result)
@@ -129,7 +129,7 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
     @router.api_route("/api/v1/admin/verified-list", methods=["DELETE"] + (["HEAD"] if "DELETE" == "GET" else []), operation_id="remove_from_verified_list", response_model=None)
     async def remove_from_verified_list(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "remove_from_verified_list")
-        ip_list_request = decode_model(IpListRequest, await read_body(request))
+        ip_list_request = IpListRequest.from_json(await read_body(request))
         x_chiv2_server_browser_admin_key = read_parameter("remove_from_verified_list", "header", "X-CHIV2-SERVER-BROWSER-ADMIN-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-ADMIN-KEY"), application_validated=True)
         result = await run_in_threadpool(implementation.remove_from_verified_list, request, x_chiv2_server_browser_admin_key=x_chiv2_server_browser_admin_key, ip_list_request=ip_list_request)
         return render_response(result)

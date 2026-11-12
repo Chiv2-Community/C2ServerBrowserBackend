@@ -4,11 +4,8 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 
 import pytest
 
-from server_browser_backend.models.base_models import (
-    Server,
-    ServerRegistrationRequest,
-    UpdateRegisteredServer,
-)
+from server_browser_api.models import ServerRegistrationRequest, UpdateRegisteredServer
+from server_browser_backend.models.base_models import Server
 
 
 @pytest.mark.parametrize(

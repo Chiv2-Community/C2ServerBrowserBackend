@@ -3,8 +3,7 @@ import time
 import base64
 from typing import Optional, Dict, Any, List, Union
 from cryptography.hazmat.primitives.asymmetric import rsa
-from server_browser_backend.models.base_models import Jwk, JwksResponse
-from server_browser_backend.models.eos_models import EosIdTokenPayload
+from server_browser_api.models import EosIdTokenPayload, Jwk, JwksResponse
 
 import jwt
 from jwt import PyJWKClient

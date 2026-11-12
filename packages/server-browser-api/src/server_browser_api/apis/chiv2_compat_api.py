@@ -11,7 +11,7 @@ from server_browser_api.models.status_response import StatusResponse
 from server_browser_api.models.tbio_motd_response import TbioMotdResponse
 from server_browser_api.models.tbio_server_list_response import TbioServerListResponse
 from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_api.runtime import decode_model, read_body, read_parameter, render_response
+from server_browser_api.runtime import read_body, read_parameter, render_response
 
 def create_router(implementation: BaseChiv2CompatApi) -> APIRouter:
     router = APIRouter()
@@ -25,14 +25,14 @@ def create_router(implementation: BaseChiv2CompatApi) -> APIRouter:
     @router.api_route("/api/tbio/GetMotd", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="get_motd", response_model=None)
     async def get_motd(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "get_motd")
-        motd_request = decode_model(MotdRequest, await read_body(request))
+        motd_request = MotdRequest.from_json(await read_body(request))
         result = await run_in_threadpool(implementation.get_motd, request, motd_request=motd_request)
         return render_response(result)
 
     @router.api_route("/api/playfab/Client/Matchmake", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="playfab_client_matchmake", response_model=None)
     async def playfab_client_matchmake(request: Request) -> Response:
         await run_in_threadpool(implementation.before_operation, request, "playfab_client_matchmake")
-        matchmake_request = decode_model(MatchmakeRequest, await read_body(request))
+        matchmake_request = MatchmakeRequest.from_json(await read_body(request))
         result = await run_in_threadpool(implementation.playfab_client_matchmake, request, matchmake_request=matchmake_request)
         return render_response(result)
 

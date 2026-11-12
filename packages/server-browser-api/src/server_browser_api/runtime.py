@@ -212,10 +212,6 @@ class WireModel(BaseModel):
         return cls(**arguments)
 
 
-def decode_model(model: type[T], value: dict[str, Any]) -> T:
-    return model.from_json(value)
-
-
 @dataclass(frozen=True)
 class ApiResponse(Generic[R]):
     body: R
