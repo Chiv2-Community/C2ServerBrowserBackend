@@ -29,13 +29,18 @@ jobs:
       - name: Set up Python 3.11
         run: uv python install 3.11
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install dependencies
         run: uv sync --frozen
 
       - name: Test with pytest
         env:
           DEBUG_MODE: "true"
-        run: uv run --frozen pytest
+        run: ./ci.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

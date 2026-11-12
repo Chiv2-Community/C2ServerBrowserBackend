@@ -3,7 +3,7 @@ from os import getenv
 
 import pytest
 from unittest.mock import patch, MagicMock
-from flask.testing import FlaskClient
+from .client import ApiClient as FlaskClient
 
 from server_browser_backend.main import app
 from server_browser_backend.routes import shared
@@ -41,7 +41,7 @@ test_server_json = {
 
 @pytest.fixture
 def client():
-    with app.test_client() as client:
+    with FlaskClient() as client:
         yield client
 
 

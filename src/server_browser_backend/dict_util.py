@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from ipaddress import IPv6Address, ip_address
 from typing import Any, Callable, Dict, Generic, List, Optional, Type
 
 from server_browser_backend.type_vars import A, B
 from server_browser_backend.ip_address import IPAddress
+from server_browser_api.runtime import DictKeyError, DictTypeError
 
 
 def _require_type(expected_type: Type[A], value: Any) -> A:
@@ -32,21 +32,6 @@ TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
     dict: decode_primitive(dict),
     IPAddress: decode_ip_address,
 }
-
-
-@dataclass(frozen=True)
-class DictTypeError(Generic[A, B], Exception):
-    key: str
-    value: B
-    expected_type: Type[A]
-    actual_type: Type[B]
-    context: Dict[Any, Any]
-
-
-@dataclass(frozen=True)
-class DictKeyError(Generic[A], Exception):
-    key: str
-    context: Dict[Any, Any]
 
 
 def _no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:

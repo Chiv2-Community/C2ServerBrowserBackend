@@ -1,141 +1,37 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
+"""Domain conversions for the generated TBIO contract."""
 from ipaddress import IPv4Address, IPv6Address
-from typing import Generic, List, Optional, Dict, Any
 
-from server_browser_backend.dict_util import get_or
+from server_browser_api.models import TbioGame, TbioServerListData, TbioTags
+from server_browser_api.runtime import legacy_ip_address as format_address
 from server_browser_backend.models.base_models import Server
-from server_browser_backend.type_vars import A
 
 
-@dataclass(frozen=True)
-class Wrapper(Generic[A]):
-    Success: bool
-    Data: A
-
-    @staticmethod
-    def from_servers(servers: List[Server], client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> Wrapper[ServerListData]:
-        return Wrapper(True, ServerListData.from_servers(servers, client_ip, fixed_name))
-
-
-@dataclass(frozen=True)
-class MotdResponse:
-    Success: bool
-    Data: Dict[str, Any]
-    expiration: int
-
-
-@dataclass(frozen=True)
-class ServerListData:
-    GameCount: int
-    PlayerCount: int
-    Games: List[Game]
-
-    @staticmethod
-    def from_servers(servers: List[Server], client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> ServerListData:
-        return ServerListData(
-            len(servers),
-            sum(map(lambda s: s.player_count, servers)),
-            list(map(lambda s: Game.from_server(s, client_ip, fixed_name), servers)),
-        )
-    
-    def add_game(self, game: Game) -> ServerListData:
-        return ServerListData(
-            self.GameCount + 1,
-            self.PlayerCount + game.MaxPlayers,
-            self.Games + [game],
-        )
+def game_from_server(
+    server: Server, client_ip: IPv4Address | IPv6Address | None,
+    fixed_name: str | None = None,
+) -> TbioGame:
+    address = server.local_ip_address if client_ip == server.ip_address and server.local_ip_address is not None else server.ip_address
+    return TbioGame(
+        region="paris", lobby_id=server.unique_id, max_players=server.max_players,
+        official=server.is_verified, build_version="dummy", game_mode="40p",
+        player_user_ids=list(range(server.player_count)), run_time=500, game_server_state=1,
+        tags=TbioTags(
+            build_id_s="dummy", server_name_s=fixed_name if fixed_name is not None else server.name,
+            region_s="paris", official_b=str(server.is_verified).lower(), platform_s="any",
+            ffa_b="true", ms_i="2", map_name_s=server.current_map,
+            ping_port_i=str(server.ports.ping), query_port_i=str(server.ports.a2s),
+            t0_c="0", pp_b="true" if server.password_protected else "false", t1_c="6", mtim_i="277",
+        ),
+        last_heartbeat=int(server.last_heartbeat), server_hostname=address,
+        server_ipv4_address=address, server_port=server.ports.game,
+    )
 
 
-@dataclass(frozen=True)
-class Game:
-    Region: str
-    LobbyId: str
-    MaxPlayers: int
-    Official: bool
-    BuildVersion: str
-    GameMode: str
-    PlayerUserIds: List[str]
-    RunTime: int
-    GameServerState: int
-    Tags: Tags
-    LastHeartbeat: int
-    ServerHostname: str
-    ServerIPV4Address: str
-    ServerPort: int
-
-    @staticmethod
-    def format_address(address: IPv4Address | IPv6Address) -> str:
-        """Format an address for the legacy Chivalry endpoint field."""
-        if address.version == 6:
-            return f"[{address}]"
-        return str(address)
-
-    @staticmethod
-    def from_server(server: Server, client_ip: Optional[IPv4Address | IPv6Address], fixed_name: Optional[str] = None) -> Game:
-        joining_locally = client_ip == server.ip_address
-        ip_address = server.local_ip_address if joining_locally and server.local_ip_address is not None else server.ip_address
-        endpoint_address = Game.format_address(ip_address)
-        return Game(
-            "paris",
-            server.unique_id,
-            server.max_players,
-            server.is_verified,
-            "dummy",
-            "40p",
-            [*range(server.player_count)],
-            500,
-            1,
-            Tags(
-                "dummy",
-                fixed_name if fixed_name is not None else server.name,
-                "paris",
-                str(server.is_verified).lower(),
-                "any",
-                "true",
-                "2",
-                server.current_map,
-                str(server.ports.ping),
-                str(server.ports.a2s),
-                "0",
-                "true" if server.password_protected else "false",
-                "6",
-                "277",
-            ),
-            int(server.last_heartbeat),
-            endpoint_address,
-            endpoint_address,
-            server.ports.game,
-        )
-
-
-@dataclass(frozen=True)
-class Tags:
-    BuildId_s: str
-    ServerName_s: str
-    Region_s: str
-    OFFICIAL_b: str
-    Platform_s: str
-    FFA_b: str
-    MS_i: str
-    MapName_s: str
-    PingPort_i: str
-    QueryPort_i: str
-    T0_c: str
-    pp_b: str
-    t1_c: str
-    MTIM_i: str
-
-
-@dataclass(frozen=True)
-class MotdRequest:
-    language: str
-
-    @staticmethod
-    def from_json(json: Dict[str, Any]) -> MotdRequest:
-        from server_browser_backend import dict_util
-
-        return MotdRequest(
-            dict_util.get_or(json, "Language", str, lambda: "en"),
-        )
+def server_list_data(
+    servers: list[Server], client_ip: IPv4Address | IPv6Address | None,
+    fixed_name: str | None = None,
+) -> TbioServerListData:
+    return TbioServerListData(
+        game_count=len(servers), player_count=sum(s.player_count for s in servers),
+        games=[game_from_server(server, client_ip, fixed_name) for server in servers],
+    )

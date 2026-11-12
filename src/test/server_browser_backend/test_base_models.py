@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from server_browser_api.runtime import to_wire
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
 import pytest
@@ -33,7 +34,7 @@ def test_server_stores_parsed_addresses(public_ip, local_ip, address_type):
     assert server.ip_address == ip_address(public_ip)
     assert server.local_ip_address == (ip_address(local_ip) if local_ip else None)
 
-    serialized = asdict(server)
+    serialized = to_wire(asdict(server))
     serialized["ip_address"] = str(server.ip_address)
     if local_ip is None:
         del serialized["local_ip_address"]
@@ -43,7 +44,7 @@ def test_server_stores_parsed_addresses(public_ip, local_ip, address_type):
 
     for updated in (
         server.with_heartbeat(2.0),
-        server.with_update(UpdateRegisteredServer("New Map", 1, 100, None)),
+        server.with_update(UpdateRegisteredServer(current_map="New Map", player_count=1, max_players=100, mods=None)),
         server.verified(),
         server.unverified(),
     ):

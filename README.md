@@ -1,6 +1,7 @@
 # Server browser backend
 
-This is a flask based python server which has its routes defined in OpenAPI spec [here](./assets/chiv2-server-browser-api.yaml).
+This is a FastAPI server with OAS-generated models, interfaces, and routes.
+The contract is [here](./assets/chiv2-server-browser-api.yaml).
 
 ## Running the server 
 
@@ -13,7 +14,7 @@ docker run \
   -p 8080:8080 \
   -e ADMIN_KEY='YOUR_SECRET_KEY_FOR_MANAGING_BANS' \
   -e CONFIG_DIR='/config' \
-  -e GUNICORN_WORKERS=4 \
+  -e UVICORN_WORKERS=1 \
   -v $HOST_CONFIG_DIR:/config \
   -it \
   ghcr.io/chiv2-community/c2serverbrowserbackend:latest
@@ -23,32 +24,35 @@ The server can be configured using environment variables:
 - `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
 - `SERVER_BROWSER_FQDN`: The FQDN of the server, used as the issuer for reissued tokens (default: `chivalry2-server-browser-backend`).
-- `GUNICORN_BIND`: The host and port gunicorn should bind to (default: `0.0.0.0:8080`).
-- `GUNICORN_WORKERS`: The number of gunicorn workers (default: `1`).
-- `GUNICORN_THREADS`: The number of gunicorn threads (default: `1`).
-- `GUNICORN_LOG_LEVEL`: The gunicorn log level (default: `info`).
-- `GUNICORN_TIMEOUT`: The gunicorn timeout in seconds (default: `30`).
+- `UVICORN_HOST`: Listener address (default: `0.0.0.0`).
+- `UVICORN_PORT`: Listener port (default: `8080`).
+- `UVICORN_WORKERS`: Worker processes (default: `1`). Keep one worker while
+  registrations and signing keys are process-local; multiple workers do not share them.
+- `UVICORN_LOG_LEVEL`: Log level (default: `info`).
+- `UVICORN_KEEP_ALIVE`: Idle HTTP keep-alive timeout in seconds (default: `5`),
+  not a request execution timeout.
 - `EXPOSE_REGISTERED_IPS`: Set to `1` to include observed and advertised IP
   fields in `/api/v1/servers` for diagnostics; omitted by default.
 
-Any additional arguments passed to the docker run command will be passed directly to gunicorn.
+Container arguments are passed directly to Uvicorn. Gunicorn and its
+`GUNICORN_*` settings are no longer used; migrate deployment settings above.
+There is no equivalent of Gunicorn's worker request timeout or thread setting.
 
-### Dual-stack IPv4/IPv6 binding
+### IPv6 and reverse proxies
 
-Keep the default `0.0.0.0:8080` bind for IPv4-only deployments. On a normal
-Linux dual-stack host, run Gunicorn with one IPv6 wildcard listener:
+The default listener is IPv4. To listen on IPv6:
 
 ```bash
-GUNICORN_BIND='[::]:8080' ./run.sh
+./run.sh --host ::
 ```
 
-This accepts IPv6 and IPv4-mapped connections when the host's IPv6 socket mode
-allows it. Confirm with `ss -ltnp` and allow TCP 8080 for both address families.
-If the host uses IPv6-only sockets, pass separate Gunicorn `--bind` arguments
-instead of relying on the wildcard socket.
+For Docker, set `UVICORN_HOST=::`. Do not assume an IPv6 listener accepts IPv4;
+use a dual-stack reverse proxy and verify both address families.
 
-
-Will run the latest server and run on port 8080
+As before, deploy behind one trusted proxy that overwrites `X-Forwarded-*`
+headers and blocks direct backend access. The application trusts the last
+forwarded client IP. Startup disables Uvicorn's separate proxy processing to
+avoid interpreting the headers twice.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.
@@ -58,5 +62,9 @@ Then the project can be run via `./run.sh`
 Try running with `--help` to see what options are available.
 
 Tests can be run via `./ci.sh`
+
+The API is OpenAPI-first. Models, API interfaces, and FastAPI bindings are generated
+into a separate uv workspace package. See [API development](CONTRIBUTING.md#api-development)
+for generation, interface implementation, and multi-package builds.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for publishing instructions.

@@ -5,10 +5,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from server_browser_backend.models.base_models import Jwk, JwksResponse
 from server_browser_backend.token_reissuer import TokenReissuer
 
-try:
-    import jwt
-except ImportError:
-    jwt = None
+import jwt
 
 @pytest.fixture
 def private_key():
@@ -285,4 +282,3 @@ def test_jwks_response(private_key):
     assert len(jwks.keys) == 1
     assert jwks.keys[0].kid == "test-kid"
     assert jwks.keys[0].kty == "RSA"
-

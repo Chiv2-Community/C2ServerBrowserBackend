@@ -20,8 +20,13 @@ jobs:
       - name: Set up Python 3.11
         run: uv python install 3.11
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install Dependencies
-        run: uv sync
+        run: uv sync --frozen --all-packages
 
       - name: Test with pytest
         run: ./ci.sh

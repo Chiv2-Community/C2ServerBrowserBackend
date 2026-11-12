@@ -6,12 +6,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from server_browser_backend.models.base_models import Jwk, JwksResponse
 from server_browser_backend.models.eos_models import EosIdTokenPayload
 
-try:
-    import jwt
-    from jwt import PyJWKClient
-except ImportError:
-    jwt = None
-    PyJWKClient = None
+import jwt
+from jwt import PyJWKClient
 
 class TokenReissuer:
     def __init__(
@@ -55,7 +51,6 @@ class TokenReissuer:
         if jwt is None:
             raise RuntimeError("PyJWT library not installed")
 
-        from dataclasses import asdict
 
         # Get the signing key from the EOS JWKS
         if isinstance(self.eos_jwks, str):
@@ -65,7 +60,7 @@ class TokenReissuer:
             verify_key = signing_key.key
         else:
             # It's a JwksResponse object
-            jwk_set = jwt.PyJWKSet.from_dict(asdict(self.eos_jwks))
+            jwk_set = jwt.PyJWKSet.from_dict(self.eos_jwks.model_dump(by_alias=True))
             header = jwt.get_unverified_header(eos_token)
             signing_key = next(k for k in jwk_set.keys if k.key_id == header.get("kid"))
             verify_key = signing_key.key

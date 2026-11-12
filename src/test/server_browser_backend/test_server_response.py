@@ -9,6 +9,7 @@ from server_browser_backend.models.base_models import (
     ServerListResponse,
     ServerResponse,
     ServerResponseWithIP,
+    server_listing,
 )
 
 
@@ -31,10 +32,10 @@ def test_from_servers_selects_response_model(include_ip, public_ip, local_ip):
         mods=[],
     )
 
-    listing = ServerListResponse.from_servers([server], include_ip=include_ip)
+    listing = server_listing([server], include_ip=include_ip)
     assert len(listing.servers) == 1
     response = listing.servers[0]
-    data = asdict(response)
+    data = response.model_dump(by_alias=True)
 
     assert data["unique_id"] == server.unique_id
     assert data["ports"]["game"] == server.ports.game
@@ -50,4 +51,4 @@ def test_from_servers_selects_response_model(include_ip, public_ip, local_ip):
 
 @pytest.mark.parametrize("include_ip", [False, True])
 def test_from_servers_empty(include_ip):
-    assert ServerListResponse.from_servers([], include_ip=include_ip).servers == []
+    assert server_listing([], include_ip=include_ip).servers == []

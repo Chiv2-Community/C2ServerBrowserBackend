@@ -2,7 +2,7 @@ from datetime import datetime
 from ipaddress import ip_address
 
 import pytest
-from flask.testing import FlaskClient
+from .client import ApiClient as FlaskClient
 
 from server_browser_backend.main import app
 from server_browser_backend.routes import chiv2_compat, shared
@@ -22,7 +22,7 @@ test_server_json = {
 
 @pytest.fixture
 def client():
-    with app.test_client() as client:
+    with FlaskClient() as client:
         yield client
 
 def test_get_servers(client: FlaskClient):

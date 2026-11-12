@@ -14,7 +14,8 @@ WORKDIR /code
 
 # Install dependencies
 COPY pyproject.toml uv.lock /code/
-RUN uv sync --frozen --no-dev --no-install-project
+COPY packages/server-browser-api/pyproject.toml /code/packages/server-browser-api/pyproject.toml
+RUN uv sync --frozen --no-dev --no-install-workspace
 
 # Copy project files
 COPY . /code

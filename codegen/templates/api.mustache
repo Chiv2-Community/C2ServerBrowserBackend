@@ -1,0 +1,42 @@
+"""Generated FastAPI router. DO NOT EDIT."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Request, Response
+from starlette.concurrency import run_in_threadpool
+{{#imports}}
+{{{import}}}
+{{/imports}}
+from {{apiPackage}}.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
+from {{packageName}}.runtime import decode_model, read_body, read_parameter, render_response
+
+{{#operations}}
+def create_router(implementation: Base{{classname}}) -> APIRouter:
+    router = APIRouter()
+{{#operation}}
+
+    @router.api_route("{{{path}}}", methods=["{{httpMethod}}"] + (["HEAD"] if "{{httpMethod}}" == "GET" else []), operation_id="{{operationId}}", response_model=None)
+    async def {{operationId}}(request: Request) -> Response:
+        await run_in_threadpool(implementation.before_operation, request, "{{operationId}}")
+{{#bodyParam}}
+        {{paramName}} = decode_model({{dataType}}, await read_body(request))
+{{/bodyParam}}
+{{#allParams}}
+{{#isPathParam}}
+        {{paramName}} = read_parameter("{{operationId}}", "path", "{{baseName}}", request.path_params.get("{{baseName}}"))
+{{/isPathParam}}
+{{#isQueryParam}}
+        {{paramName}} = read_parameter("{{operationId}}", "query", "{{baseName}}", request.query_params.getlist("{{baseName}}"))
+{{/isQueryParam}}
+{{#isHeaderParam}}
+        {{paramName}} = read_parameter("{{operationId}}", "header", "{{baseName}}", request.headers.get("{{baseName}}"), application_validated=True)
+{{/isHeaderParam}}
+{{#isCookieParam}}
+        {{paramName}} = read_parameter("{{operationId}}", "cookie", "{{baseName}}", request.cookies.get("{{baseName}}"))
+{{/isCookieParam}}
+{{/allParams}}
+        result = await run_in_threadpool(implementation.{{operationId}}, request{{#allParams}}, {{paramName}}={{paramName}}{{/allParams}})
+        return render_response(result)
+{{/operation}}
+
+    return router
+{{/operations}}
