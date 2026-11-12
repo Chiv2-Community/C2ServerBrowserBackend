@@ -1,7 +1,7 @@
 # FastAPI alternative to generated Flask boundary
 
 - Date: 2026-11-12
-- Status: proposed
+- Status: superseded
 - Scope: backend web framework and generated API boundary
 - Repository: C2ServerBrowserBackend, `git@github.com:Chiv2-Community/C2ServerBrowserBackend.git`
 - Branch: `refactor/oas-generated-api`; HEAD: `caecade2f491c7fddde3ba9067a44fd274b18227`; no exact tag; nearest release tag: `v1.1.2`.
@@ -26,3 +26,7 @@ The earlier 198-test CI result and wheel/Docker checks apply to the Flask workin
 The user asked to avoid generated stubs that must be filled in. The agent inspected the pinned 7.17.0 [base API](https://github.com/OpenAPITools/openapi-generator/blob/v7.17.0/modules/openapi-generator/src/main/resources/python-fastapi/base_api.mustache) and [router](https://github.com/OpenAPITools/openapi-generator/blob/v7.17.0/modules/openapi-generator/src/main/resources/python-fastapi/api.mustache) templates: the generated base has typed async methods containing `...`, and the router discovers subclasses and instantiates the first, returning 500 if none is registered. Handwritten subclasses can be separate from generated files, but the default base does not enforce abstract methods or explicit implementation injection.
 
 The agent proposed template overrides for those stronger interface properties, not an approved or tested implementation. The source templates support the described dispatch behavior; their suitability for this project's complete contract remains unverified. No framework switch was authorized by this follow-up.
+
+## Subsequent developments (2026-11-12)
+
+The proposal's historical statements that approval and implementation were unavailable are superseded by later user approval and an uncommitted FastAPI implementation. See [approved FastAPI boundary](2026-11-12-fastapi-generated-boundary.md) for provenance, evidence and remaining compatibility limits.
