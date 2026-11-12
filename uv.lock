@@ -45,15 +45,6 @@ wheels = [
 ]
 
 [[package]]
-name = "argparse"
-version = "1.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/18/dd/e617cfc3f6210ae183374cd9f6a26b20514bbb5a792af97949c5aacddf0f/argparse-1.4.0.tar.gz", hash = "sha256:62b089a55be1d8949cd2bc7e0df0bddb9e028faefc8c32038cc84862aefdd6e4", size = 70508, upload-time = "2015-09-12T20:22:16.217Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/94/3af39d34be01a24a6e65433d19e107099374224905f1e0cc6bbe1fd22a2f/argparse-1.4.0-py2.py3-none-any.whl", hash = "sha256:c31647edb69fd3d465a847ea3157d37bed1f95f19760b11a47aa91c04b666314", size = 23000, upload-time = "2015-09-14T16:03:16.137Z" },
-]
-
-[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -320,11 +311,9 @@ name = "chivalry2-unofficial-server-browser-backend"
 version = "1.1.2"
 source = { editable = "." }
 dependencies = [
-    { name = "argparse" },
     { name = "fastapi" },
     { name = "pygelf" },
     { name = "pyjwt", extra = ["crypto"] },
-    { name = "requests" },
     { name = "server-browser-api" },
     { name = "uvicorn" },
 ]
@@ -345,11 +334,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "argparse", specifier = ">=1.4.0" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pygelf", specifier = ">=0.4.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
-    { name = "requests", specifier = ">=2.31.0" },
     { name = "server-browser-api", editable = "packages/server-browser-api" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
