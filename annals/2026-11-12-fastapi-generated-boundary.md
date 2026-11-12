@@ -1,7 +1,7 @@
 # Approved FastAPI generated boundary and typed IP models
 
 - Date: 2026-11-12
-- Status: accepted; implementation uncommitted
+- Status: implemented (originally accepted with implementation uncommitted; see subsequent developments)
 - Scope: generated backend boundary, ASGI deployment, IP serialization and compatibility
 - Repository: C2ServerBrowserBackend, `git@github.com:Chiv2-Community/C2ServerBrowserBackend.git`
 - Branch: `refactor/oas-generated-api`; recording HEAD: `b3ca7081349c1cd4dbdb7fdf7198592ace830044`; no exact tag; nearest release tag: `v1.1.2` at `80e1fae0e635d6ae1619ab75ea87a9add50749ef`.
@@ -25,3 +25,7 @@ The checkpoint reports differential replay against `80e1fae0e635d6ae1619ab75ea87
 ## Follow-up and reconsideration
 
 Review and commit the implementation separately; regenerate and run CI, wheel and deployment checks on the final tree. Validate real integrations and expand differential coverage where failure ordering, state, headers or deployment behavior matter. Reconsider templates or framework if compatibility, operational behavior or maintainability prove inadequate. Full source discussion, exact approval wording, independent reproduction of reported results and any comparative framework benchmark remain unavailable.
+
+## Subsequent developments (2026-11-12)
+
+The statements that the implementation was uncommitted and still needed a commit are superseded: implementation commit `f8f671f9bb74d4251b0fe3128ae686c43a4df161` exists. See [FastAPI implementation commit](2026-11-12-fastapi-implementation-commit.md) for provenance and validation limits.

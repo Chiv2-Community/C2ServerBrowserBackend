@@ -29,3 +29,5 @@ Before claiming drop-in equivalence, run differential request sequences against 
 The agent later proposed FastAPI instead of the Flask selection described above. This is an unapproved alternative, not a superseding decision; see [FastAPI alternative](2026-11-12-fastapi-migration-proposal.md).
 
 Later on 2026-11-12, the user approved FastAPI and the working tree was migrated. The Flask generator and retained-Flask stack choice, and the preceding statement that the alternative remained unapproved, are superseded; the broader OAS-first decision remains accepted. See [approved FastAPI boundary](2026-11-12-fastapi-generated-boundary.md).
+
+The historical statements that the package and application were uncommitted are superseded by the later FastAPI implementation commit; see [FastAPI implementation commit](2026-11-12-fastapi-implementation-commit.md). This does not mean the earlier Flask implementation was separately committed.

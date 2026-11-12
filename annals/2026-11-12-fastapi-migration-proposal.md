@@ -30,3 +30,5 @@ The agent proposed template overrides for those stronger interface properties, n
 ## Subsequent developments (2026-11-12)
 
 The proposal's historical statements that approval and implementation were unavailable are superseded by later user approval and an uncommitted FastAPI implementation. See [approved FastAPI boundary](2026-11-12-fastapi-generated-boundary.md) for provenance, evidence and remaining compatibility limits.
+
+The implementation was subsequently committed; the description of it as uncommitted is historical. See [FastAPI implementation commit](2026-11-12-fastapi-implementation-commit.md).
