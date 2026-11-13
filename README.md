@@ -28,7 +28,7 @@ The server can be configured using environment variables:
 - `UVICORN_PORT`: Listener port (default: `8080`).
 - `UVICORN_WORKERS`: Worker processes (default: `1`). Keep one worker while
   registrations and signing keys are process-local; multiple workers do not share them.
-- `UVICORN_LOG_LEVEL`: Log level (default: `info`).
+- `UVICORN_LOG_LEVEL`: Uvicorn startup/access log level (default: `info`).
 - `UVICORN_KEEP_ALIVE`: Idle HTTP keep-alive timeout in seconds (default: `5`),
   not a request execution timeout.
 - `EXPOSE_REGISTERED_IPS`: Set to `1` to include observed and advertised IP
@@ -37,6 +37,33 @@ The server can be configured using environment variables:
 Container arguments are passed directly to Uvicorn. Gunicorn and its
 `GUNICORN_*` settings are no longer used; migrate deployment settings above.
 There is no equivalent of Gunicorn's worker request timeout or thread setting.
+
+### Logs
+
+Follow the service's startup, HTTP access, and application logs with:
+
+```bash
+docker compose logs --tail=100 -f server-browser
+```
+
+Application logs use INFO for startup, registrations, accepted updates/heartbeats,
+deletions, registry expiry, and IP-list changes. WARNING identifies host changes,
+invalidated registrations, missing/invalid keys, unknown registrations, and
+rejected administration/validation requests, and banned requesters. Unexpected
+failures log ERROR with request context and a traceback. Host-change detection
+is logged before checking the key; invalidation is logged only after an
+authorized deletion succeeds.
+
+Events include server IDs and requester addresses when available. These addresses
+appear in operational logs even when `EXPOSE_REGISTERED_IPS` is off. Protect log
+access accordingly. Lifecycle/rejection messages do not dump credentials,
+tokens, request bodies, or query strings. Error tracebacks contain exception
+details, and Uvicorn access logs still contain requested URLs.
+
+Application events stay at INFO independently of `UVICORN_LOG_LEVEL`. Optional
+`GRAYLOG_HOST` and `GRAYLOG_PORT` (default: `12201`) additionally send application
+events to Graylog over TCP; console logging remains enabled. Uvicorn keeps its
+own console handlers and log-level settings.
 
 ### IPv6 and reverse proxies
 
