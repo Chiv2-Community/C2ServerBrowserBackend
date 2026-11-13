@@ -3,7 +3,7 @@ from ipaddress import ip_address
 
 import pytest
 
-from server_browser_api.models import (
+from server_browser_models.models import (
     Chivalry2Ports,
     ServerListResponse,
     ServerResponse,

@@ -1,10 +1,10 @@
 from dataclasses import asdict
-from server_browser_api.runtime import to_wire
+from server_browser_models.runtime import to_wire
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
 import pytest
 
-from server_browser_api.models import ServerRegistrationRequest, UpdateRegisteredServer
+from server_browser_models.models import ServerRegistrationRequest, UpdateRegisteredServer
 from server_browser_backend.models.base_models import Server
 
 

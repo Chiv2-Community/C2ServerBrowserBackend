@@ -2,7 +2,7 @@ from ipaddress import ip_address
 
 import pytest
 
-from server_browser_api.runtime import legacy_ip_address
+from server_browser_models.runtime import legacy_ip_address
 
 
 @pytest.mark.parametrize(

@@ -34,13 +34,18 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Test with pytest
-        env:
-          DEBUG_MODE: "true"
+      - name: Validate and build all packages
         run: ./ci.sh
+
+      - name: Upload Python distributions and OpenAPI contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions-and-contract
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            assets/chiv2-server-browser-api.yaml
+          if-no-files-found: error
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

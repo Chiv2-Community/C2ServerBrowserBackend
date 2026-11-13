@@ -1,0 +1,11 @@
+"""Generated from OpenAPI. DO NOT EDIT; run uv run server-browser-codegen."""
+from __future__ import annotations
+
+from pydantic import Field
+from typing import Any, Dict, List, Optional, Union
+from server_browser_models.models.server_listing_item import ServerListingItem
+
+from server_browser_models.runtime import WireModel
+
+class ServerListResponse(WireModel):
+    servers: List[ServerListingItem] = Field(alias="servers", json_schema_extra={"format": "", "nullable": False})

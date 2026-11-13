@@ -34,6 +34,4 @@ docker run `
   -e CONFIG_DIR='/config' `
   -v "${HOST_CONFIG_DIR}:/config" `
   -it `
-  "jacoby6000/chivalry2-unofficial-server-browser-backend:$Version" `
-    -b 0.0.0.0:8080 `
-    -w 1
+  "ghcr.io/chiv2-community/c2serverbrowserbackend:$Version"

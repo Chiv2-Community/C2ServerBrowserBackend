@@ -1,0 +1,45 @@
+generatorName: python-fastapi
+typeMappings:
+  string+ip-address: IPAddress
+  string+legacy-ip-address: LegacyIPAddress
+importMappings:
+  IPAddress: from server_browser_models.runtime import IPAddress
+  LegacyIPAddress: from server_browser_models.runtime import LegacyIPAddress
+additionalProperties:
+  packageName: server_browser_models
+  hideGenerationTimestamp: true
+  sortModelPropertiesByRequiredFlag: true
+files:
+  models/models_init.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_models/models/__init__.py
+  models/runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_models/runtime.py
+  models/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_models/__init__.py
+  shared/typed.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_models/py.typed
+  server/runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_server/runtime.py
+  fastapi/runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_fastapi/runtime.py
+  client/runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/runtime.py
+  client/client.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/client.py
+  server/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_server/__init__.py
+  fastapi/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_fastapi/__init__.py
+  client/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/__init__.py

@@ -1,9 +1,9 @@
 ﻿$ErrorActionPreference = "Stop"
 uv sync --frozen --all-packages
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-uv run python scripts/generate_api.py --check
+uv run server-browser-codegen --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-uv run mypy src packages/server-browser-api/src scripts
+uv run mypy
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $env:DEBUG_MODE = "true"
 uv run pytest

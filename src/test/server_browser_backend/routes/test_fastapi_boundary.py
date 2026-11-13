@@ -4,13 +4,15 @@ import threading
 
 import httpx
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from server_browser_server.runtime import RequestContext
 from fastapi.testclient import TestClient
 
-from server_browser_api.apis.api_v1_api import create_router
-from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest
-from server_browser_api.runtime import ApiResponse, contract
+from server_browser_fastapi.apis.api_v1_api import create_router
+from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_models.models import Mod, ServerListResponse, ServerRegistrationRequest
+from server_browser_server.runtime import ApiResponse
+from server_browser_models.runtime import contract
 from server_browser_backend.routes.api_v1 import BrowserApi
 
 from . import prepare_test_state
@@ -34,12 +36,12 @@ def test_routers_use_only_the_explicit_instance_and_keep_it_alive():
         def __init__(self, name):
             self.name = name
 
-        def before_operation(self, request: Request, operation_id: str) -> None:
+        def before_operation(self, request: RequestContext, operation_id: str) -> None:
             calls.append((self.name, operation_id))
 
-        def get_servers(self, request: Request) -> ApiResponse[ServerListResponse]:
-            assert request.client is not None
-            calls.append((self.name, request.client.host))
+        def get_servers(self, request: RequestContext) -> ApiResponse[ServerListResponse]:
+            assert request.client_ip
+            calls.append((self.name, request.client_ip))
             return ApiResponse(ServerListResponse(servers=[]))
 
     first = FastAPI()
@@ -62,10 +64,10 @@ def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread(browser):
     threads = []
 
     class Implementation(BrowserApi):
-        def before_operation(self, request: Request, operation_id: str) -> None:
+        def before_operation(self, request: RequestContext, operation_id: str) -> None:
             threads.append(threading.get_ident())
 
-        def get_servers(self, request: Request) -> ApiResponse[ServerListResponse]:
+        def get_servers(self, request: RequestContext) -> ApiResponse[ServerListResponse]:
             threads.append(threading.get_ident())
             return ApiResponse(ServerListResponse(servers=[]))
 

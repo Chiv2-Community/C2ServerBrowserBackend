@@ -13,13 +13,14 @@ import yaml
 from openapi_schema_validator import OAS30Validator
 from openapi_spec_validator import validate
 
-from server_browser_api import models
-from server_browser_api.apis.api_v1_api_base import BaseApiV1Api as ApiV1Controller
-from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi as Chiv2CompatController
+from server_browser_models import models
+from server_browser_server.apis.api_v1_api_base import BaseApiV1Api as ApiV1Controller
+from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi as Chiv2CompatController
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
-from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest, ServerResponseWithIP
-from server_browser_api.runtime import DictKeyError, DictTypeError, WireModel, contract, parameter_definition, read_parameter, to_wire
+from server_browser_models.models import Mod, ServerListResponse, ServerRegistrationRequest, ServerResponseWithIP
+from server_browser_models.runtime import DictKeyError, DictTypeError, WireModel, contract, to_wire
+from server_browser_fastapi.runtime import parameter_definition, read_parameter
 from server_browser_backend.routes.shared import ADMIN_KEY_HEADER, KEY_HEADER
 from server_browser_backend.routes.api_v1 import BrowserApi
 from server_browser_backend.routes.chiv2_compat import CompatibilityApi
@@ -48,7 +49,7 @@ def test_spec_is_valid_and_generated_resources_match_source():
     source = yaml.safe_load((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
     validate(source)
     assert contract() == source
-    assert yaml.safe_load(files("server_browser_api").joinpath("openapi.yaml").read_text()) == source
+    assert yaml.safe_load(files("server_browser_models").joinpath("openapi.yaml").read_text()) == source
 
 
 def test_runtime_routes_match_oas_exactly(app):
@@ -74,7 +75,7 @@ def test_runtime_routes_match_oas_exactly(app):
     assert actual == expected
     for rule in runtime_routes:
         assert isinstance(rule, APIRoute)
-        assert rule.endpoint.__module__.startswith("server_browser_api.apis.")
+        assert rule.endpoint.__module__.startswith("server_browser_fastapi.apis.")
 
 
 def test_application_has_no_handwritten_route_declarations():
@@ -99,7 +100,7 @@ def test_generated_models_cover_every_schema():
             continue
         assert issubclass(model, WireModel)
         assert issubclass(model, BaseModel)
-        assert model.__module__.startswith("server_browser_api.models.")
+        assert model.__module__.startswith("server_browser_models.models.")
         if "properties" in schema:
             assert {field.alias or name for name, field in model.model_fields.items()} == set(schema["properties"])
 

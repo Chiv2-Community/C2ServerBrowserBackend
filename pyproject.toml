@@ -1,13 +1,15 @@
 [project]
 name = "chivalry2-unofficial-server-browser-backend"
-version = "1.1.2"
+version = "1.2.0"
 description = "A server browser backend for unofficial chivalry2 servers. Keeps track of live servers with a heartbeat, and allows clients to list them. Probably usable for other unofficial gameservers."
 authors = [{name = "Jacob Barber", email = "Jacoby6000@gmail.com"}]
 license = {text = "GPL3"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "server-browser-api",
+    "server-browser-models==1.0.0",
+    "server-browser-server==1.0.0",
+    "server-browser-fastapi==1.0.0",
     "fastapi>=0.115,<1",
     "uvicorn>=0.34,<1",
     "pygelf>=0.4.2",
@@ -21,11 +23,12 @@ dev = [
     "autoflake>=2.2.0",
     "mypy>=1.4.1",
     "isort>=5.12.0",
-    "openapi-generator-cli==7.17.0",
+    "server-browser-codegen==0.1.0",
     "pyyaml==6.0.3",
     "openapi-spec-validator==0.7.2",
     "types-pyyaml>=6.0.12.20261111",
     "httpx>=0.28,<1",
+    "server-browser-client==1.0.0",
 ]
 
 [build-system]
@@ -42,11 +45,31 @@ packages = ["src/server_browser_backend"]
 pythonpath = [ "src" ]
 
 [tool.uv.workspace]
-members = ["packages/server-browser-api"]
+members = [
+    "packages/server-browser-models",
+    "packages/server-browser-server",
+    "packages/server-browser-fastapi",
+    "packages/server-browser-client",
+    "packages/server-browser-codegen",
+]
 
 [tool.uv.sources]
-server-browser-api = { workspace = true }
+server-browser-models = { workspace = true }
+server-browser-server = { workspace = true }
+server-browser-fastapi = { workspace = true }
+server-browser-client = { workspace = true }
+server-browser-codegen = { workspace = true }
 
 [tool.mypy]
+files = [
+    "src",
+    "packages/server-browser-models/src",
+    "packages/server-browser-server/src",
+    "packages/server-browser-fastapi/src",
+    "packages/server-browser-client/src",
+    "packages/server-browser-codegen/src",
+    "scripts",
+    "examples",
+]
 mypy_path = "typings"
 plugins = ["pydantic.mypy"]

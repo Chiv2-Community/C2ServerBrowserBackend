@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from server_browser_api.models import Chivalry2Ports, ServerRegistrationRequest
+from server_browser_models.models import Chivalry2Ports, ServerRegistrationRequest
 from server_browser_backend.models.base_models import Server
 from server_browser_backend.server_list import InvalidSecretKey, ServerList
 import server_browser_backend.server_list as registry
