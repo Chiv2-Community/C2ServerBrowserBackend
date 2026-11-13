@@ -7,7 +7,9 @@ license = {text = "GPL3"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "server-browser-api",
+    "server-browser-models==1.0.0",
+    "server-browser-server==1.0.0",
+    "server-browser-fastapi==1.0.0",
     "fastapi>=0.115,<1",
     "uvicorn>=0.34,<1",
     "pygelf>=0.4.2",
@@ -26,6 +28,7 @@ dev = [
     "openapi-spec-validator==0.7.2",
     "types-pyyaml>=6.0.12.20261111",
     "httpx>=0.28,<1",
+    "server-browser-client==1.0.0",
 ]
 
 [build-system]
@@ -42,10 +45,13 @@ packages = ["src/server_browser_backend"]
 pythonpath = [ "src" ]
 
 [tool.uv.workspace]
-members = ["packages/server-browser-api"]
+members = ["packages/server-browser-models", "packages/server-browser-server", "packages/server-browser-fastapi", "packages/server-browser-client"]
 
 [tool.uv.sources]
-server-browser-api = { workspace = true }
+server-browser-models = { workspace = true }
+server-browser-server = { workspace = true }
+server-browser-fastapi = { workspace = true }
+server-browser-client = { workspace = true }
 
 [tool.mypy]
 mypy_path = "typings"

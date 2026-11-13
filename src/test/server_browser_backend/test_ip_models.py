@@ -4,8 +4,8 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from server_browser_api.models import PlayfabGame, ServerResponseWithIP, ServerRegistrationRequest, TbioGame
-from server_browser_api.runtime import IPAddress, LegacyIPAddress, DictTypeError, to_wire
+from server_browser_models.models import PlayfabGame, ServerResponseWithIP, ServerRegistrationRequest, TbioGame
+from server_browser_models.runtime import IPAddress, LegacyIPAddress, DictTypeError, to_wire
 from server_browser_backend.models.base_models import Server, server_listing
 from server_browser_backend.models.tbio import game_from_server
 

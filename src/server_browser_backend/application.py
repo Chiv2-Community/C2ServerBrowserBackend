@@ -4,13 +4,12 @@ from functools import partial
 from fastapi import FastAPI
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from server_browser_api.apis.api_v1_api import create_router as browser_router
-from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.apis.chiv2_compat_api import create_router as compatibility_router
-from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_api.runtime import (
-    DictKeyError, DictTypeError, JsonMissing, SchemaValidationError, automatic_options, contract,
-)
+from server_browser_fastapi.apis.api_v1_api import create_router as browser_router
+from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_fastapi.apis.chiv2_compat_api import create_router as compatibility_router
+from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
+from server_browser_models.runtime import DictKeyError, DictTypeError, SchemaValidationError, contract
+from server_browser_fastapi.runtime import JsonMissing, automatic_options
 from server_browser_backend.routes import api_v1
 from server_browser_backend.routes.shared import Banned
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing

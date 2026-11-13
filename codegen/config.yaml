@@ -5,22 +5,34 @@ typeMappings:
   string+ip-address: IPAddress
   string+legacy-ip-address: LegacyIPAddress
 importMappings:
-  IPAddress: from server_browser_api.runtime import IPAddress
-  LegacyIPAddress: from server_browser_api.runtime import LegacyIPAddress
+  IPAddress: from server_browser_models.runtime import IPAddress
+  LegacyIPAddress: from server_browser_models.runtime import LegacyIPAddress
 additionalProperties:
-  packageName: server_browser_api
+  packageName: server_browser_models
   hideGenerationTimestamp: true
   sortModelPropertiesByRequiredFlag: true
 files:
   models_init.mustache:
     templateType: SupportingFiles
-    destinationFilename: src/server_browser_api/models/__init__.py
+    destinationFilename: src/server_browser_models/models/__init__.py
   runtime.mustache:
     templateType: SupportingFiles
-    destinationFilename: src/server_browser_api/runtime.py
+    destinationFilename: src/server_browser_models/runtime.py
   package.mustache:
     templateType: SupportingFiles
-    destinationFilename: src/server_browser_api/__init__.py
+    destinationFilename: src/server_browser_models/__init__.py
   typed.mustache:
     templateType: SupportingFiles
-    destinationFilename: src/server_browser_api/py.typed
+    destinationFilename: src/server_browser_models/py.typed
+  server_runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_server/runtime.py
+  fastapi_runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_fastapi/runtime.py
+  client_runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/runtime.py
+  client.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/client.py

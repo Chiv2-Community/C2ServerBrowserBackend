@@ -1,7 +1,7 @@
 """Domain conversions for the generated TBIO contract."""
 from ipaddress import IPv4Address, IPv6Address
 
-from server_browser_api.models import TbioGame, TbioServerListData, TbioTags
+from server_browser_models.models import TbioGame, TbioServerListData, TbioTags
 from server_browser_backend.models.base_models import Server
 
 

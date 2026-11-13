@@ -9,7 +9,10 @@ resolution-markers = [
 [manifest]
 members = [
     "chivalry2-unofficial-server-browser-backend",
-    "server-browser-api",
+    "server-browser-client",
+    "server-browser-fastapi",
+    "server-browser-models",
+    "server-browser-server",
 ]
 
 [[package]]
@@ -314,7 +317,9 @@ dependencies = [
     { name = "fastapi" },
     { name = "pygelf" },
     { name = "pyjwt", extra = ["crypto"] },
-    { name = "server-browser-api" },
+    { name = "server-browser-fastapi" },
+    { name = "server-browser-models" },
+    { name = "server-browser-server" },
     { name = "uvicorn" },
 ]
 
@@ -329,6 +334,7 @@ dev = [
     { name = "openapi-spec-validator" },
     { name = "pytest" },
     { name = "pyyaml" },
+    { name = "server-browser-client" },
     { name = "types-pyyaml" },
 ]
 
@@ -337,7 +343,9 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pygelf", specifier = ">=0.4.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
-    { name = "server-browser-api", editable = "packages/server-browser-api" },
+    { name = "server-browser-fastapi", editable = "packages/server-browser-fastapi" },
+    { name = "server-browser-models", editable = "packages/server-browser-models" },
+    { name = "server-browser-server", editable = "packages/server-browser-server" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
 
@@ -352,6 +360,7 @@ dev = [
     { name = "openapi-spec-validator", specifier = "==0.7.2" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "server-browser-client", editable = "packages/server-browser-client" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20261111" },
 ]
 
@@ -1589,21 +1598,62 @@ wheels = [
 ]
 
 [[package]]
-name = "server-browser-api"
+name = "server-browser-client"
 version = "1.0.0"
-source = { editable = "packages/server-browser-api" }
+source = { editable = "packages/server-browser-client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "server-browser-models" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "server-browser-models", editable = "packages/server-browser-models" },
+]
+
+[[package]]
+name = "server-browser-fastapi"
+version = "1.0.0"
+source = { editable = "packages/server-browser-fastapi" }
 dependencies = [
     { name = "fastapi" },
+    { name = "server-browser-models" },
+    { name = "server-browser-server" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "server-browser-models", editable = "packages/server-browser-models" },
+    { name = "server-browser-server", editable = "packages/server-browser-server" },
+]
+
+[[package]]
+name = "server-browser-models"
+version = "1.0.0"
+source = { editable = "packages/server-browser-models" }
+dependencies = [
     { name = "openapi-schema-validator" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "openapi-schema-validator", specifier = "==0.6.3" },
     { name = "pydantic", specifier = ">=2.10,<3" },
 ]
+
+[[package]]
+name = "server-browser-server"
+version = "1.0.0"
+source = { editable = "packages/server-browser-server" }
+dependencies = [
+    { name = "server-browser-models" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "server-browser-models", editable = "packages/server-browser-models" }]
 
 [[package]]
 name = "six"

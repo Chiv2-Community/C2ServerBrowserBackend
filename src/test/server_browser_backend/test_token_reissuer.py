@@ -2,12 +2,12 @@
 import time
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from server_browser_api.models import Jwk, JwksResponse
+from server_browser_models.models import Jwk, JwksResponse
 from server_browser_backend.token_reissuer import TokenReissuer
 
 import jwt
 from fastapi.testclient import TestClient
-from server_browser_api.runtime import DictTypeError
+from server_browser_models.runtime import DictTypeError
 
 
 @pytest.fixture

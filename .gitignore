@@ -1,8 +1,8 @@
 .vscode
 .idea
 /annals/
-/packages/server-browser-api/src/server_browser_api/contract.json
-/packages/server-browser-api/src/server_browser_api/openapi.yaml
+/packages/server-browser-models/src/server_browser_models/contract.json
+/packages/server-browser-models/src/server_browser_models/openapi.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -365,7 +365,10 @@ PublishScripts/
 *.snupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
-!/packages/server-browser-api/
+!/packages/server-browser-models/
+!/packages/server-browser-server/
+!/packages/server-browser-fastapi/
+!/packages/server-browser-client/
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed

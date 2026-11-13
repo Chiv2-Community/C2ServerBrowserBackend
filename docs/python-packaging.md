@@ -1,101 +1,115 @@
-# Python packaging proposal
+# Python packages
 
-Status: proposed; this PR does not yet change distributions or public imports.
+The workspace builds five independent wheels and sdists. The OpenAPI contract
+in `assets/chiv2-server-browser-api.yaml` remains authoritative.
 
-Provide separate models, client, and server wheels so integrations can install
-only what they need and alternative servers can reuse the generated contract.
+| Distribution | Import | Responsibility |
+| --- | --- | --- |
+| `server-browser-models` | `server_browser_models` | Shared generated Pydantic models, strict decoding, typed IP serialization, bundled contract |
+| `server-browser-client` | `server_browser_client` | Generated synchronous and asynchronous HTTPX clients |
+| `server-browser-server` | `server_browser_server` | Generated abstract handler interfaces, `RequestContext`, `ApiResponse` |
+| `server-browser-fastapi` | `server_browser_fastapi` | Generated routers, HTTP request decoding and response rendering |
+| `chivalry2-unofficial-server-browser-backend` | `server_browser_backend` | Concrete application, registry, IP policy, token services, Uvicorn startup |
 
-## Current layout
+Dependencies flow from client to models, from server interfaces to models, and
+from the FastAPI adapter to interfaces and models. The backend depends on the
+adapter, interfaces, and models. Client code never depends on server packages.
+Only the adapter and concrete backend require FastAPI. Only the backend requires
+Uvicorn. Models and server interfaces require neither HTTPX nor an HTTP framework.
 
-- `server-browser-api` bundles generated models, validation, and FastAPI bindings.
-  Its runtime imports FastAPI even when a consumer only needs models.
-- `chivalry2-unofficial-server-browser-backend` is the concrete application. It
-  depends on `server-browser-api` and provides registry, policy, and token services.
-- There is no generated Python HTTP client.
-- `assets/chiv2-server-browser-api.yaml` is authoritative. Generated Python is
-  tracked; bundled YAML and JSON contracts are build outputs.
+The four reusable packages start at version `1.0.0` and use exact internal
+dependency versions. Release them together; the concrete backend retains its
+own version. Package-index name ownership has not been established, and no PyPI
+publication is configured. Build artifacts are usable without package-index
+publication. Publishing a GitHub Release attaches the wheels, sdists, and
+authoritative OpenAPI YAML; no new release is created by these changes.
 
-## Proposed distributions
+## Models
 
-Names below are proposals, not confirmed package-index availability.
+```python
+from server_browser_models.models import LoginRequest
 
-| Distribution | Import | Contents | Runtime dependencies |
-| --- | --- | --- | --- |
-| `server-browser-models` | `server_browser_models` | Generated models, IP types, strict decoding, contract resources | Pydantic and OAS validation |
-| `server-browser-client` | `server_browser_client` | Generated typed HTTP operations, response decoding, client configuration | Models and HTTP transport |
-| `server-browser-server` | `server_browser_server` | Generated abstract APIs, injected FastAPI routers, request decoding, response rendering | Models and FastAPI |
-| `chivalry2-unofficial-server-browser-backend` | `server_browser_backend` | Existing reference application and state services | Server bindings, Uvicorn, and application dependencies |
-
-The three reusable packages share one model implementation. Neither the client
-nor server package may generate a private copy. The concrete backend remains a
-fourth distribution; installing server bindings must not install or construct it.
-
-Dependency direction:
-
-```text
-client  -> models
-server  -> models
-backend -> server
+request = LoginRequest.from_json({"token": "eos-token"})
 ```
 
-The backend may also declare models directly when it imports them. Models must
-not depend on an HTTP framework or either transport package. Client installs
-must not pull in FastAPI, Uvicorn, or backend services.
+There is one generated model implementation, shared by both transports. Strict
+decoding preserves omitted-versus-null behavior. Serialization preserves aliases,
+raw canonical IPs, and TBIO's exactly-once-bracketed IPv6 format.
 
-## Generation and runtime boundaries
+`server_browser_models.runtime.contract()` returns the bundled OAS as a dictionary.
+The same wheel contains `openapi.yaml` for non-Python tooling.
 
-- Keep the OAS authoritative for schemas, operations, parameters, and responses.
-- Generate all three reusable packages with a pinned, reproducible toolchain;
-  never hand-edit generated sources.
-- Move model support out of the existing mixed runtime: `WireModel`, typed IP
-  serializers, model errors, schema validation, and bundled contract access.
-- Keep request objects, body/parameter extraction, automatic OPTIONS handling,
-  and FastAPI response rendering in the server package.
-- Use transport-independent model serialization. Preserve aliases, strict
-  decoding, omitted-versus-null behavior, and protocol-specific IPv6 formatting.
-- Preserve generated abstract server interfaces and explicit implementation
-  injection. Do not require subclasses to register themselves globally.
-- Keep handwritten application orchestration outside generated packages.
-- Keep backend handlers synchronous and thread-pooled; packaging is not an async
-  server migration or an authentication redesign.
+## Clients
 
-## Client requirements
+```python
+from server_browser_client import Client
+from server_browser_models.models import ServerListResponse
 
-- Cover every declared operation, including browser, admin, authentication,
-  TBIO, and PlayFab compatibility endpoints.
-- Accept a base URL, timeout, and caller-supplied transport/session.
-- Distinguish owned and borrowed transports; closing a client must not close a
-  caller-owned transport unless explicitly requested.
-- Represent optional bodies and parameters without conflating omission and null.
-- Decode declared success and error responses into shared models; retain HTTP
-  status and headers, with raw response access for unexpected responses.
-- Pass credentials per client or per call without process-global state.
-- Do not introduce implicit retries for registration or other mutations.
+with Client("https://browser.example") as client:
+    result = client.get_servers()
+    if isinstance(result.body, ServerListResponse):
+        for server in result.body.servers:
+            print(server.name)
+```
 
-## Builds and verification
+`AsyncClient` exposes the same methods with `await` and supports `async with`.
+All declared operations have generated, keyword-only parameter signatures and
+typed response unions, including declared error responses.
 
-- Build independent wheels and sdists for every distribution.
-- Rebuild each wheel from its sdist outside the checkout, without Java or sibling
-  source directories; runtime package dependencies can be installed separately.
-- Bundle the authoritative contract with models rather than maintaining divergent
-  client/server copies.
-- Test models alone, client plus models, and server plus models in isolated
-  environments. Verify excluded frameworks are absent, not merely unimported.
-- Ship typing metadata and type-check representative downstream usage.
-- Test client/server round trips with injected services, including structured
-  errors, omitted/null values, and IPv4/IPv6 serialization.
-- Retain generation-drift checks, backend regressions, deterministic compatibility
-  replay, and real wheel startup checks.
-- Update contributor build/release instructions and the release workflow for the
-  final distribution set. Do not publish packages as part of this review.
+- `result.body` is the decoded shared model, text for declared text responses,
+  or `None` for an unexpected status or content type.
+- `result.status`, `result.headers`, and `result.response` retain HTTP metadata
+  and the full HTTPX response. HTTP errors are returned, not implicitly raised.
+- Malformed declared JSON responses raise `ClientDecodeError` carrying the raw
+  response. HTTPX transport errors propagate unchanged.
+- Set `timeout=` explicitly when needed; the default is ten seconds. No automatic
+  retries are added.
+- Set `headers=` for client-scoped credentials, or supply generated header
+  arguments per call. Per-call values override configured headers regardless of
+  casing. Required credential headers can be omitted from a method call when
+  supplied through client/session headers; the server enforces their presence.
+- Pass `session=httpx.Client(...)` or `session=httpx.AsyncClient(...)` for a custom
+  transport, authentication, or connection pool. Closing the SDK closes only
+  sessions it constructed; callers close borrowed sessions themselves. Base URL,
+  SDK timeout, and SDK headers still apply to borrowed sessions.
+- Optional model fields are serialized with `exclude_unset=True`: omitted fields
+  stay omitted, while explicit null remains null. Nonnullable fields must still
+  satisfy the contract. Optional operation parameters use an omission sentinel;
+  explicit null HTTP parameters are rejected rather than silently omitted.
 
-## Review decisions before implementation
+## Alternative servers
 
-1. Confirm distribution/import names and whether the existing `server-browser-api`
-   name needs a temporary compatibility package or an explicit migration break.
-2. Choose the client transport and whether the initial client exposes synchronous,
-   asynchronous, or both APIs. This does not change backend execution.
-3. Confirm a shared release version for the three generated packages and their
-   dependency constraints; the concrete backend can retain its own version.
-4. Choose package-index publication versus wheel release assets, and verify name
-   ownership before adding publication credentials or workflows.
+Implement `BaseApiV1Api` and/or `BaseChiv2CompatApi` from
+`server_browser_server.apis`. Methods receive an immutable
+`RequestContext(client_ip=...)`, typed operation parameters, and return
+`ApiResponse` values. These interfaces can be imported and invoked without an
+HTTP framework. No global subclass registry or implicit service construction is
+required.
+
+For FastAPI, pass the implementation to the corresponding
+`server_browser_fastapi.apis.*.create_router` function and include that router in
+an application. The adapter converts the peer address to a context, runs the
+policy hook before decoding, and executes synchronous hooks and handlers in the
+thread pool. The application still owns exception mapping and trusted-proxy
+policy; the backend's `application.py` is the reference wiring.
+
+No second adapter is included. Registry, policy, and authentication services
+remain internal to the concrete backend rather than becoming speculative public
+packages.
+
+## Migration
+
+The former combined `server-browser-api` distribution/import is replaced, not
+maintained as a compatibility umbrella:
+
+- `server_browser_api.models` becomes `server_browser_models.models`.
+- Abstract APIs move to `server_browser_server.apis`.
+- Routers move to `server_browser_fastapi.apis`.
+- Model runtime support moves to `server_browser_models.runtime`.
+- `ApiResponse` and `RequestContext` live in `server_browser_server`.
+- HTTP extraction/rendering helpers live in `server_browser_fastapi.runtime`.
+
+Existing HTTP URLs, validation responses, payload casing, and backend execution
+remain unchanged. Only the Python package boundary and handler context change.
+
+Build and artifact instructions are in [CONTRIBUTING.md](../CONTRIBUTING.md).

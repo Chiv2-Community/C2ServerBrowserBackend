@@ -1,5 +1,5 @@
 """Request policy shared by the API implementations."""
-from fastapi import Request
+from server_browser_server.runtime import RequestContext
 
 from server_browser_backend.ip_list import IpList
 
@@ -11,8 +11,8 @@ class Banned(Exception):
     pass
 
 
-def get_ip(request: Request) -> str:
-    return request.client.host if request.client is not None else "None"
+def get_ip(request: RequestContext) -> str:
+    return request.client_ip
 
 
 class RequestPolicy:
@@ -20,10 +20,10 @@ class RequestPolicy:
         self.ban_list = ban_list
         self.verified_list = verified_list
 
-    def is_whitelisted(self, request: Request) -> bool:
+    def is_whitelisted(self, request: RequestContext) -> bool:
         return self.verified_list.contains(get_ip(request))
 
-    def get_and_validate_ip(self, request: Request) -> str:
+    def get_and_validate_ip(self, request: RequestContext) -> str:
         ip = get_ip(request)
         if self.ban_list.contains(ip):
             raise Banned()

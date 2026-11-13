@@ -6,10 +6,10 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
-from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_api.models import LoginResponse, StatusResponse
-from server_browser_api.runtime import ApiResponse
+from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
+from server_browser_models.models import LoginResponse, StatusResponse
+from server_browser_server.runtime import ApiResponse
 from server_browser_backend.application import Application
 from server_browser_backend.server_list import ServerList
 from server_browser_backend.token_reissuer import TokenReissuer

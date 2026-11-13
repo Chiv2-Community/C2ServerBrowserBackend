@@ -6,8 +6,9 @@ from starlette.concurrency import run_in_threadpool
 {{#imports}}
 {{{import}}}
 {{/imports}}
-from {{apiPackage}}.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
-from {{packageName}}.runtime import read_body, read_parameter, render_response
+from server_browser_server.apis.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
+from server_browser_server.runtime import RequestContext
+from server_browser_fastapi.runtime import read_body, read_parameter, render_response
 
 {{#operations}}
 def create_router(implementation: Base{{classname}}) -> APIRouter:
@@ -16,7 +17,8 @@ def create_router(implementation: Base{{classname}}) -> APIRouter:
 
     @router.api_route("{{{path}}}", methods=["{{httpMethod}}"] + (["HEAD"] if "{{httpMethod}}" == "GET" else []), operation_id="{{operationId}}", response_model=None)
     async def {{operationId}}(request: Request) -> Response:
-        await run_in_threadpool(implementation.before_operation, request, "{{operationId}}")
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "{{operationId}}")
 {{#bodyParam}}
         {{paramName}} = {{dataType}}.from_json(await read_body(request))
 {{/bodyParam}}
@@ -34,7 +36,7 @@ def create_router(implementation: Base{{classname}}) -> APIRouter:
         {{paramName}} = read_parameter("{{operationId}}", "cookie", "{{baseName}}", request.cookies.get("{{baseName}}"))
 {{/isCookieParam}}
 {{/allParams}}
-        result = await run_in_threadpool(implementation.{{operationId}}, request{{#allParams}}, {{paramName}}={{paramName}}{{/allParams}})
+        result = await run_in_threadpool(implementation.{{operationId}}, context{{#allParams}}, {{paramName}}={{paramName}}{{/allParams}})
         return render_response(result)
 {{/operation}}
 

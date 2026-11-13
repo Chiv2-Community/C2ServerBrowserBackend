@@ -7,13 +7,13 @@ from ipaddress import ip_address as parse_ip_address
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import Request
-from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_api.models import (
+from server_browser_server.runtime import RequestContext
+from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
+from server_browser_models.models import (
     MatchmakeRequest, MotdRequest, PlayfabErrorResponse, PlayfabGame,
     PlayfabMatchmakeResponse, TbioMotdResponse, TbioServerListResponse,
 )
-from server_browser_api.runtime import ApiResponse
+from server_browser_server.runtime import ApiResponse
 from server_browser_backend.models.tbio import server_list_data
 from server_browser_backend.routes.shared import Banned, RequestPolicy
 from server_browser_backend.server_list import ServerList
@@ -25,7 +25,7 @@ class CompatibilityApi(BaseChiv2CompatApi):
         self.policy = policy
         self.motd_directory = motd_directory
 
-    def tbio_get_servers(self, request: Request) -> ApiResponse[TbioServerListResponse]:
+    def tbio_get_servers(self, request: RequestContext) -> ApiResponse[TbioServerListResponse]:
         name = None
         client_ip = None
         try:
@@ -35,7 +35,7 @@ class CompatibilityApi(BaseChiv2CompatApi):
         data = server_list_data(self.server_list.get_all(), client_ip, name)
         return ApiResponse(TbioServerListResponse(success=True, data=data))
 
-    def get_motd(self, request: Request, motd_request: MotdRequest) -> ApiResponse[TbioMotdResponse]:
+    def get_motd(self, request: RequestContext, motd_request: MotdRequest) -> ApiResponse[TbioMotdResponse]:
         suffix = ""
         try:
             self.policy.get_and_validate_ip(request)
@@ -51,7 +51,7 @@ class CompatibilityApi(BaseChiv2CompatApi):
         expiration = int((datetime.now() + timedelta(days=365)).timestamp())
         return ApiResponse(TbioMotdResponse(success=True, data=data, expiration=expiration))
 
-    def playfab_client_matchmake(self, request: Request, matchmake_request: MatchmakeRequest) -> ApiResponse[PlayfabMatchmakeResponse] | ApiResponse[PlayfabErrorResponse]:
+    def playfab_client_matchmake(self, request: RequestContext, matchmake_request: MatchmakeRequest) -> ApiResponse[PlayfabMatchmakeResponse] | ApiResponse[PlayfabErrorResponse]:
         client_ip = self.policy.get_and_validate_ip(request)
         server = self.server_list.get(matchmake_request.lobby_id)
         if server is None:

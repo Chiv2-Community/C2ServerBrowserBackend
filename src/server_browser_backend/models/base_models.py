@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 
-from server_browser_api.models import (
+from server_browser_models.models import (
     Chivalry2Ports, Mod, ServerListResponse, ServerRegistrationRequest,
     ServerResponse, ServerResponseWithIP, UpdateRegisteredServer,
 )

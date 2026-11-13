@@ -6,17 +6,19 @@ The API is OpenAPI-first. Define every endpoint, request, response, and external
 token model in `assets/chiv2-server-browser-api.yaml` before implementing it.
 This includes the TBIO/PlayFab compatibility endpoints and non-JSON responses.
 
-The uv workspace contains two packages:
+The uv workspace contains five packages:
 
 - Root: `chivalry2-unofficial-server-browser-backend`, handwritten application
   handlers and domain state in `src/server_browser_backend`.
-- `packages/server-browser-api`: generated models, abstract handler interfaces,
-  FastAPI bindings, serialization support, and packaged contract resources.
+- `packages/server-browser-models`: generated models, model runtime, and contract.
+- `packages/server-browser-client`: generated sync/async HTTPX clients.
+- `packages/server-browser-server`: framework-neutral abstract handler interfaces.
+- `packages/server-browser-fastapi`: generated FastAPI adapter.
 
-The proposed models/client/server split is in
-[Python packaging proposal](docs/python-packaging.md); it is not implemented yet.
+See [Python packages](docs/python-packaging.md) for dependency boundaries, client
+usage, alternative implementations, and migration from `server-browser-api`.
 
-Generated sources under `packages/server-browser-api/src` are never edited by
+Generated sources under `packages/*/src` are never edited by
 hand. Application handlers implement the generated interfaces and return typed
 `ApiResponse` values. Domain conversion functions belong in the application,
 not in generated models. Do not declare routes in the application.
@@ -57,7 +59,8 @@ generates `create_router(implementation)`. Application startup passes concrete
 implementations explicitly. There is no subclass scanning, implicit construction,
 or generated implementation file to fill in. Synchronous handlers run in the
 ASGI thread pool so existing file I/O and EOS HTTP requests do not block the loop.
-Requests are passed explicitly, not through Flask request globals.
+Handlers receive a framework-neutral `RequestContext` with the client IP, not
+FastAPI requests or Flask request globals. Only the adapter handles HTTP objects.
 
 `main.py` is the composition root. It reads configuration, constructs the registry,
 IP lists, request policy, and token reissuer once, then injects them into
@@ -101,10 +104,14 @@ The ignored contract copies are excluded from drift checks; contract tests and
 wheel checks compare them with the authoritative YAML. Generation also refreshes
 the local copies after OAS edits.
 CI also checks exact runtime/OAS route parity, response schemas, handler
-implementations, type checking, both package builds, and isolated wheel startup.
-Direct `uv build --all-packages` builds both distributions; consumers need both
-wheels. `uv run python scripts/check_wheels.py` verifies the two current wheels
-in `dist/` outside the checkout.
+implementations, client round trips, type checking, all package builds, and
+isolated wheel startup. `uv build --all-packages` builds all five distributions.
+`uv run python scripts/check_wheels.py` rebuilds every sdist outside the checkout,
+checks framework-free models/client/interfaces installs, then starts the backend
+from the rebuilt wheels. Keep one current wheel and sdist per package in `dist/`.
+Consumers install only their chosen package and its dependency wheels. For
+example, install the models and client wheels together with `pip install`;
+alternatively use `pip install --find-links ./dist server-browser-client`.
 
 Compatibility endpoints retain their URLs and wire casing. Malformed JSON
 objects now receive JSON validation errors rather than incidental internal
@@ -131,6 +138,17 @@ framework-level 404/405 error bodies differ, and live plugin/launcher integratio
 has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
+
+CI and tag workflows retain all five wheels and sdists plus the authoritative
+OpenAPI YAML in the `python-distributions-and-contract` Actions artifact. This
+makes the contract available to non-Python tooling without another package.
+Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
+which checks out its tag, validates all packages, and attaches the wheels,
+sdists, and authoritative YAML to that release. It does not create releases or
+overwrite existing assets. No package-index publication is configured; verify
+name ownership before adding it. The four generated distributions use one coordinated version and
+exact internal dependency constraints; update their `pyproject.toml` versions and
+the backend requirements together, then refresh `uv.lock` and run `./ci.sh`.
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a

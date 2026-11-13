@@ -2,7 +2,7 @@ from typing import Any, Callable, Dict, List, Optional, Type
 
 from server_browser_backend.type_vars import A
 from server_browser_backend.ip_address import IPAddress
-from server_browser_api.runtime import DictKeyError, DictTypeError, parse_ip_address
+from server_browser_models.runtime import DictKeyError, DictTypeError, parse_ip_address
 
 
 def _require_type(expected_type: Type[A], value: Any) -> A:

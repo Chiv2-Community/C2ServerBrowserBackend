@@ -30,3 +30,13 @@ jobs:
 
       - name: Test with pytest
         run: ./ci.sh
+
+      - name: Upload Python distributions and OpenAPI contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions-and-contract
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            assets/chiv2-server-browser-api.yaml
+          if-no-files-found: error

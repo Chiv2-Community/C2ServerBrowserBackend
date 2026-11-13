@@ -1,0 +1,22 @@
+"""Generated typed HTTP clients. DO NOT EDIT."""
+from __future__ import annotations
+from typing import Any, Dict, List
+from server_browser_models.models import *
+from server_browser_models.runtime import IPAddress, LegacyIPAddress
+from server_browser_client.runtime import (
+    AsyncClientTransport, ClientTransport, ClientResponse, UNSET, Unset,
+)
+
+
+class Client(ClientTransport):
+{{#apiInfo}}{{#apis}}{{#operations}}{{#operation}}
+    def {{operationId}}(self{{#hasParams}}, *{{/hasParams}}{{#allParams}}, {{paramName}}: {{{dataType}}}{{#isHeaderParam}} | Unset = UNSET{{/isHeaderParam}}{{^isHeaderParam}}{{^required}} | None | Unset = UNSET{{/required}}{{/isHeaderParam}}{{/allParams}}) -> ClientResponse[{{#responses}}{{#dataType}}{{{.}}}{{/dataType}}{{^dataType}}None{{/dataType}}{{^-last}} | {{/-last}}{{/responses}}]:
+        return self._request("{{operationId}}", parameters={ {{#allParams}}{{^isBodyParam}}"{{baseName}}": {{paramName}}, {{/isBodyParam}}{{/allParams}}}{{#bodyParam}}, body={{paramName}}{{/bodyParam}})
+{{/operation}}{{/operations}}{{/apis}}{{/apiInfo}}
+
+
+class AsyncClient(AsyncClientTransport):
+{{#apiInfo}}{{#apis}}{{#operations}}{{#operation}}
+    async def {{operationId}}(self{{#hasParams}}, *{{/hasParams}}{{#allParams}}, {{paramName}}: {{{dataType}}}{{#isHeaderParam}} | Unset = UNSET{{/isHeaderParam}}{{^isHeaderParam}}{{^required}} | None | Unset = UNSET{{/required}}{{/isHeaderParam}}{{/allParams}}) -> ClientResponse[{{#responses}}{{#dataType}}{{{.}}}{{/dataType}}{{^dataType}}None{{/dataType}}{{^-last}} | {{/-last}}{{/responses}}]:
+        return await self._request("{{operationId}}", parameters={ {{#allParams}}{{^isBodyParam}}"{{baseName}}": {{paramName}}, {{/isBodyParam}}{{/allParams}}}{{#bodyParam}}, body={{paramName}}{{/bodyParam}})
+{{/operation}}{{/operations}}{{/apis}}{{/apiInfo}}
