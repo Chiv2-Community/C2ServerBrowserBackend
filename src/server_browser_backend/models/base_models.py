@@ -81,20 +81,11 @@ class Server:
 
 
 def server_response(server: Server) -> ServerResponse:
-    return ServerResponse(
-        unique_id=server.unique_id, ports=server.ports,
-        password_protected=server.password_protected, last_heartbeat=server.last_heartbeat,
-        name=server.name, description=server.description, current_map=server.current_map,
-        player_count=server.player_count, max_players=server.max_players,
-        is_verified=server.is_verified, mods=server.mods,
-    )
+    return ServerResponse.model_validate(server, from_attributes=True)
 
 
 def server_response_with_ip(server: Server) -> ServerResponseWithIP:
-    return ServerResponseWithIP(
-        **server_response(server).model_dump(), ip_address=server.ip_address,
-        local_ip_address=server.local_ip_address,
-    )
+    return ServerResponseWithIP.model_validate(server, from_attributes=True)
 
 
 def server_listing(servers: list[Server], include_ip: bool) -> ServerListResponse:

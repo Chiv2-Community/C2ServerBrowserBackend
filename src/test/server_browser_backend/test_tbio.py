@@ -2,7 +2,7 @@ from ipaddress import ip_address
 
 import pytest
 
-from server_browser_backend.models.tbio import format_address
+from server_browser_api.runtime import legacy_ip_address
 
 
 @pytest.mark.parametrize(
@@ -14,4 +14,4 @@ from server_browser_backend.models.tbio import format_address
     ],
 )
 def test_format_address(address, expected):
-    assert format_address(ip_address(address)) == expected
+    assert legacy_ip_address(ip_address(address)) == expected

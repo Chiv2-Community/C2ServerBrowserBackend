@@ -2,7 +2,6 @@
 from ipaddress import IPv4Address, IPv6Address
 
 from server_browser_api.models import TbioGame, TbioServerListData, TbioTags
-from server_browser_api.runtime import legacy_ip_address as format_address
 from server_browser_backend.models.base_models import Server
 
 
