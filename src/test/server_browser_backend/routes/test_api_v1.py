@@ -429,105 +429,32 @@ def test_bad_json_invalid_type(client: TestClient):
     ), "Error response did not contain the actual type of the invalid key"
 
 
-def test_add_to_ban_list(client: TestClient):
-    ban_targets = ["12.34.56.78"]
-    response = client.put(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": ban_targets},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.ban_list) == 1
-
-def test_add_to_ban_list_invalid_key(client: TestClient):
-    ban_targets = ["12.34.56.78"]
-    response = client.put(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": ban_targets},
-        headers={shared.ADMIN_KEY_HEADER: "beep"},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.ban_list) == 0
-
-def test_remove_from_ban_list(client: TestClient):
-    ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
+@pytest.mark.parametrize("list_name,field,attribute", [
+    ("ban-list", "banned_ips", "ban_list"),
+    ("verified-list", "verified_ips", "verified_list"),
+])
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("valid_key", [False, True])
+def test_change_ip_list(client: TestClient, list_name, field, attribute, remove, valid_key):
+    target = "12.34.56.78"
+    if remove:
+        prepare_test_state(**{attribute: [target]})
+    ip_list = getattr(shared, attribute)
+    before = ip_list.get_all(shared.ADMIN_KEY).copy()
 
     response = client.request(
-        "DELETE", "/api/v1/admin/ban-list",
-        json={"banned_ips": [ban_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
+        "DELETE" if remove else "PUT", f"/api/v1/admin/{list_name}",
+        json={field: [target]},
+        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY if valid_key else "beep"},
     )
 
-    assert response.status_code == 200
-    assert len(shared.ban_list) == 0
-
-def test_remove_from_ban_list_invalid_key(client: TestClient):
-    ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
-
-    response = client.request(
-        "DELETE", "/api/v1/admin/ban-list",
-        json={"banned_ips": [ban_target]},
-        headers={shared.ADMIN_KEY_HEADER: 'beep'},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.ban_list) == 1
-    assert ip_network(ban_target) in shared.ban_list.get_all(shared.ADMIN_KEY)
-
-def test_add_to_verified_list(client: TestClient):
-    allow_target = "12.34.56.78"
-    response = client.put(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.verified_list) == 2
-    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
-
-def test_add_to_verified_list_invalid_key(client: TestClient):
-    allow_target = "12.34.56.78"
-    response = client.put(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: "beep"},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) not in shared.verified_list.get_all(shared.ADMIN_KEY)
-
-def test_remove_from_verified_list(client: TestClient):
-    allow_target = "12.34.56.78"
-    prepare_test_state(verified_list=[allow_target])
-
-    response = client.request(
-        "DELETE", "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.verified_list) == 0
-
-def test_remove_from_verified_list_invalid_key(client: TestClient):
-    allow_target = "12.34.56.78"
-    prepare_test_state(verified_list=[allow_target])
-
-    response = client.request(
-        "DELETE", "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: 'beep'},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
+    assert response.status_code == (200 if valid_key else 403)
+    expected = before
+    if valid_key:
+        network = ip_network(target)
+        expected = before - {network} if remove else before | {network}
+        assert {ip_network(ip) for ip in response.json()[field]} == expected
+    assert ip_list.get_all(shared.ADMIN_KEY) == expected
 
 def test_is_banned_true(client: TestClient):
     ban_target = "12.34.56.78"
