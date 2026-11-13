@@ -65,12 +65,10 @@ class ServerList:
             if server is None:
                 return None
 
-            if server.validate(key):
-                serverResource = server.resource
-                del self.servers[server_id]
-                return serverResource
-            else:
+            if not server.validate(key):
                 raise InvalidSecretKey()
+            del self.servers[server_id]
+            return server.resource
 
     def get(self, server_id: str) -> Optional[Server]:
         """Gets the server with the given id."""
@@ -93,14 +91,10 @@ class ServerList:
             self.servers.clear()
 
     def _process_heartbeat_timeouts(self, current_time: float) -> None:
-        """Removes any servers that have timed out. No mutex here because its always called from within a mutex lock."""
-        delete_keys = []
-        for server_id, secured_server in self.servers.items():
-            if (
-                secured_server.resource.last_heartbeat + self.heartbeat_timeout
-                < current_time
-            ):
-                delete_keys.append(server_id)
-
-        for server_id in delete_keys:
+        """Remove expired records while the caller holds the registry lock."""
+        expired = [
+            server_id for server_id, server in self.servers.items()
+            if server.resource.last_heartbeat + self.heartbeat_timeout < current_time
+        ]
+        for server_id in expired:
             del self.servers[server_id]
