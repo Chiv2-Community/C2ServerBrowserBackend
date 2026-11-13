@@ -19,8 +19,6 @@ test_server_json = {
 
 
 def test_get_servers(client: TestClient):
-    prepare_test_state()
-
     source_ip = "42.0.69.0"
     local_ip = "192.168.1.24"
 
@@ -79,7 +77,6 @@ def test_get_servers(client: TestClient):
 
 
 def test_get_servers_can_expose_registered_ips_for_diagnostics(client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    prepare_test_state()
     source_ip = "42.0.69.0"
     local_ip = "192.168.1.24"
     response = client.post(
@@ -97,8 +94,6 @@ def test_get_servers_can_expose_registered_ips_for_diagnostics(client: TestClien
 
 @pytest.mark.parametrize("bracketed", [False, True])
 def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: TestClient, bracketed: bool):
-    prepare_test_state()
-
     source_ip = "42.0.69.0"
     ipv6 = "2a0c:d242:903b:ba00::ff99"
     response = client.post(
@@ -123,8 +118,6 @@ def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: TestClien
 
 
 def test_ipv6_local_address_is_source_matching_local_client_override(client: TestClient):
-    prepare_test_state()
-
     source_ip = "42.0.69.0"
     local_ipv6 = "2a0c:d242:903b:ba00::ff99"
     response = client.post(
@@ -159,7 +152,6 @@ def test_ipv6_local_address_is_source_matching_local_client_override(client: Tes
     ],
 )
 def test_compat_serializes_parsed_ips(client: TestClient, joining_locally, public_ip, client_ip, local_ip):
-    prepare_test_state()
     registration = client.post(
         "/api/v1/servers",
         json={**test_server_json, "local_ip_address": local_ip},
@@ -189,7 +181,6 @@ def test_compat_serializes_parsed_ips(client: TestClient, joining_locally, publi
 
 
 def test_tbio_parses_client_ip_once_per_listing(client: TestClient, monkeypatch):
-    prepare_test_state()
     source_ip = "2001:db8::1"
     for name in ("First", "Second"):
         registration = client.post(
@@ -217,8 +208,6 @@ def test_tbio_parses_client_ip_once_per_listing(client: TestClient, monkeypatch)
 
 
 def test_motd_endpoint(client: TestClient):
-    prepare_test_state()
-
     response = client.post("/api/tbio/GetMotd", json={"Language": "test"})
     assert response.status_code == 200
     assert response.json()["Data"]["Motd"] == "test"
@@ -239,22 +228,16 @@ def test_banned_default_motd_endpoint(client: TestClient):
 
 
 def test_motd_endpoint_default(client: TestClient):
-    prepare_test_state()
-
     response = client.post("/api/tbio/GetMotd", json={})
     assert response.status_code == 200
 
 
 def test_motd_endpoint_fallback(client: TestClient):
-    prepare_test_state()
-
     response = client.post("/api/tbio/GetMotd", json={"Language": "not_supported"})
     assert response.status_code == 200
 
 
 def test_client_matchmake_2(client: TestClient):
-    prepare_test_state()
-
     ip_address = "42.0.69.42"
     
     registration_response = client.post(
@@ -279,8 +262,6 @@ def test_client_matchmake_2(client: TestClient):
     assert response_json["data"]["ServerPort"] == 1234
 
 def test_local_client_matchmake(client: TestClient):
-    prepare_test_state()
-
     ip_address = "42.0.69.42"
     local_ip_address = "192.168.1.4"
     
@@ -307,13 +288,11 @@ def test_local_client_matchmake(client: TestClient):
     assert response_json["data"]["ServerPort"] == 1234
 
 def test_motd_no_json(client: TestClient):
-    prepare_test_state()
     response = client.post("/api/tbio/GetMotd", headers={"Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.json()["status"] == "missing_json_body"
 
 def test_matchmake_no_json(client: TestClient):
-    prepare_test_state()
     response = client.post("/api/playfab/Client/Matchmake", headers={"Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.json()["status"] == "missing_json_body"

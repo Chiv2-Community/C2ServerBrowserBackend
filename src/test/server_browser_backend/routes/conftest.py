@@ -11,6 +11,7 @@ from . import prepare_test_state
 
 @pytest.fixture
 def client_for_ip():
+    prepare_test_state()
     with ExitStack() as clients:
         def create(address: str) -> TestClient:
             return clients.enter_context(TestClient(
@@ -21,5 +22,4 @@ def client_for_ip():
 
 @pytest.fixture
 def client(client_for_ip):
-    prepare_test_state()
     return client_for_ip("127.0.0.1")

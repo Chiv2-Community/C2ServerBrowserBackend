@@ -1,8 +1,10 @@
+from typing import Iterable
+
 from server_browser_backend.routes import shared
 
 LOCALHOST = "127.0.0.1"
 
-def prepare_test_state(verified_list=[LOCALHOST], ban_list=[]):
+def prepare_test_state(verified_list: Iterable[str] = (LOCALHOST,), ban_list: Iterable[str] = ()) -> None:
     shared.server_list.clear()
 
     shared.verified_list.clear(shared.ADMIN_KEY)

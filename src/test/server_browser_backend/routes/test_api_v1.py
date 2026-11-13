@@ -38,8 +38,6 @@ test_server_json = {
 
 
 def test_register(client: TestClient):
-    prepare_test_state()
-
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.json()
     refresh_before = response_json["refresh_before"]
@@ -65,7 +63,6 @@ def test_register_unauthorized(client: TestClient):
 
 
 def test_register_invalid_local_ip(client: TestClient):
-    prepare_test_state()
     response = client.post(
         "/api/v1/servers", json={**test_server_json, "local_ip_address": "invalid"}
     )
@@ -75,8 +72,6 @@ def test_register_invalid_local_ip(client: TestClient):
     assert shared.server_list.get_all() == []
 
 def test_update(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
@@ -112,7 +107,6 @@ def test_update(client: TestClient):
     ],
 )
 def test_update_requester_ip(client_for_ip, heartbeat, registered_ip, requester_ip, allowed):
-    prepare_test_state()
     registered_client = client_for_ip(registered_ip)
     registration_response = registered_client.post(
         "/api/v1/servers",
@@ -149,7 +143,6 @@ def test_update_requester_ip(client_for_ip, heartbeat, registered_ip, requester_
 
 @pytest.mark.parametrize("heartbeat", [False, True])
 def test_changed_ip_invalid_key_preserves_registration(client: TestClient, client_for_ip, heartbeat):
-    prepare_test_state()
     registration = client.post("/api/v1/servers", json=test_server_json).json()
     server_id = registration["server"]["unique_id"]
     original_server = shared.server_list.get(server_id)
@@ -169,8 +162,6 @@ def test_changed_ip_invalid_key_preserves_registration(client: TestClient, clien
 
 
 def test_update_no_mods(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
@@ -197,8 +188,6 @@ def test_update_no_mods(client: TestClient):
 
 
 def test_update_non_existent(client: TestClient):
-    prepare_test_state()
-
     server_id = 'foo'
     response = client.put(
         f"/api/v1/servers/{server_id}",
@@ -212,7 +201,6 @@ def test_update_non_existent(client: TestClient):
 
 
 def test_delete(client: TestClient):
-    prepare_test_state()
     
     createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
@@ -228,8 +216,6 @@ def test_delete(client: TestClient):
 
 
 def test_delete_nonexistant_server(client: TestClient):
-    prepare_test_state()
-
     deleteResponse = client.delete(
         "/api/v1/servers/not-registered", headers={shared.KEY_HEADER: "Invalid-unused"}
     )
@@ -237,13 +223,11 @@ def test_delete_nonexistant_server(client: TestClient):
     assert deleteResponse.status_code == 404
 
 def test_register_no_json(client: TestClient):
-    prepare_test_state()
     response = client.post("/api/v1/servers", headers={"Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.json()["status"] == "missing_json_body"
 
 def test_update_no_json(client: TestClient):
-    prepare_test_state()
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
@@ -258,8 +242,6 @@ def test_update_no_json(client: TestClient):
 
 
 def test_delete_no_key(client: TestClient):
-    prepare_test_state()
-
     createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
@@ -269,8 +251,6 @@ def test_delete_no_key(client: TestClient):
 
 
 def test_delete_invalid_key(client: TestClient):
-    prepare_test_state()
-
     createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
@@ -282,8 +262,6 @@ def test_delete_invalid_key(client: TestClient):
 
 
 def test_update_no_key(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(f"/api/v1/servers/{server_id}", json={})
@@ -291,8 +269,6 @@ def test_update_no_key(client: TestClient):
 
 
 def test_update_invalid_key(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
@@ -307,8 +283,6 @@ def test_update_invalid_key(client: TestClient):
 
 
 def test_heartbeat(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(
@@ -324,8 +298,6 @@ def test_heartbeat(client: TestClient):
 
 
 def test_heartbeat_no_key(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(f"/api/v1/servers/{server_id}/heartbeat")
@@ -333,8 +305,6 @@ def test_heartbeat_no_key(client: TestClient):
 
 
 def test_heartbeat_invalid_key(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(
@@ -346,8 +316,6 @@ def test_heartbeat_invalid_key(client: TestClient):
 
 
 def test_get_servers(client: TestClient):
-    prepare_test_state()
-
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
     assert len(response.json()["servers"]) == 0
@@ -386,8 +354,6 @@ def test_get_servers(client: TestClient):
 
 
 def test_heartbeat_timeout(client: TestClient):
-    prepare_test_state()
-
     registration_response = client.post(
         "/api/v1/servers",
         json={
@@ -420,8 +386,6 @@ def test_heartbeat_timeout(client: TestClient):
 
 
 def test_bad_json_missing_key(client: TestClient):
-    prepare_test_state()
-
     response = client.post(
         "/api/v1/servers",
         json={
@@ -440,8 +404,6 @@ def test_bad_json_missing_key(client: TestClient):
 
 
 def test_bad_json_invalid_type(client: TestClient):
-    prepare_test_state()
-
     response = client.post(
         "/api/v1/servers",
         json={
@@ -468,8 +430,6 @@ def test_bad_json_invalid_type(client: TestClient):
 
 
 def test_add_to_ban_list(client: TestClient):
-    prepare_test_state()
-
     ban_targets = ["12.34.56.78"]
     response = client.put(
         "/api/v1/admin/ban-list",
@@ -481,8 +441,6 @@ def test_add_to_ban_list(client: TestClient):
     assert len(shared.ban_list) == 1
 
 def test_add_to_ban_list_invalid_key(client: TestClient):
-    prepare_test_state()
-
     ban_targets = ["12.34.56.78"]
     response = client.put(
         "/api/v1/admin/ban-list",
@@ -521,8 +479,6 @@ def test_remove_from_ban_list_invalid_key(client: TestClient):
     assert ip_network(ban_target) in shared.ban_list.get_all(shared.ADMIN_KEY)
 
 def test_add_to_verified_list(client: TestClient):
-    prepare_test_state()
-
     allow_target = "12.34.56.78"
     response = client.put(
         "/api/v1/admin/verified-list",
@@ -535,8 +491,6 @@ def test_add_to_verified_list(client: TestClient):
     assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
 
 def test_add_to_verified_list_invalid_key(client: TestClient):
-    prepare_test_state()
-
     allow_target = "12.34.56.78"
     response = client.put(
         "/api/v1/admin/verified-list",
