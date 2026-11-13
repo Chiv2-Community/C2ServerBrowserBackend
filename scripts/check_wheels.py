@@ -1,18 +1,27 @@
 """Rebuild all sdists and verify wheel dependency boundaries outside the checkout."""
+
 from __future__ import annotations
 
-import os
 import json
+import os
 import subprocess
-import tempfile
-from zipfile import ZipFile
-from pathlib import Path
 import tarfile
+import tempfile
+from pathlib import Path
+from zipfile import ZipFile
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SMOKE = '''
+ISOLATED_PACKAGES = {
+    "models": ("models",),
+    "server": ("models", "server"),
+    "client": ("models", "client"),
+    "fastapi": ("models", "server", "fastapi"),
+    "codegen": ("codegen",),
+}
+BACKEND = "chivalry2_unofficial_server_browser_backend"
+SMOKE = """
 import sys
 from importlib.resources import files
 from server_browser_models.models import LoginRequest
@@ -103,75 +112,117 @@ finally:
     assert not thread.is_alive(), "Uvicorn failed to shut down"
     for listener in sockets:
         listener.close()
-'''
+"""
 
 
 def check_contract(wheel: Path, expected: dict) -> None:
     with ZipFile(wheel) as archive:
-        assert json.loads(archive.read("server_browser_models/contract.json")) == expected
-        assert yaml.safe_load(archive.read("server_browser_models/openapi.yaml")) == expected
+        assert (
+            json.loads(archive.read("server_browser_models/contract.json")) == expected
+        )
+        assert (
+            yaml.safe_load(archive.read("server_browser_models/openapi.yaml"))
+            == expected
+        )
+
+
+def venv_executable(environment: Path, name: str) -> Path:
+    return environment / (f"Scripts/{name}.exe" if os.name == "nt" else f"bin/{name}")
 
 
 def main() -> None:
-    names = ["server_browser_models", "server_browser_server", "server_browser_fastapi", "server_browser_client", "server_browser_codegen", "chivalry2_unofficial_server_browser_backend"]
+    names = [f"server_browser_{name}" for name in ISOLATED_PACKAGES] + [BACKEND]
     wheels = {}
     sdists = {}
     for name in names:
         candidates = list((ROOT / "dist").glob(f"{name}-*.whl"))
         sources = list((ROOT / "dist").glob(f"{name}-*.tar.gz"))
         if len(candidates) != 1 or len(sources) != 1:
-            raise SystemExit(f"Retain exactly one current wheel and sdist for {name} in dist/.")
+            raise SystemExit(
+                f"Retain exactly one current wheel and sdist for {name} in dist/."
+            )
         wheels[name] = candidates[0]
         sdists[name] = sources[0]
-    expected = yaml.safe_load((ROOT / "assets/chiv2-server-browser-api.yaml").read_text())
+    expected = yaml.safe_load(
+        (ROOT / "assets/chiv2-server-browser-api.yaml").read_text()
+    )
     check_contract(wheels["server_browser_models"], expected)
     with tempfile.TemporaryDirectory(prefix="server-browser-wheel-smoke-") as temporary:
         directory = Path(temporary)
         api_sdist = sdists["server_browser_models"]
         with tarfile.open(api_sdist) as archive:
-            names = archive.getnames()
-            assert any(name.endswith("/assets/chiv2-server-browser-api.yaml") for name in names)
-            assert not any(name.endswith(("/server_browser_models/contract.json", "/server_browser_models/openapi.yaml")) for name in names)
+            members = archive.getnames()
+            assert any(
+                name.endswith("/assets/chiv2-server-browser-api.yaml")
+                for name in members
+            )
+            assert not any(
+                name.endswith(
+                    (
+                        "/server_browser_models/contract.json",
+                        "/server_browser_models/openapi.yaml",
+                    )
+                )
+                for name in members
+            )
         rebuilt = directory / "rebuilt"
         for sdist in sdists.values():
-            subprocess.run(["uv", "build", "--wheel", str(sdist), "--out-dir", str(rebuilt)], cwd=directory, check=True)
+            subprocess.run(
+                ["uv", "build", "--wheel", str(sdist), "--out-dir", str(rebuilt)],
+                cwd=directory,
+                check=True,
+            )
         rebuilt_wheels = {name: next(rebuilt.glob(f"{name}-*.whl")) for name in wheels}
         check_contract(rebuilt_wheels["server_browser_models"], expected)
-        clean_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
-        for package in ("models", "server", "client", "fastapi", "codegen"):
+        clean_environment = {
+            key: value for key, value in os.environ.items() if key != "PYTHONPATH"
+        }
+        for package, dependencies in ISOLATED_PACKAGES.items():
             isolated = directory / package
             subprocess.run(["uv", "venv", str(isolated)], check=True)
-            executable = isolated / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-            dependencies = ["codegen"] if package == "codegen" else ["models"] + (["server"] if package == "fastapi" else []) + ([] if package == "models" else [package])
-            subprocess.run(["uv", "pip", "install", "--python", str(executable), *[str(rebuilt_wheels[f"server_browser_{name}"]) for name in dependencies]], check=True)
-            probe = f'''
+            executable = venv_executable(isolated, "python")
+            subprocess.run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    str(executable),
+                    *[
+                        str(rebuilt_wheels[f"server_browser_{name}"])
+                        for name in dependencies
+                    ],
+                ],
+                check=True,
+            )
+            probe = f"""
 from importlib.util import find_spec
 from importlib.resources import files
 import server_browser_{package}
 assert files("server_browser_{package}").joinpath("py.typed").is_file()
 assert find_spec("server_browser_backend") is None
 assert find_spec("uvicorn") is None
-'''
+"""
             if package != "codegen":
-                probe += '''
+                probe += """
 from server_browser_models.models import LoginRequest
 assert LoginRequest.from_json({"token": "test"}).token == "test"
 assert find_spec("server_browser_codegen") is None
-'''
+"""
             if package != "fastapi":
                 probe += 'assert find_spec("fastapi") is None\nassert find_spec("starlette") is None\n'
             if package in ("models", "server"):
                 probe += 'assert find_spec("httpx") is None\n'
             if package == "codegen":
-                probe += '''
+                probe += """
 resources = files("server_browser_codegen")
 assert resources.joinpath("config.yaml").is_file()
 assert find_spec("server_browser_models") is None
 for owner in ("models", "server", "client", "fastapi", "shared"):
     assert resources.joinpath("templates", owner).is_dir()
-'''
+"""
             if package == "server":
-                probe += '''
+                probe += """
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
 from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from server_browser_server import ApiResponse, RequestContext
@@ -186,19 +237,47 @@ class Implementation(BaseChiv2CompatApi):
     def playfab_client_matchmake(self, request, *, matchmake_request):
         return ApiResponse(PlayfabErrorResponse(code=404, data={}, message="not found", params={}, success=False), 404)
 assert Implementation().tbio_get_servers(RequestContext("192.0.2.1")).body.data.games == []
-'''
-            subprocess.run([str(executable), "-I", "-c", probe], cwd=directory, env=clean_environment, check=True)
+"""
+            subprocess.run(
+                [str(executable), "-I", "-c", probe],
+                cwd=directory,
+                env=clean_environment,
+                check=True,
+            )
             if package == "codegen":
-                command = isolated / ("Scripts/server-browser-codegen.exe" if os.name == "nt" else "bin/server-browser-codegen")
-                subprocess.run([str(command), "--root", str(ROOT), "--check"], cwd=directory, env=clean_environment, check=True)
+                command = venv_executable(isolated, "server-browser-codegen")
+                subprocess.run(
+                    [str(command), "--root", str(ROOT), "--check"],
+                    cwd=directory,
+                    env=clean_environment,
+                    check=True,
+                )
         environment = directory / "venv"
         subprocess.run(["uv", "venv", str(environment)], check=True)
-        python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        runtime_wheels = [wheel for name, wheel in rebuilt_wheels.items() if name != "server_browser_codegen"]
-        subprocess.run(["uv", "pip", "install", "--python", str(python), *map(str, runtime_wheels)], check=True)
+        python = venv_executable(environment, "python")
+        runtime_wheels = [
+            wheel
+            for name, wheel in rebuilt_wheels.items()
+            if name != "server_browser_codegen"
+        ]
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python),
+                *map(str, runtime_wheels),
+            ],
+            check=True,
+        )
         # Do not inherit a source PYTHONPATH or use the repository as cwd.
-        clean_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
-        subprocess.run([str(python), "-I", "-c", SMOKE], cwd=directory, env=clean_environment, check=True)
+        subprocess.run(
+            [str(python), "-I", "-c", SMOKE],
+            cwd=directory,
+            env=clean_environment,
+            check=True,
+        )
 
 
 if __name__ == "__main__":
