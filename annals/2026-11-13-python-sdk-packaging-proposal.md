@@ -25,3 +25,7 @@ The proposal calls for reproducible generation, a shared contract, independently
 PR 14 was opened as a draft design review; the commit changes documentation only, not distributions or imports. The source transcript shows `git diff --check` passed and says runtime tests were not rerun for that documentation change. The preceding PR 13 transcript reports 276 tests and compatibility replay with 59 exact matches and three documented differences; this review did not rerun them.
 
 Names and compatibility for `server-browser-api`, client transport and sync/async interface, version constraints, publication channel and package-name ownership remain open. Review and approve these before implementation; reconsider the split if isolated installation, generation or compatibility requirements cannot be met. Exact earlier rationale and alternatives are unavailable due to compaction.
+
+## Subsequent developments (2026-11-13)
+
+The assistant later proposed considering a framework-neutral interface separate from the FastAPI adapter, instead of the combined server distribution described above. This is an unaccepted alternative, not a supersession; see [Framework-neutral server boundary proposed](2026-11-13-framework-neutral-server-proposal.md).
