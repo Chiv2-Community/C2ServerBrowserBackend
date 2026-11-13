@@ -1,12 +1,14 @@
-from server_browser_backend.routes import shared
+from typing import Iterable
+
+from server_browser_backend.routes.api_v1 import BrowserApi
 
 LOCALHOST = "127.0.0.1"
 
-def prepare_test_state(verified_list=[LOCALHOST], ban_list=[]):
-    shared.server_list.clear()
+def prepare_test_state(browser: BrowserApi, admin_key: str, verified_list: Iterable[str] = (LOCALHOST,), ban_list: Iterable[str] = ()) -> None:
+    browser.server_list.clear()
 
-    shared.verified_list.clear(shared.ADMIN_KEY)
-    shared.verified_list.add_all(shared.ADMIN_KEY, verified_list)
+    browser.verified_list.clear(admin_key)
+    browser.verified_list.add_all(admin_key, verified_list)
 
-    shared.ban_list.clear(shared.ADMIN_KEY)
-    shared.ban_list.add_all(shared.ADMIN_KEY, ban_list)
+    browser.ban_list.clear(admin_key)
+    browser.ban_list.add_all(admin_key, ban_list)

@@ -1,0 +1,26 @@
+generatorName: python-fastapi
+inputSpec: assets/chiv2-server-browser-api.yaml
+templateDir: codegen/templates
+typeMappings:
+  string+ip-address: IPAddress
+  string+legacy-ip-address: LegacyIPAddress
+importMappings:
+  IPAddress: from server_browser_api.runtime import IPAddress
+  LegacyIPAddress: from server_browser_api.runtime import LegacyIPAddress
+additionalProperties:
+  packageName: server_browser_api
+  hideGenerationTimestamp: true
+  sortModelPropertiesByRequiredFlag: true
+files:
+  models_init.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_api/models/__init__.py
+  runtime.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_api/runtime.py
+  package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_api/__init__.py
+  typed.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_api/py.typed

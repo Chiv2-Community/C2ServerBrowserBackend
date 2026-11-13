@@ -1,15 +1,12 @@
 from datetime import datetime
-from os import getenv
 
 import pytest
-from unittest.mock import patch, MagicMock
-from flask.testing import FlaskClient
+from fastapi.testclient import TestClient
 
-from server_browser_backend.main import app
-from server_browser_backend.routes import shared
+from server_browser_backend.routes.shared import ADMIN_KEY_HEADER, KEY_HEADER
 from ipaddress import ip_network
 
-from . import LOCALHOST, prepare_test_state
+from . import prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
 
@@ -39,65 +36,54 @@ test_server_json = {
 }
 
 
-@pytest.fixture
-def client():
-    with app.test_client() as client:
-        yield client
-
-
-def test_register(client: FlaskClient):
-    prepare_test_state()
-
+def test_register(client: TestClient, browser):
     response = client.post("/api/v1/servers", json=test_server_json)
-    response_json = response.get_json()
+    response_json = response.json()
     refresh_before = response_json["refresh_before"]
 
     assert response.status_code == 201
     assert "key" in response_json
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
-    assert shared.server_list.exists(response_json["server"]["unique_id"])
-    assert [x.is_verified for x in shared.server_list.get_all()][0] == True
+    assert browser.server_list.exists(response_json["server"]["unique_id"])
+    assert [x.is_verified for x in browser.server_list.get_all()][0] == True
     assert refresh_before > datetime.now().timestamp()
     assert len(response_json["server"]["mods"]) == 2
     assert response_json["server"]["mods"][0]["active"] == True
     assert response_json["server"]["mods"][1]["active"] == False
 
-def test_register_unauthorized(client: FlaskClient):
-    prepare_test_state(verified_list=[])
+def test_register_unauthorized(client: TestClient, browser, admin_key):
+    prepare_test_state(browser, admin_key, verified_list=[])
 
     response = client.post("/api/v1/servers", json=test_server_json)
 
     assert response.status_code == 201
-    assert [x.is_verified for x in shared.server_list.get_all()][0] == False
+    assert [x.is_verified for x in browser.server_list.get_all()][0] == False
 
 
-def test_register_invalid_local_ip(client: FlaskClient):
-    prepare_test_state()
+def test_register_invalid_local_ip(client: TestClient, browser):
     response = client.post(
         "/api/v1/servers", json={**test_server_json, "local_ip_address": "invalid"}
     )
     assert response.status_code == 400
-    assert response.get_json()["status"] == "invalid_json_body"
-    assert "local_ip_address" in response.get_json()["message"]
-    assert shared.server_list.get_all() == []
+    assert response.json()["status"] == "invalid_json_body"
+    assert "local_ip_address" in response.json()["message"]
+    assert browser.server_list.get_all() == []
 
-def test_update(client: FlaskClient):
-    prepare_test_state()
-
+def test_update(client: TestClient, browser):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.get_json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map", "mods": [{"organization": "Active mod", "name": "Updated Mod", "version": "1.0.0", "active": True}]}
     )
 
-    response_json = response.get_json()
+    response_json = response.json()
     unique_id = response_json["server"]["unique_id"]
-    server = shared.server_list.get(unique_id)
+    server = browser.server_list.get(unique_id)
 
 
     assert response.status_code == 200
@@ -119,85 +105,75 @@ def test_update(client: FlaskClient):
         ("127.0.0.1", "2001:db8::1", False),
     ],
 )
-def test_update_requester_ip(client: FlaskClient, heartbeat, registered_ip, requester_ip, allowed):
-    prepare_test_state()
-    registration_response = client.post(
+def test_update_requester_ip(client_for_ip, browser, heartbeat, registered_ip, requester_ip, allowed):
+    registered_client = client_for_ip(registered_ip)
+    registration_response = registered_client.post(
         "/api/v1/servers",
         json=test_server_json,
-        environ_overrides={"REMOTE_ADDR": registered_ip},
-    ).get_json()
+    ).json()
     server_id = registration_response["server"]["unique_id"]
     path = f"/api/v1/servers/{server_id}"
     if heartbeat:
         path += "/heartbeat"
 
-    response = client.open(
-        path,
-        method="POST" if heartbeat else "PUT",
-        headers={shared.KEY_HEADER: registration_response["key"]},
+    response = client_for_ip(requester_ip).request(
+        "POST" if heartbeat else "PUT", path,
+        headers={KEY_HEADER: registration_response["key"]},
         json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
-        environ_overrides={"REMOTE_ADDR": requester_ip},
     )
 
     if allowed:
         assert response.status_code == 200
     else:
         assert response.status_code == 401
-        assert response.get_json() == {
+        assert response.json() == {
             "status": "unauthorized",
             "message": "Invalid IP address",
             "context": None,
         }
-        assert shared.server_list.get(server_id) is None
-        retry_response = client.open(
-            path,
-            method="POST" if heartbeat else "PUT",
-            headers={shared.KEY_HEADER: registration_response["key"]},
+        assert browser.server_list.get(server_id) is None
+        retry_response = registered_client.request(
+            "POST" if heartbeat else "PUT", path,
+            headers={KEY_HEADER: registration_response["key"]},
             json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
-            environ_overrides={"REMOTE_ADDR": registered_ip},
         )
         assert retry_response.status_code == 404
 
 
 @pytest.mark.parametrize("heartbeat", [False, True])
-def test_changed_ip_invalid_key_preserves_registration(client: FlaskClient, heartbeat):
-    prepare_test_state()
-    registration = client.post("/api/v1/servers", json=test_server_json).get_json()
+def test_changed_ip_invalid_key_preserves_registration(client: TestClient, client_for_ip, browser, heartbeat):
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
     server_id = registration["server"]["unique_id"]
-    original_server = shared.server_list.get(server_id)
+    original_server = browser.server_list.get(server_id)
     path = f"/api/v1/servers/{server_id}"
     if heartbeat:
         path += "/heartbeat"
 
-    response = client.open(
-        path,
-        method="POST" if heartbeat else "PUT",
-        headers={shared.KEY_HEADER: registration["key"] + "invalid"},
+    response = client_for_ip("127.0.0.2").request(
+        "POST" if heartbeat else "PUT", path,
+        headers={KEY_HEADER: registration["key"] + "invalid"},
         json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
-        environ_overrides={"REMOTE_ADDR": "127.0.0.2"},
     )
 
     assert response.status_code == 403
-    assert response.get_json()["message"] == "Invalid secret key"
-    assert shared.server_list.get(server_id) == original_server
+    assert response.json()["message"] == "Invalid secret key"
+    assert browser.server_list.get(server_id) == original_server
 
 
-def test_update_no_mods(client: FlaskClient):
-    prepare_test_state()
-
+def test_update_no_mods(client: TestClient, browser):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.get_json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"}
     )
 
-    response_json = response.get_json()
+    response_json = response.json()
     unique_id = response_json["server"]["unique_id"]
-    server = shared.server_list.get(unique_id)
+    server = browser.server_list.get(unique_id)
 
 
     assert response.status_code == 200
@@ -210,14 +186,12 @@ def test_update_no_mods(client: FlaskClient):
     assert len(server.mods) == 2
 
 
-def test_update_non_existent(client: FlaskClient):
-    prepare_test_state()
-
+def test_update_non_existent(client: TestClient):
     server_id = 'foo'
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: 'bar',
+            KEY_HEADER: 'bar',
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
@@ -225,56 +199,49 @@ def test_update_non_existent(client: FlaskClient):
     assert response.status_code == 404
 
 
-def test_delete(client: FlaskClient):
-    prepare_test_state()
+def test_delete(client: TestClient, browser):
     
-    createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
+    createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete(
-        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key}
+        "/api/v1/servers/{}".format(id), headers={KEY_HEADER: key}
     )
 
-    response_json = deleteResponse.get_json()
+    response_json = deleteResponse.json()
     assert deleteResponse.status_code == 200
     assert response_json["status"] == "deleted"
-    assert not shared.server_list.exists(id)
+    assert not browser.server_list.exists(id)
 
 
-def test_delete_nonexistant_server(client: FlaskClient):
-    prepare_test_state()
-
+def test_delete_nonexistant_server(client: TestClient):
     deleteResponse = client.delete(
-        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: "Invalid-unused"}
+        "/api/v1/servers/not-registered", headers={KEY_HEADER: "Invalid-unused"}
     )
 
     assert deleteResponse.status_code == 404
 
-def test_register_no_json(client: FlaskClient):
-    prepare_test_state()
-    response = client.post("/api/v1/servers", content_type="application/json")
+def test_register_no_json(client: TestClient):
+    response = client.post("/api/v1/servers", headers={"Content-Type": "application/json"})
     assert response.status_code == 400
-    assert response.get_json()["status"] == "missing_json_body"
+    assert response.json()["status"] == "missing_json_body"
 
-def test_update_no_json(client: FlaskClient):
-    prepare_test_state()
+def test_update_no_json(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.get_json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
+            "Content-Type": "application/json",
         },
-        content_type="application/json"
     )
     assert response.status_code == 400
-    assert response.get_json()["status"] == "missing_json_body"
+    assert response.json()["status"] == "missing_json_body"
 
 
-def test_delete_no_key(client: FlaskClient):
-    prepare_test_state()
-
-    createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
+def test_delete_no_key(client: TestClient):
+    createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete("/api/v1/servers/{}".format(id))
@@ -282,37 +249,31 @@ def test_delete_no_key(client: FlaskClient):
     assert deleteResponse.status_code == 400
 
 
-def test_delete_invalid_key(client: FlaskClient):
-    prepare_test_state()
-
-    createResponse = client.post("/api/v1/servers", json=test_server_json).get_json()
+def test_delete_invalid_key(client: TestClient):
+    createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete(
-        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key + "Invalid"}
+        "/api/v1/servers/{}".format(id), headers={KEY_HEADER: key + "Invalid"}
     )
 
     assert deleteResponse.status_code == 403
 
 
-def test_update_no_key(client: FlaskClient):
-    prepare_test_state()
-
+def test_update_no_key(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(f"/api/v1/servers/{server_id}", json={})
     assert response.status_code == 400
 
 
-def test_update_invalid_key(client: FlaskClient):
-    prepare_test_state()
-
+def test_update_invalid_key(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.get_json()["key"] + "invalid",
+            KEY_HEADER: registration_response.json()["key"] + "invalid",
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
@@ -320,51 +281,43 @@ def test_update_invalid_key(client: FlaskClient):
     assert response.status_code == 403
 
 
-def test_heartbeat(client: FlaskClient):
-    prepare_test_state()
-
+def test_heartbeat(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
         headers={
-            shared.KEY_HEADER: registration_response.get_json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"port": 1234},
     )
 
     assert response.status_code == 200
-    assert response.get_json()["refresh_before"] > datetime.now().timestamp()
+    assert response.json()["refresh_before"] > datetime.now().timestamp()
 
 
-def test_heartbeat_no_key(client: FlaskClient):
-    prepare_test_state()
-
+def test_heartbeat_no_key(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(f"/api/v1/servers/{server_id}/heartbeat")
     assert response.status_code == 400
 
 
-def test_heartbeat_invalid_key(client: FlaskClient):
-    prepare_test_state()
-
+def test_heartbeat_invalid_key(client: TestClient):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
-    server_id = registration_response.get_json()["server"]["unique_id"]
+    server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
-        headers={shared.KEY_HEADER: "invalid", "Content-Type": "application/json"},
+        headers={KEY_HEADER: "invalid", "Content-Type": "application/json"},
     )
 
     assert response.status_code == 403
 
 
-def test_get_servers(client: FlaskClient):
-    prepare_test_state()
-
+def test_get_servers(client: TestClient):
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
-    assert len(response.get_json()["servers"]) == 0
+    assert len(response.json()["servers"]) == 0
 
     client.post(
         "/api/v1/servers",
@@ -393,15 +346,13 @@ def test_get_servers(client: FlaskClient):
 
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
-    assert len(response.get_json()["servers"]) == 2
+    assert len(response.json()["servers"]) == 2
 
     # Make sure 1 is password protected and 1 isnt
-    assert response.get_json()["servers"][0]["password_protected"] != response.get_json()["servers"][1]["password_protected"]
+    assert response.json()["servers"][0]["password_protected"] != response.json()["servers"][1]["password_protected"]
 
 
-def test_heartbeat_timeout(client: FlaskClient):
-    prepare_test_state()
-
+def test_heartbeat_timeout(client: TestClient, browser):
     registration_response = client.post(
         "/api/v1/servers",
         json={
@@ -414,15 +365,15 @@ def test_heartbeat_timeout(client: FlaskClient):
         },
     )
 
-    response_json = registration_response.get_json()
+    response_json = registration_response.json()
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration.
-    result = shared.server_list.update(
+    result = browser.server_list.update(
         unique_id,
         response_json["key"],
         lambda server: server.with_heartbeat(
-            datetime.now().timestamp() - shared.heartbeat_timeout - 1
+            datetime.now().timestamp() - browser.server_list.heartbeat_timeout - 1
         ),
     )
 
@@ -430,12 +381,10 @@ def test_heartbeat_timeout(client: FlaskClient):
 
     response = client.get("/api/v1/servers")
     assert response.status_code == 200
-    assert len(response.get_json()["servers"]) == 0
+    assert len(response.json()["servers"]) == 0
 
 
-def test_bad_json_missing_key(client: FlaskClient):
-    prepare_test_state()
-
+def test_bad_json_missing_key(client: TestClient):
     response = client.post(
         "/api/v1/servers",
         json={
@@ -449,13 +398,11 @@ def test_bad_json_missing_key(client: FlaskClient):
 
     assert response.status_code == 400
     assert (
-        "current_map" in response.get_json()["message"]
+        "current_map" in response.json()["message"]
     ), "Error response did not contain the missing key"
 
 
-def test_bad_json_invalid_type(client: FlaskClient):
-    prepare_test_state()
-
+def test_bad_json_invalid_type(client: TestClient):
     response = client.post(
         "/api/v1/servers",
         json={
@@ -468,7 +415,7 @@ def test_bad_json_invalid_type(client: FlaskClient):
         },
     )
 
-    response_json = response.get_json()
+    response_json = response.json()
     assert response.status_code == 400
     assert (
         "player_count" in response_json["message"]
@@ -481,150 +428,59 @@ def test_bad_json_invalid_type(client: FlaskClient):
     ), "Error response did not contain the actual type of the invalid key"
 
 
-def test_add_to_ban_list(client: FlaskClient):
-    prepare_test_state()
+@pytest.mark.parametrize("list_name,field,attribute", [
+    ("ban-list", "banned_ips", "ban_list"),
+    ("verified-list", "verified_ips", "verified_list"),
+])
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("valid_key", [False, True])
+def test_change_ip_list(client: TestClient, browser, admin_key, list_name, field, attribute, remove, valid_key):
+    target = "12.34.56.78"
+    if remove:
+        prepare_test_state(browser, admin_key, **{attribute: [target]})
+    ip_list = getattr(browser, attribute)
+    before = ip_list.get_all(admin_key).copy()
 
-    ban_targets = ["12.34.56.78"]
-    response = client.put(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": ban_targets},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
+    response = client.request(
+        "DELETE" if remove else "PUT", f"/api/v1/admin/{list_name}",
+        json={field: [target]},
+        headers={ADMIN_KEY_HEADER: admin_key if valid_key else "beep"},
     )
 
-    assert response.status_code == 200
-    assert len(shared.ban_list) == 1
+    assert response.status_code == (200 if valid_key else 403)
+    expected = before
+    if valid_key:
+        network = ip_network(target)
+        expected = before - {network} if remove else before | {network}
+        assert {ip_network(ip) for ip in response.json()[field]} == expected
+    assert ip_list.get_all(admin_key) == expected
 
-def test_add_to_ban_list_invalid_key(client: FlaskClient):
-    prepare_test_state()
-
-    ban_targets = ["12.34.56.78"]
-    response = client.put(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": ban_targets},
-        headers={shared.ADMIN_KEY_HEADER: "beep"},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.ban_list) == 0
-
-def test_remove_from_ban_list(client: FlaskClient):
+def test_is_banned_true(client: TestClient, browser, admin_key):
     ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
-
-    response = client.delete(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": [ban_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.ban_list) == 0
-
-def test_remove_from_ban_list_invalid_key(client: FlaskClient):
-    ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
-
-    response = client.delete(
-        "/api/v1/admin/ban-list",
-        json={"banned_ips": [ban_target]},
-        headers={shared.ADMIN_KEY_HEADER: 'beep'},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.ban_list) == 1
-    assert ip_network(ban_target) in shared.ban_list.get_all(shared.ADMIN_KEY)
-
-def test_add_to_verified_list(client: FlaskClient):
-    prepare_test_state()
-
-    allow_target = "12.34.56.78"
-    response = client.put(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.verified_list) == 2
-    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
-
-def test_add_to_verified_list_invalid_key(client: FlaskClient):
-    prepare_test_state()
-
-    allow_target = "12.34.56.78"
-    response = client.put(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: "beep"},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) not in shared.verified_list.get_all(shared.ADMIN_KEY)
-
-def test_remove_from_verified_list(client: FlaskClient):
-    allow_target = "12.34.56.78"
-    prepare_test_state(verified_list=[allow_target])
-
-    response = client.delete(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY},
-    )
-
-    assert response.status_code == 200
-    assert len(shared.verified_list) == 0
-
-def test_remove_from_verified_list_invalid_key(client: FlaskClient):
-    allow_target = "12.34.56.78"
-    prepare_test_state(verified_list=[allow_target])
-
-    response = client.delete(
-        "/api/v1/admin/verified-list",
-        json={"verified_ips": [allow_target]},
-        headers={shared.ADMIN_KEY_HEADER: 'beep'},
-    )
-
-    assert response.status_code == 403
-    assert len(shared.verified_list) == 1
-    assert ip_network(allow_target) in shared.verified_list.get_all(shared.ADMIN_KEY)
-
-def test_is_banned_true(client: FlaskClient):
-    ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
+    prepare_test_state(browser, admin_key, ban_list=[ban_target])
 
     response = client.get(f"/api/v1/check-banned/{ban_target}")
 
     assert response.status_code == 200
-    assert response.get_json()["banned"] == True
+    assert response.json()["banned"] == True
 
 
-def test_is_banned_false(client: FlaskClient):
+def test_is_banned_false(client: TestClient, browser, admin_key):
     ban_target = "12.34.56.78"
     
-    prepare_test_state(ban_list=[ban_target])
+    prepare_test_state(browser, admin_key, ban_list=[ban_target])
 
     response = client.get(
         f"/api/v1/check-banned/127.0.0.1"
     )
 
     assert response.status_code == 200
-    assert response.get_json()["banned"] == False
+    assert response.json()["banned"] == False
 
-def test_jwks(client: FlaskClient):
+def test_jwks(client: TestClient):
     response = client.get("/api/v1/auth/jwks.json")
     assert response.status_code == 200
-    data = response.get_json()
+    data = response.json()
     assert "keys" in data
     assert len(data["keys"]) == 1
     assert data["keys"][0]["kid"] == "server-browser-backend-key-1"
-
-@patch("server_browser_backend.token_reissuer.TokenReissuer.validate_and_reissue")
-def test_login_success(mock_reissue: MagicMock, client: FlaskClient):
-    mock_reissue.return_value = "fake-reissued-token"
-    
-    response = client.post("/api/v1/auth/login", json={"token": "fake-eos-token"})
-    
-    assert response.status_code == 200
-    assert response.get_json()["token"] == "fake-reissued-token"
-    mock_reissue.assert_called_once_with("fake-eos-token", "127.0.0.1")

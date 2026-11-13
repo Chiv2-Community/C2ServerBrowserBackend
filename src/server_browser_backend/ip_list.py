@@ -42,12 +42,10 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         
             # Read lines into memory and CLOSE the file immediately.
             # This prevents file locking issues on Windows when add_all -> save tries to overwrite the file.
-            lines = []
             with open(self.ip_list_path, "r") as f:
                 lines = f.readlines()
-            
-            entries = map(lambda ip: ip.strip(), lines)
-            return self.add_all(key, entries)  
+
+            return self.add_all(key, (line.strip() for line in lines))
         except IOError:
             return False
 
@@ -58,7 +56,7 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
         temp_path = self.ip_list_path + ".tmp"
         try:
             with open(temp_path, "w") as f:
-                ips = "\n".join(list(map(lambda x: str(x), self.get_all(key))))
+                ips = "\n".join(str(ip) for ip in self.get_all(key))
                 f.write(ips)
                 f.flush()
                 os.fsync(f.fileno())
@@ -75,20 +73,7 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
 
     def add_all(self, key: str, str_ips: Iterable[str]) -> Optional[bool]:
         """Returns None if any of the ips are invalid"""
-
-        # Validate before performing potentially expensive operation, avoiding easy DoS attacks
-        if not self.validate(key):
-            return None
-
-        try:
-            ips = set(map(lambda ip: ip_network(ip), str_ips))
-        except ValueError:
-            return None
-        
-        result = self.secured_ip_list.with_resource(
-            key, self.secured_ip_list.resource.union(ips)
-        )
-        return self._process_result(key, result)
+        return self._change(key, str_ips, remove=False)
 
     def remove(self, key: str, ip: str) -> Optional[bool]:
         """Returns None if the ip is invalid"""
@@ -96,19 +81,21 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
     
     def remove_all(self, key: str, str_ips: Iterable[str]) -> Optional[bool]:
         """Returns None if any of the ips are invalid"""
+        return self._change(key, str_ips, remove=True)
 
-        # Validate before performing potentially expensive operation, avoiding easy DoS attacks
+    def _change(self, key: str, str_ips: Iterable[str], *, remove: bool) -> Optional[bool]:
+        # Reject invalid credentials before consuming the input iterable.
         if not self.validate(key):
             return None
 
         try:
-            ips = set(map(lambda ip: ip_network(ip), str_ips))
+            ips = {ip_network(ip) for ip in str_ips}
         except ValueError:
             return None
 
-        result = self.secured_ip_list.with_resource(
-            key, self.secured_ip_list.resource.difference(set(ips))
-        )
+        current = self.secured_ip_list.resource
+        updated = current.difference(ips) if remove else current.union(ips)
+        result = self.secured_ip_list.with_resource(key, updated)
         return self._process_result(key, result)
 
     def clear(self, key: str) -> bool:

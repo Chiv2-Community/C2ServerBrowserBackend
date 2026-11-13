@@ -6,10 +6,18 @@ from pygelf import GelfTcpHandler
 from os import environ
 import logging
 
-from flask import Flask
-from werkzeug.middleware.proxy_fix import ProxyFix
+import secrets
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric import rsa
 
-from server_browser_backend import routes
+from server_browser_backend.application import Application
+from server_browser_backend.env import show_registered_ips
+from server_browser_backend.ip_list import IpList
+from server_browser_backend.routes.api_v1 import BrowserApi
+from server_browser_backend.routes.chiv2_compat import CompatibilityApi
+from server_browser_backend.routes.shared import RequestPolicy
+from server_browser_backend.server_list import ServerList
+from server_browser_backend.token_reissuer import TokenReissuer
 logger = logging.getLogger()
 
 dictConfig(
@@ -21,13 +29,13 @@ dictConfig(
             }
         },
         "handlers": {
-            "wsgi": {
+            "stderr": {
                 "class": "logging.StreamHandler",
-                "stream": "ext://flask.logging.wsgi_errors_stream",
+                "stream": "ext://sys.stderr",
                 "formatter": "default",
             }
         },
-        "root": {"level": "INFO", "handlers": ["wsgi"]},
+        "root": {"level": "INFO", "handlers": ["stderr"]},
     }
 )
 
@@ -41,10 +49,32 @@ if graylog_host is not None:
     logger.addHandler(graylog_handler)
 
 
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+def create_default_app() -> Application:
+    """Composition root: read configuration and construct one shared service graph."""
+    admin_key = environ.get("ADMIN_KEY", secrets.token_urlsafe(128))
+    config_dir = Path(environ.get("CONFIG_DIR", "config"))
+    server_list = ServerList(heartbeat_timeout=65)
+    ban_list = IpList(admin_key, str(config_dir / "ban_list.txt"))
+    verified_list = IpList(admin_key, str(config_dir / "verified_list.txt"))
+    policy = RequestPolicy(ban_list, verified_list)
+    token_reissuer = TokenReissuer(
+        private_key=rsa.generate_private_key(public_exponent=65537, key_size=2048),
+        kid="server-browser-backend-key-1",
+        eos_jwks="https://api.epicgames.dev/epic/oauth/v2/.well-known/jwks.json",
+        expected_audience=environ.get("EOS_AUDIENCE", "7f2b13acf2e84ab0ae8604d822f10498"),
+        issuer=environ.get("SERVER_BROWSER_FQDN", "chivalry2-server-browser-backend"),
+    )
+    motd_directory = Path(__file__).resolve().parent / "assets/motd"
+    if not motd_directory.exists():
+        motd_directory = Path(__file__).resolve().parents[2] / "assets/motd"
+    return Application(
+        BrowserApi(
+            server_list=server_list, ban_list=ban_list, verified_list=verified_list,
+            policy=policy, token_reissuer=token_reissuer, show_registered_ips=show_registered_ips,
+        ),
+        CompatibilityApi(server_list=server_list, policy=policy, motd_directory=motd_directory),
+        debug_mode=environ.get("DEBUG_MODE", "false").lower() == "true",
+    )
 
-app.register_blueprint(routes.playfab_bp)
-app.register_blueprint(routes.tbio_bp)
-app.register_blueprint(routes.api_v1_bp)
 
+app = create_default_app()

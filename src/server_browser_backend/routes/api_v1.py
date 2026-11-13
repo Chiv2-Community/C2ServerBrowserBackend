@@ -1,426 +1,222 @@
+"""Application implementation of the generated API interface."""
 from __future__ import annotations
 
 from datetime import datetime
 from ipaddress import ip_address
+from importlib.resources import files
 from typing import Callable
 from uuid import uuid4
-
-from flask import Blueprint, current_app, jsonify, request, send_file, Response
-
-from server_browser_backend.dict_util import DictKeyError, DictTypeError
-from server_browser_backend.env import show_registered_ips
-from server_browser_backend.iterable_util import find
-from server_browser_backend.models.base_models import (
-    BanListResponse,
-    BanStatusResponse,
-    ErrorResponse,
-    IpListRequest,
-    RegistrationResponse,
-    Server,
-    ServerRegistrationRequest,
-    ServerListResponse,
-    ServerResponse,
-    StatusResponse,
-    UpdateRegisteredServer,
-    UpdateResponse,
-    VerifiedListResponse,
-    LoginRequest,
-    LoginResponse,
-)
-from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import Banned, JsonMissing, get_and_validate_ip, get_json, get_key, get_ip, token_reissuer
-from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
-
 import traceback
+import logging
 
-api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
+from fastapi import Request, Response
+
+from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_api.models import (
+    BanListResponse, BanStatusResponse, ErrorResponse, IpListRequest, JwksResponse,
+    LoginRequest, LoginResponse, RegistrationResponse, ServerListResponse,
+    ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
+    UpdateResponse, VerifiedListResponse,
+)
+from server_browser_api.runtime import (
+    ApiResponse, IPAddress, DictKeyError, DictTypeError, JsonMissing, SchemaValidationError, render_response,
+)
+from server_browser_backend.iterable_util import find
+from server_browser_backend.ip_list import IpList
+from server_browser_backend.models.base_models import Server, server_listing, server_response
+from server_browser_backend.routes.shared import (
+    Banned, KEY_HEADER, RequestPolicy, get_ip,
+)
+from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
+from server_browser_backend.token_reissuer import TokenReissuer
+
+logger = logging.getLogger(__name__)
 
 
-@api_v1_bp.route("/auth/jwks.json", methods=["GET"])
-def jwks() -> tuple[Response, int]:
-    return jsonify(token_reissuer.get_jwks_response()), 200
+def status(code: str, message: str, http_status: int) -> ApiResponse[StatusResponse]:
+    return ApiResponse(StatusResponse(status=code, message=message), http_status)
 
-@api_v1_bp.route("/auth/login", methods=["POST"])
-def login() -> tuple[Response, int]:
-    try:
-        login_request = LoginRequest.from_json(get_json())
-        token = token_reissuer.validate_and_reissue(login_request.token, get_ip())
-        return jsonify(LoginResponse(token)), 200
-    except Exception as e:
-        # Re-raise to let the general exception handler handle it, 
-        # but we could also handle specific JWT errors here.
-        raise e
 
-@api_v1_bp.route("/swagger.yaml")
-def send_swagger() -> Response:
-    get_and_validate_ip()
-    return send_file("../../assets/chiv2-server-browser-api.yaml")
+def require_key(value: str | None) -> str:
+    if not value:
+        raise SecretKeyMissing()
+    return value
 
-@api_v1_bp.route("/check-banned/<ip>", methods=["GET"])
-def check_banned(ip: str) -> tuple[Response, int]:
-    get_and_validate_ip()
-    return jsonify(BanStatusResponse(shared.ban_list.contains(ip))), 200
 
-@api_v1_bp.route("/servers", methods=["POST"])
-def register() -> tuple[Response, int]:
-    server_ip = get_and_validate_ip()
+class BrowserApi(BaseApiV1Api):
+    def __init__(
+        self, *, server_list: ServerList, ban_list: IpList, verified_list: IpList,
+        policy: RequestPolicy, token_reissuer: TokenReissuer,
+        show_registered_ips: Callable[[], bool],
+    ):
+        self.server_list = server_list
+        self.ban_list = ban_list
+        self.verified_list = verified_list
+        self.policy = policy
+        self.token_reissuer = token_reissuer
+        self.show_registered_ips = show_registered_ips
 
-    registration = ServerRegistrationRequest.from_json(get_json())
-    try:
-        server = Server.create_after_registration(
-            registration, str(uuid4()), server_ip, datetime.now().timestamp()
-        )
-    except ValueError:
-        return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
+    def before_operation(self, request: Request, operation_id: str) -> None:
+        if operation_id not in {"jwks", "login"}:
+            self.policy.get_and_validate_ip(request)
 
-    if shared.is_whitelisted():
-        server = server.verified()
-    else:
-        server = server.unverified()
+    def jwks(self, request: Request) -> ApiResponse[JwksResponse]:
+        return ApiResponse(self.token_reissuer.get_jwks_response())
 
-    key = shared.server_list.register(server)
-    timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
+    def login(self, request: Request, login_request: LoginRequest) -> ApiResponse[LoginResponse]:
+        token = self.token_reissuer.validate_and_reissue(login_request.token, get_ip(request))
+        return ApiResponse(LoginResponse(token=token))
 
-    current_app.logger.info(
-        f'Registered server "{server.name}" at {server.ip_address}:{server.ports.game}'
-    )
+    def send_swagger(self, request: Request) -> ApiResponse[str]:
+        spec = files("server_browser_api").joinpath("openapi.yaml")
+        return ApiResponse(spec.read_text(), content_type="text/yaml")
 
-    return (
-        jsonify(
-            RegistrationResponse(
-                key,
-                timeout,
-                ServerResponse.from_server(server),
+    def check_banned(self, request: Request, ip: IPAddress) -> ApiResponse[BanStatusResponse]:
+        return ApiResponse(BanStatusResponse(banned=self.ban_list.contains(str(ip))))
+
+    def register(self, request: Request, server_registration_request: ServerRegistrationRequest) -> ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
+        try:
+            server = Server.create_after_registration(
+                server_registration_request, str(uuid4()), get_ip(request), datetime.now().timestamp(),
             )
-        ),
-        201,
-    )
+        except ValueError:
+            return status("invalid_ip", "Invalid IP address", 400)
+        if self.policy.is_whitelisted(request):
+            server = server.verified()
+        key = self.server_list.register(server)
+        logger.info('Registered server "%s" at %s:%s', server.name, server.ip_address, server.ports.game)
+        return ApiResponse(RegistrationResponse(
+            key=key, refresh_before=server.last_heartbeat + self.server_list.heartbeat_timeout,
+            server=server_response(server),
+        ), 201)
+
+    def heartbeat(self, request: Request, server_id: str, x_chiv2_server_browser_key: str | None) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
+        return self._update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_heartbeat(datetime.now().timestamp()))
+
+    def update(self, request: Request, server_id: str, update_registered_server: UpdateRegisteredServer, x_chiv2_server_browser_key: str | None) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
+        return self._update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_update(update_registered_server))
+
+    def delete_server(self, request: Request, server_id: str, x_chiv2_server_browser_key: str | None) -> ApiResponse[StatusResponse]:
+        server = self.server_list.delete(server_id, require_key(x_chiv2_server_browser_key))
+        if server is None:
+            logger.warning('Deletion failed. Server with id %s not registered.', server_id)
+            return status("not_registered", "server not registered", 404)
+        logger.info('Deleted server "%s" at %s:%s', server.name, server.ip_address, server.ports.game)
+        return status("deleted", "The server has been deleted", 200)
+
+    def get_servers(self, request: Request) -> ApiResponse[ServerListResponse]:
+        return ApiResponse(server_listing(self.server_list.get_all(), include_ip=self.show_registered_ips()))
+
+    def add_to_ban_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
+        return self._change_ban_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=False)
+
+    def remove_from_ban_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
+        return self._change_ban_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=True)
+
+    def _change_ban_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
+        key = credential or ""
+        error = change_ip_list(request, self.ban_list, body.banned_ips, "banned_ips", "ban", key, remove)
+        if error is not None:
+            return error
+        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in self.ban_list.get_all(key)]))
+
+    def get_ban_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
+        key = x_chiv2_server_browser_admin_key or ""
+        if not self.ban_list.validate(key):
+            return status("forbidden", "Invalid admin key", 403)
+        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in self.ban_list.get_all(key)]))
+
+    def add_to_verified_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
+        return self._change_verified_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=False)
+
+    def remove_from_verified_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
+        return self._change_verified_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=True)
+
+    def _change_verified_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
+        key = credential or ""
+        error = change_ip_list(request, self.verified_list, body.verified_ips, "verified_ips", "verified", key, remove)
+        if error is not None:
+            return error
+        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in self.verified_list.get_all(key)]))
+
+    def get_verified_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
+        key = x_chiv2_server_browser_admin_key or ""
+        if not self.verified_list.validate(key):
+            return status("forbidden", "Invalid admin key", 403)
+        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in self.verified_list.get_all(key)]))
+
+    def _update_server(self, request: Request, server_id: str, credential: str | None, transform: Callable[[Server], Server]) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
+        key = require_key(credential)
+        existing = find(self.server_list.get_all(), lambda server: server.unique_id == server_id)
+        if existing is None:
+            logger.warning("Update failed: server %s is not registered", server_id)
+            return status("not_registered", "server not registered", 404)
+        if ip_address(get_ip(request)) != existing.ip_address:
+            self.server_list.delete(server_id, key)
+            logger.warning("Registration invalidated: requester IP changed for %s", server_id)
+            return status("unauthorized", "Invalid IP address", 401)
+        server = self.server_list.update(server_id, key, transform)
+        if server is None:
+            return status("not_registered", "server not registered", 400)
+        logger.info("Update/heartbeat received for %s (%s)", server.name, server.unique_id)
+        return ApiResponse(UpdateResponse(
+            refresh_before=server.last_heartbeat + self.server_list.heartbeat_timeout,
+            server=server_response(server),
+        ))
+
+
+def change_ip_list(request: Request, ip_list: IpList, ips: list[str] | None, field: str, label: str, key: str, remove: bool) -> ApiResponse[StatusResponse] | None:
+    if ips is None:
+        return status("invalid_request", f"{field} is required", 400)
+    if not ip_list.validate(key):
+        logger.warning("%s-list change denied for %s: invalid admin key", label.capitalize(), get_ip(request))
+        return status("forbidden", "Invalid admin key", 403)
+    if remove:
+        if not ip_list.remove_all(key, ips):
+            return status("forbidden", "Invalid admin key", 403)
+    elif ip_list.add_all(key, ips) is None:
+        return status("invalid_ip", "Invalid IP address", 400)
+    logger.info("%s changed %s list: %s %s entries", get_ip(request), label, "remove" if remove else "add", len(ips))
+    return None
+
+
+async def handle_json_missing(request: Request, error: JsonMissing) -> Response:
+    return render_response(status("missing_json_body", "JSON body is required", 400))
 
 
-@api_v1_bp.route("/servers/<server_id>/heartbeat", methods=["POST"])
-def heartbeat(server_id: str) -> tuple[Response, int]:
-    get_and_validate_ip()
-    return update_server(
-        server_id,
-        lambda server: server.with_heartbeat(datetime.now().timestamp()),
-    )
+async def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:
+    return render_response(ApiResponse(StatusResponse(
+        status="invalid_json_body", message=f"Missing key '{error.key}'", context=error.context,
+    ), 400))
 
 
-@api_v1_bp.route("/servers/<server_id>", methods=["PUT"])
-def update(server_id: str) -> tuple[Response, int]:
-    get_and_validate_ip()
-    update_request = UpdateRegisteredServer.from_json(get_json())
+async def handle_dict_type_error(request: Request, error: DictTypeError) -> Response:
+    message = f"Invalid type for key '{error.key}'. Got '{error.actual_type.__name__}' with value '{error.value}', but expected '{error.expected_type.__name__}'"
+    return render_response(ApiResponse(StatusResponse(
+        status="invalid_json_body", message=message, context=error.context,
+    ), 400))
 
-    return update_server(
-        server_id,
-        lambda server: server.with_update(update_request),
-    )
 
+async def handle_secret_key_missing(request: Request, error: SecretKeyMissing) -> Response:
+    return render_response(status("no_key", KEY_HEADER + " header not specified", 400))
 
-@api_v1_bp.route("/servers/<server_id>", methods=["DELETE"])
-def delete_server(server_id: str) -> tuple[Response, int]:
-    get_and_validate_ip()
-    key = get_key()
 
-    server = shared.server_list.delete(server_id, key)
-    if server is None:
-        current_app.logger.warning(
-            f"Deletion failed. Server with id {server_id} not registered."
-        )
-        return (
-            jsonify(StatusResponse("not_registered", "server not registered")),
-            404,
-        )
+async def handle_schema_validation(request: Request, error: SchemaValidationError) -> Response:
+    return render_response(status("invalid_json_body", str(error), 400))
 
-    current_app.logger.info(
-        f'Deleted server with id "{server.name}" at {server.ip_address}:{server.ports.game}'
-    )
-    return (
-        jsonify(StatusResponse("deleted", "The server has been deleted")),
-        200,
-    )
 
+async def handle_invalid_secret_key(request: Request, error: InvalidSecretKey) -> Response:
+    return render_response(status("forbidden", "Invalid secret key", 403))
 
-@api_v1_bp.route("/servers", methods=["GET"])
-def get_servers() -> tuple[Response, int]:
-    get_and_validate_ip()
-    servers = shared.server_list.get_all()
-    response = ServerListResponse.from_servers(servers, include_ip=show_registered_ips())
-    return jsonify(response), 200
 
+async def handle_banned_user(request: Request, error: Banned) -> Response:
+    return render_response(status("forbidden", "You are banned", 403))
 
-@api_v1_bp.route("/admin/ban-list", methods=["PUT"])
-def add_to_ban_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
 
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-
-    request_model = IpListRequest.from_json(get_json())
-    ip_list = request_model.banned_ips
-
-    if ip_list is None:
-        return jsonify(StatusResponse("invalid_request", "banned_ips is required")), 400
-
-    truncated_ip_list_string = ", ".join(ip_list[:10])
-    if len(ip_list) > 10:
-        truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
-
-    current_app.logger.info(f"{source_ip} requested to add addresses to ban_list: {truncated_ip_list_string}")
-    
-    # Validate the admin key
-    if not shared.ban_list.validate(sent_admin_key):
-        current_app.logger.warning(
-            f"Failed to add requested addresses to ban_list. Invalid admin key sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    result = shared.ban_list.add_all(sent_admin_key, ip_list)
-
-    if result is None:
-        current_app.logger.warning(
-            f"Failed to add requested addresses to ban_list. Invalid IP address sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
-
-    current_app.logger.info(f"Adding addresses to ban_list.")
-
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
-
-@api_v1_bp.route("/admin/ban-list", methods=["DELETE"])
-def remove_from_ban_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
-
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-
-    request_model = IpListRequest.from_json(get_json())
-    ip_list = request_model.banned_ips
-
-    if ip_list is None:
-        return jsonify(StatusResponse("invalid_request", "banned_ips is required")), 400
-
-    result = shared.ban_list.remove_all(sent_admin_key, ip_list)
-
-    if not result:
-        truncated_ip_list_string = ", ".join(ip_list[:10])
-        if len(ip_list) > 10:
-            truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
-
-        current_app.logger.warning(
-            f"Failed to remove requested addresses ({truncated_ip_list_string}) from ban_list. Invalid admin key sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    current_app.logger.info(f"Removing addresses from ban_list: {shared.ban_list}")
-
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
-
-@api_v1_bp.route("/admin/ban-list", methods=["GET"])
-def get_ban_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
-
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-    if not shared.ban_list.secured_ip_list.validate(sent_admin_key):
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    return jsonify(BanListResponse(list(map(lambda x: str(x), shared.ban_list.get_all(sent_admin_key))))), 200
-
-@api_v1_bp.route("/admin/verified-list", methods=["PUT"])
-def add_to_verified_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
-
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-
-    request_model = IpListRequest.from_json(get_json())
-    ip_list = request_model.verified_ips
-
-    if ip_list is None:
-        return jsonify(StatusResponse("invalid_request", "verified_ips is required")), 400
-
-    truncated_ip_list_string = ", ".join(ip_list[:10])
-    if len(ip_list) > 10:
-        truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
-
-
-    current_app.logger.info(f"{source_ip} requested to add addresses to verified_list: {truncated_ip_list_string}")
-    
-    # Validate the admin key
-    if not shared.verified_list.validate(sent_admin_key):
-        current_app.logger.warning(
-            f"Failed to add requested addresses to verified_list. Invalid admin key sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    result = shared.verified_list.add_all(sent_admin_key, ip_list)
-
-    if result is None:
-        current_app.logger.warning(
-            f"Failed to add requested addresses to verified_list. Invalid IP address sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("invalid_ip", "Invalid IP address")), 400
-    
-    current_app.logger.info(f"Adding addresses to verified_list")
-
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
-
-@api_v1_bp.route("/admin/verified-list", methods=["DELETE"])
-def delete_from_verified_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
-
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-
-    request_model = IpListRequest.from_json(get_json())
-    ip_list = request_model.verified_ips
-
-    if ip_list is None:
-        return jsonify(StatusResponse("invalid_request", "verified_ips is required")), 400
-
-    result = shared.verified_list.remove_all(sent_admin_key, ip_list)
-
-    if not result:
-        truncated_ip_list_string = ", ".join(ip_list[:10])
-        if len(ip_list) > 10:
-            truncated_ip_list_string += f" (and {len(ip_list) - 10} more)"
-
-        current_app.logger.warning(
-            f"Failed to remove requested addresses ({truncated_ip_list_string}) from verified_list. Invalid admin key sent from {source_ip}"
-        )
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    current_app.logger.info(f"Removing addresses from verified_list: {shared.verified_list}")
-
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
-
-@api_v1_bp.route("/admin/verified-list", methods=["GET"])
-def get_verified_list() -> tuple[Response, int]:
-    source_ip = get_and_validate_ip()
-
-    sent_admin_key = request.headers.get(shared.ADMIN_KEY_HEADER)
-    if not shared.verified_list.validate(sent_admin_key):
-        current_app.logger.warning(f"Invalid admin key sent from {source_ip}")
-        return jsonify(StatusResponse("forbidden", "Invalid admin key")), 403
-
-    return jsonify(VerifiedListResponse(list(map(lambda x: str(x), shared.verified_list.get_all(sent_admin_key))))), 200
-
-
-@api_v1_bp.errorhandler(JsonMissing)
-def handle_json_missing(e: JsonMissing) -> tuple[Response, int]:
-    return (
-        jsonify(
-            StatusResponse(
-                "missing_json_body",
-                "JSON body is required",
-            )
-        ),
-        400,
-    )
-
-
-@api_v1_bp.errorhandler(DictKeyError)
-def handle_dict_key_error(e: DictKeyError) -> tuple[Response, int]:
-    return (
-        jsonify(
-            StatusResponse(
-                "invalid_json_body",
-                f"Missing key '{e.key}'",
-                e.context,
-            )
-        ),
-        400,
-    )
-
-
-@api_v1_bp.errorhandler(DictTypeError)
-def handle_dict_type_error(e: DictTypeError) -> tuple[Response, int]:
-    error_string = f"Invalid type for key '{e.key}'. Got '{e.actual_type.__name__}' with value '{e.value}', but expected '{e.expected_type.__name__}'"
-    return (
-        jsonify(
-            StatusResponse(
-                "invalid_json_body",
-                error_string,
-                e.context,
-            )
-        ),
-        400,
-    )
-
-
-@api_v1_bp.errorhandler(SecretKeyMissing)
-def handle_secret_key_missing(e: SecretKeyMissing) -> tuple[Response, int]:
-    return (
-        jsonify(
-            StatusResponse("no_key", shared.KEY_HEADER + " header not specified")
-        ),
-        400,
-    )
-
-
-@api_v1_bp.errorhandler(InvalidSecretKey)
-def handle_invalid_secret_key(e: InvalidSecretKey) -> tuple[Response, int]:
-    return jsonify(StatusResponse("forbidden", "Invalid secret key")), 403
-
-
-@api_v1_bp.errorhandler(Banned)
-def handle_banned_user(e: Banned) -> tuple[Response, int]:
-    return jsonify(StatusResponse("forbidden", "You are banned")), 403
-
-@api_v1_bp.errorhandler(Exception)
-def handle_general_exception(e: Exception) -> tuple[Response, int]:
-    current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
-    if shared.DEBUG_MODE:
-        return jsonify(
-            ErrorResponse(
-                "error", 
-                str(e),
-                traceback.format_exc()
-            )
-        ), 500
-    else:
-        return jsonify(
-            StatusResponse(
-                "error", 
-                "An unexpected error occurred."
-            )
-        ), 500
-
-def update_server(server_id: str, update_server: Callable[[Server], Server]) -> tuple[Response, int]:
-    key = get_key()
-
-    existing_server = find(
-        shared.server_list.get_all(), lambda server: server.unique_id == server_id
-    )
-
-    if existing_server is None:
-        current_app.logger.warning(
-            f"Update failed. Server with id {server_id} not registered."
-        )
-        return (
-            jsonify(StatusResponse("not_registered", "server not registered")),
-            404,
-        )
-
-    if ip_address(get_ip()) != existing_server.ip_address:
-        shared.server_list.delete(server_id, key)
-        current_app.logger.warning(
-            f"Registration invalidated. Invalid IP address for server with id {server_id}."
-        )
-        return jsonify(StatusResponse("unauthorized", "Invalid IP address")), 401
-
-    server = shared.server_list.update(server_id, key, update_server)
-
-    if server is None:
-        current_app.logger.warning(
-            f"Update failed. Server with id {server_id} not registered."
-        )
-        return (
-            jsonify(StatusResponse("not_registered", "server not registered")),
-            400,
-        )
-    timeout = server.last_heartbeat + shared.server_list.heartbeat_timeout
-
-    current_app.logger.info(
-        f'Update/Heartbeat received from server "{server.name}" ({server.unique_id}) at {server.ip_address}:{server.ports.game})'
-    )
-
-    return jsonify(
-        UpdateResponse(timeout, ServerResponse.from_server(server))
-    ), 200
+async def handle_general_exception(request: Request, error: Exception, *, debug_mode: bool) -> Response:
+    logger.error("Unhandled exception: %s", error, exc_info=True)
+    if debug_mode:
+        return render_response(ApiResponse(ErrorResponse(
+            status="error", message=str(error), stack=traceback.format_exc(),
+        ), 500))
+    return render_response(status("error", "An unexpected error occurred.", 500))

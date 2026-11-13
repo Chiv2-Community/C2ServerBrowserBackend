@@ -1,112 +1,67 @@
+"""Application implementation of the generated Chivalry compatibility API."""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
 from ipaddress import ip_address as parse_ip_address
-from os import path
+from pathlib import Path
 from uuid import uuid4
 
-from flask import Blueprint, jsonify, request, Response
-
-from server_browser_backend import dict_util
-from server_browser_backend.models import playfab, tbio, base_models
-from server_browser_backend.routes import shared
-from server_browser_backend.routes.shared import get_and_validate_ip, get_json, JsonMissing
-
-tbio_bp = Blueprint("chiv2_compat_tbio", __name__, url_prefix="/api/tbio")
-
-@tbio_bp.route("/GetCurrentGames", methods=["POST"])
-def tbio_get_servers() -> tuple[Response, int]:
-    banned = False
-    client_ip = None
-    try:
-        client_ip = parse_ip_address(get_and_validate_ip())
-    except shared.Banned:
-        banned = True
-
-    fixed_name = "This address is banned. Ensure your VPN is disabled." if banned else None
-    servers = tbio.ServerListData.from_servers(shared.server_list.get_all(), client_ip, fixed_name)
-
-    return jsonify(tbio.Wrapper(True, servers)), 200
+from fastapi import Request
+from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
+from server_browser_api.models import (
+    MatchmakeRequest, MotdRequest, PlayfabErrorResponse, PlayfabGame,
+    PlayfabMatchmakeResponse, TbioMotdResponse, TbioServerListResponse,
+)
+from server_browser_api.runtime import ApiResponse
+from server_browser_backend.models.tbio import server_list_data
+from server_browser_backend.routes.shared import Banned, RequestPolicy
+from server_browser_backend.server_list import ServerList
 
 
-@tbio_bp.route("/GetMotd", methods=["POST"])
-def get_motd() -> tuple[Response, int]:
-    banned_suffix = ""
-    try:
-        get_and_validate_ip()
-    except shared.Banned:
-        banned_suffix = "_banned"
+class CompatibilityApi(BaseChiv2CompatApi):
+    def __init__(self, *, server_list: ServerList, policy: RequestPolicy, motd_directory: Path):
+        self.server_list = server_list
+        self.policy = policy
+        self.motd_directory = motd_directory
 
-    motd_request = tbio.MotdRequest.from_json(get_json())
-    language = motd_request.language
+    def tbio_get_servers(self, request: Request) -> ApiResponse[TbioServerListResponse]:
+        name = None
+        client_ip = None
+        try:
+            client_ip = parse_ip_address(self.policy.get_and_validate_ip(request))
+        except Banned:
+            name = "This address is banned. Ensure your VPN is disabled."
+        data = server_list_data(self.server_list.get_all(), client_ip, name)
+        return ApiResponse(TbioServerListResponse(success=True, data=data))
 
-    # Validate input to prevent path traversal
-    if not language.isalnum():
-        language = "en"
+    def get_motd(self, request: Request, motd_request: MotdRequest) -> ApiResponse[TbioMotdResponse]:
+        suffix = ""
+        try:
+            self.policy.get_and_validate_ip(request)
+        except Banned:
+            suffix = "_banned"
+        language = motd_request.language
+        if not language.isalnum():
+            language = "en"
+        location = self.motd_directory / f"{language}{suffix}.json"
+        if not location.exists():
+            location = self.motd_directory / f"en{suffix}.json"
+        data = json.loads(location.read_text())
+        expiration = int((datetime.now() + timedelta(days=365)).timestamp())
+        return ApiResponse(TbioMotdResponse(success=True, data=data, expiration=expiration))
 
-    language_path = f"assets/motd/{language}{banned_suffix}.json"
-    default_path = f"assets/motd/en{banned_suffix}.json"
-
-    motd_path = language_path if path.exists(language_path) else default_path
-
-    with open(motd_path, "r") as f:
-        motd = json.load(f)
-        one_year_from_now = datetime.now() + timedelta(days=365)
-        return (
-            jsonify(tbio.MotdResponse(True, motd, int(one_year_from_now.timestamp()))),
-            200,
-        )
-
-
-playfab_bp = Blueprint("chiv2_compat_playfab", __name__, url_prefix="/api/playfab")
-
-
-@playfab_bp.route("/Client/Matchmake", methods=["POST"])
-def payfab_client_matchmake() -> tuple[Response, int]:
-    client_ip = get_and_validate_ip()
-    matchmake_request = playfab.MatchmakeRequest.from_json(get_json())
-    server_id = matchmake_request.lobby_id
-    
-    server = shared.server_list.get(server_id)
-
-    if not server:
-        return jsonify(playfab.Error(404, {}, "Lobby does not exist", {}, False)), 404
-
-    joining_locally = parse_ip_address(client_ip) == server.ip_address
-    has_local_ip = server.local_ip_address is not None
-
-    ip_address = server.local_ip_address if joining_locally and has_local_ip else server.ip_address
-    return (
-        jsonify(
-            playfab.Wrapper(
-                200,
-                "OK",
-                playfab.Game(
-                    str(ip_address),
-                    str(ip_address),
-                    server.ports.game,
-                    str(uuid4()),
-                ),
-            )
-        ),
-        200,
-    )
-
-@tbio_bp.errorhandler(JsonMissing)
-@playfab_bp.errorhandler(JsonMissing)
-def handle_json_missing(e: JsonMissing) -> tuple[Response, int]:
-    return (
-        jsonify(
-            base_models.StatusResponse(
-                "missing_json_body",
-                "JSON body is required",
-            )
-        ),
-        400,
-    )
-
-@tbio_bp.errorhandler(Exception)
-@playfab_bp.errorhandler(Exception)
-def handle_general_exception(e: Exception) -> Response:
-    raise e
+    def playfab_client_matchmake(self, request: Request, matchmake_request: MatchmakeRequest) -> ApiResponse[PlayfabMatchmakeResponse] | ApiResponse[PlayfabErrorResponse]:
+        client_ip = self.policy.get_and_validate_ip(request)
+        server = self.server_list.get(matchmake_request.lobby_id)
+        if server is None:
+            return ApiResponse(PlayfabErrorResponse(
+                code=404, data={}, message="Lobby does not exist", params={}, success=False,
+            ), 404)
+        address = server.address_for(parse_ip_address(client_ip))
+        return ApiResponse(PlayfabMatchmakeResponse(
+            code=200, status="OK", data=PlayfabGame(
+                server_hostname=address, server_ipv4_address=address,
+                server_port=server.ports.game, ticket=str(uuid4()),
+            ),
+        ))

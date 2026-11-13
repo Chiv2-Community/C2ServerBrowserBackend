@@ -1,0 +1,35 @@
+"""Generated from OpenAPI. DO NOT EDIT; run scripts/generate_api.py."""
+from __future__ import annotations
+
+from pydantic import Field
+from typing import Any, Dict, List, Optional, Union
+{{#imports}}
+{{{import}}}
+{{/imports}}
+{{#models}}{{#model}}{{#vendorExtensions.x-python-parent}}
+from {{packageName}}.models.{{module}} import {{name}}
+{{/vendorExtensions.x-python-parent}}{{/model}}{{/models}}
+from {{packageName}}.runtime import WireModel
+
+{{#models}}
+{{#model}}
+{{#anyOf}}
+{{#-first}}
+{{classname}} = Union[
+{{/-first}}
+    {{{.}}},
+{{#-last}}
+]
+{{/-last}}
+{{/anyOf}}
+{{^anyOf}}
+class {{classname}}({{#vendorExtensions.x-python-parent}}{{name}}{{/vendorExtensions.x-python-parent}}{{^vendorExtensions.x-python-parent}}WireModel{{/vendorExtensions.x-python-parent}}):
+{{#vars}}
+    {{name}}: {{{dataType}}}{{#isNullable}} | None{{/isNullable}}{{^required}}{{^defaultValue}}{{^isNullable}} | None{{/isNullable}}{{/defaultValue}}{{/required}} = Field({{#defaultValue}}default={{{.}}}, {{/defaultValue}}{{^required}}{{^defaultValue}}default=None, {{/defaultValue}}{{/required}}alias="{{baseName}}", json_schema_extra={"format": "{{dataFormat}}", "nullable": {{#isNullable}}True{{/isNullable}}{{^isNullable}}False{{/isNullable}}})
+{{/vars}}
+{{^vars}}
+    pass
+{{/vars}}
+{{/anyOf}}
+{{/model}}
+{{/models}}

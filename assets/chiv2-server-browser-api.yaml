@@ -5,8 +5,16 @@ info:
 paths:
   /api/v1/auth/jwks.json:
     get:
+      operationId: jwks
+      tags: [ApiV1]
       summary: Get the JWKS for validating our tokens
       responses:
+        default: &ApiError
+          description: API error; debug deployments may include an additional stack trace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
           content:
@@ -15,6 +23,8 @@ paths:
                 $ref: '#/components/schemas/JwksResponse'
   /api/v1/auth/login:
     post:
+      operationId: login
+      tags: [ApiV1]
       summary: Exchange an EOS ID token for our JWT
       requestBody:
         required: true
@@ -23,6 +33,7 @@ paths:
             schema:
               $ref: '#/components/schemas/LoginRequest'
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -31,8 +42,11 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
   /api/v1/swagger.yaml:
     get:
+      operationId: send_swagger
+      tags: [ApiV1]
       summary: Get the swagger documentation
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -41,8 +55,11 @@ paths:
                 type: string
   /api/v1/servers:
     get:
+      operationId: get_servers
+      tags: [ApiV1]
       summary: Get a list of registered game servers.
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -50,6 +67,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServerListResponse'
     post:
+      operationId: register
+      tags: [ApiV1]
       summary: Register a game server
       requestBody:
         required: true
@@ -58,14 +77,23 @@ paths:
             schema:
               $ref: '#/components/schemas/ServerRegistrationRequest'
       responses:
+        default: *ApiError
+        '400':
+          description: Invalid registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '201':
           description: Successful operation
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistrationResponse'
-  /api/v1/servers/{unique_id}:
+  /api/v1/servers/{server_id}:
     put:
+      operationId: update
+      tags: [ApiV1]
       summary: Update the listing for a game server. This does not count as a heartbeat
       parameters:
         - in: header
@@ -75,7 +103,7 @@ paths:
           schema:
             type: string
         - in: path
-          name: unique_id
+          name: server_id
           description: The unique id of the server being updated
           required: true
           schema:
@@ -87,6 +115,13 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateRegisteredServer'
       responses:
+        '401':
+          description: Registration invalidated after the requester IP changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default: *ApiError
         '400':
           description: Something in your request is malformed
           content:
@@ -112,6 +147,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/UpdateResponse'
     delete:
+      operationId: delete_server
+      tags: [ApiV1]
       summary: Remove the listing for a game server.
       parameters:
         - in: header
@@ -121,12 +158,13 @@ paths:
           schema:
             type: string
         - in: path
-          name: unique_id
+          name: server_id
           description: The unique id of the server being updated
           required: true
           schema:
             type: string
       responses:
+        default: *ApiError
         '400':
           description: Something in your request is malformed
           content:
@@ -151,8 +189,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
-  /api/v1/servers/{unique_id}/heartbeat:
+  /api/v1/servers/{server_id}/heartbeat:
     post:
+      operationId: heartbeat
+      tags: [ApiV1]
       summary: Send a keepalive signal to stay on the server list
       parameters:
         - in: header
@@ -162,12 +202,19 @@ paths:
           schema:
             type: string
         - in: path
-          name: unique_id
+          name: server_id
           description: The unique id of the server being updated
           schema:
             type: string
           required: true
       responses:
+        '401':
+          description: Registration invalidated after the requester IP changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default: *ApiError
         '400':
           description: Something in your request is malformed
           content:
@@ -194,6 +241,8 @@ paths:
                 $ref: '#/components/schemas/UpdateResponse'
   /api/v1/check-banned/{ip}:
     get:
+      operationId: check_banned
+      tags: [ApiV1]
       summary: Check if an IP address is banned
       parameters:
         - in: path
@@ -202,7 +251,9 @@ paths:
           required: true
           schema:
             type: string
+            format: ip-address
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -211,6 +262,8 @@ paths:
                 $ref: '#/components/schemas/BanStatusResponse'
   /api/v1/admin/ban-list:
     get:
+      operationId: get_ban_list
+      tags: [ApiV1]
       summary: Get the list of banned IP addresses
       parameters:
         - in: header
@@ -220,6 +273,7 @@ paths:
           schema:
             type: string
       responses:
+        default: *ApiError
         '403':
           description: Invalid admin key
           content:
@@ -233,6 +287,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/BanListResponse'
     put:
+      operationId: add_to_ban_list
+      tags: [ApiV1]
       summary: Add IP addresses to the ban list
       parameters:
         - in: header
@@ -248,6 +304,7 @@ paths:
             schema:
               $ref: '#/components/schemas/IpListRequest'
       responses:
+        default: *ApiError
         '400':
           description: Invalid IP address
           content:
@@ -267,6 +324,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/BanListResponse'
     delete:
+      operationId: remove_from_ban_list
+      tags: [ApiV1]
       summary: Remove IP addresses from the ban list
       parameters:
         - in: header
@@ -282,6 +341,13 @@ paths:
             schema:
               $ref: '#/components/schemas/IpListRequest'
       responses:
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default: *ApiError
         '403':
           description: Invalid admin key
           content:
@@ -296,6 +362,8 @@ paths:
                 $ref: '#/components/schemas/BanListResponse'
   /api/v1/admin/verified-list:
     get:
+      operationId: get_verified_list
+      tags: [ApiV1]
       summary: Get the list of verified IP addresses
       parameters:
         - in: header
@@ -305,6 +373,7 @@ paths:
           schema:
             type: string
       responses:
+        default: *ApiError
         '403':
           description: Invalid admin key
           content:
@@ -318,6 +387,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/VerifiedListResponse'
     put:
+      operationId: add_to_verified_list
+      tags: [ApiV1]
       summary: Add IP addresses to the verified list
       parameters:
         - in: header
@@ -333,6 +404,7 @@ paths:
             schema:
               $ref: '#/components/schemas/IpListRequest'
       responses:
+        default: *ApiError
         '400':
           description: Invalid IP address
           content:
@@ -352,6 +424,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/VerifiedListResponse'
     delete:
+      operationId: remove_from_verified_list
+      tags: [ApiV1]
       summary: Remove IP addresses from the verified list
       parameters:
         - in: header
@@ -367,6 +441,13 @@ paths:
             schema:
               $ref: '#/components/schemas/IpListRequest'
       responses:
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        default: *ApiError
         '403':
           description: Invalid admin key
           content:
@@ -381,8 +462,11 @@ paths:
                 $ref: '#/components/schemas/VerifiedListResponse'
   /api/tbio/GetCurrentGames:
     post:
+      operationId: tbio_get_servers
+      tags: [Chiv2Compat]
       summary: Get a list of servers in Chivalry 2 format
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -391,13 +475,17 @@ paths:
                 $ref: '#/components/schemas/TbioServerListResponse'
   /api/tbio/GetMotd:
     post:
+      operationId: get_motd
+      tags: [Chiv2Compat]
       summary: Get the Message of the Day
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/MotdRequest'
       responses:
+        default: *ApiError
         '200':
           description: Successful operation
           content:
@@ -406,24 +494,23 @@ paths:
                 $ref: '#/components/schemas/TbioMotdResponse'
   /api/playfab/Client/Matchmake:
     post:
+      operationId: playfab_client_matchmake
+      tags: [Chiv2Compat]
       summary: Matchmake a client to a server
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - LobbyId
-              properties:
-                LobbyId:
-                  type: string
+              $ref: '#/components/schemas/MatchmakeRequest'
       responses:
+        default: *ApiError
         '400':
-          description: No LobbyId provided
+          description: Missing or invalid JSON body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlayfabErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '404':
           description: Lobby does not exist
           content:
@@ -440,6 +527,7 @@ components:
   schemas:
     TbioServerListResponse:
       type: object
+      required: [Success, Data]
       properties:
         Success:
           type: boolean
@@ -447,6 +535,7 @@ components:
           $ref: '#/components/schemas/TbioServerListData'
     TbioServerListData:
       type: object
+      required: [GameCount, PlayerCount, Games]
       properties:
         GameCount:
           type: integer
@@ -458,6 +547,7 @@ components:
             $ref: '#/components/schemas/TbioGame'
     TbioGame:
       type: object
+      required: [Region, LobbyId, MaxPlayers, Official, BuildVersion, GameMode, PlayerUserIds, RunTime, GameServerState, Tags, LastHeartbeat, ServerHostname, ServerIPV4Address, ServerPort]
       properties:
         Region:
           type: string
@@ -474,7 +564,7 @@ components:
         PlayerUserIds:
           type: array
           items:
-            type: string
+            type: integer
         RunTime:
           type: integer
         GameServerState:
@@ -485,12 +575,15 @@ components:
           type: integer
         ServerHostname:
           type: string
+          format: legacy-ip-address
         ServerIPV4Address:
           type: string
+          format: legacy-ip-address
         ServerPort:
           type: integer
     TbioTags:
       type: object
+      required: [BuildId_s, ServerName_s, Region_s, OFFICIAL_b, Platform_s, FFA_b, MS_i, MapName_s, PingPort_i, QueryPort_i, T0_c, pp_b, t1_c, MTIM_i]
       properties:
         BuildId_s:
           type: string
@@ -522,15 +615,18 @@ components:
           type: string
     TbioMotdResponse:
       type: object
+      required: [Success, Data, expiration]
       properties:
         Success:
           type: boolean
         Data:
           type: object
+          additionalProperties: true
         expiration:
           type: integer
     PlayfabMatchmakeResponse:
       type: object
+      required: [code, status, data]
       properties:
         code:
           type: integer
@@ -540,26 +636,32 @@ components:
           $ref: '#/components/schemas/PlayfabGame'
     PlayfabGame:
       type: object
+      required: [ServerHostname, ServerIPV4Address, ServerPort, Ticket]
       properties:
         ServerHostname:
           type: string
+          format: ip-address
         ServerIPV4Address:
           type: string
+          format: ip-address
         ServerPort:
           type: integer
         Ticket:
           type: string
     PlayfabErrorResponse:
       type: object
+      required: [code, data, message, params, success]
       properties:
         code:
           type: integer
         data:
           type: object
+          additionalProperties: true
         message:
           type: string
         params:
           type: object
+          additionalProperties: true
         success:
           type: boolean
     UpdateRegisteredServer:
@@ -612,10 +714,12 @@ components:
         servers:
           type: array
           items:
-            anyOf:
-              - $ref: '#/components/schemas/ServerResponse'
-              - $ref: '#/components/schemas/ServerResponseWithIP'
+            $ref: '#/components/schemas/ServerListingItem'
           description: A list of servers
+    ServerListingItem:
+      anyOf:
+        - $ref: '#/components/schemas/ServerResponse'
+        - $ref: '#/components/schemas/ServerResponseWithIP'
     ServerResponse:
       type: object
       required:
@@ -669,6 +773,9 @@ components:
           format: double
           description: Unix timestamp of the last heartbeat
     ServerResponseWithIP:
+      x-python-parent:
+        name: ServerResponse
+        module: server_response
       allOf:
         - $ref: '#/components/schemas/ServerResponse'
         - type: object
@@ -678,22 +785,22 @@ components:
           properties:
             ip_address:
               type: string
+              format: ip-address
               description: Observed registration source; included when diagnostics are enabled
             local_ip_address:
               type: string
+              format: ip-address
               nullable: true
               description: Advertised address; null if no address is registered
     ServerRegistrationRequest:
       type: object
       required:
         - ports
-        - password_protected
         - name
         - description
         - current_map
         - player_count
         - max_players
-        - mods
       properties:
         ports:
           $ref: '#/components/schemas/Chivalry2Ports'
@@ -716,14 +823,17 @@ components:
           description: The max number of players on the server
         password_protected:
           type: boolean
+          default: false
           description: Whether the server is password protected
         mods:
           type: array
+          default: []
           items:
             $ref: '#/components/schemas/Mod'
           description: A list of mods running on the server
         local_ip_address:
           type: string
+          format: ip-address
           description: The local IP address of the server
     RegistrationResponse:
       type: object
@@ -787,6 +897,7 @@ components:
         context:
           type: object
           additionalProperties: true
+          nullable: true
           description: Optional context for the status
     BanStatusResponse:
       type: object
@@ -810,6 +921,7 @@ components:
           description: A human readable message about the error
         stack:
           type: string
+          nullable: true
           description: Optional stack trace
     BanListResponse:
       type: object
@@ -844,6 +956,13 @@ components:
       type: object
       properties:
         Language:
+          type: string
+          default: en
+    MatchmakeRequest:
+      type: object
+      required: [LobbyId]
+      properties:
+        LobbyId:
           type: string
     LoginRequest:
       type: object
@@ -892,3 +1011,53 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Jwk'
+    ExternalAccount:
+      type: object
+      required: [eat, eaid, pltfm, dty]
+      properties:
+        eat:
+          type: string
+        eaid:
+          type: string
+        pltfm:
+          type: string
+        dty:
+          type: string
+    EosIdTokenPayload:
+      description: External EOS token claims consumed by the existing exchange endpoint.
+      type: object
+      required: [sub, pfsid, iss, dn, nonce, pfpid, aud, pfdid, appid, exp, iat, jti]
+      properties:
+        sub:
+          type: string
+        pfsid:
+          type: string
+        iss:
+          type: string
+        dn:
+          type: string
+        nonce:
+          type: string
+        pfpid:
+          type: string
+        aud:
+          type: string
+        pfdid:
+          type: string
+        appid:
+          type: string
+        exp:
+          type: integer
+        iat:
+          type: integer
+        jti:
+          type: string
+        act:
+          type: object
+          nullable: true
+          # In OAS 3.0, nullable does not relax the referenced schema.
+          anyOf:
+            - $ref: '#/components/schemas/ExternalAccount'
+            - type: object
+              nullable: true
+              enum: [null]

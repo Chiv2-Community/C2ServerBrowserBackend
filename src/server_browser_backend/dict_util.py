@@ -1,9 +1,8 @@
-from dataclasses import dataclass
-from ipaddress import IPv6Address, ip_address
-from typing import Any, Callable, Dict, Generic, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
-from server_browser_backend.type_vars import A, B
+from server_browser_backend.type_vars import A
 from server_browser_backend.ip_address import IPAddress
+from server_browser_api.runtime import DictKeyError, DictTypeError, parse_ip_address
 
 
 def _require_type(expected_type: Type[A], value: Any) -> A:
@@ -17,10 +16,7 @@ def decode_primitive(expected_type: Type[A]) -> Callable[[Any], A]:
 
 
 def decode_ip_address(value: Any) -> IPAddress:
-    address = _require_type(str, value)
-    if address.startswith("[") and address.endswith("]"):
-        return IPAddress(IPv6Address(address[1:-1]))
-    return IPAddress(ip_address(address))
+    return IPAddress(parse_ip_address(_require_type(str, value)))
 
 
 TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
@@ -34,25 +30,6 @@ TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
 }
 
 
-@dataclass(frozen=True)
-class DictTypeError(Generic[A, B], Exception):
-    key: str
-    value: B
-    expected_type: Type[A]
-    actual_type: Type[B]
-    context: Dict[Any, Any]
-
-
-@dataclass(frozen=True)
-class DictKeyError(Generic[A], Exception):
-    key: str
-    context: Dict[Any, Any]
-
-
-def _no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:
-    raise DictKeyError(key, input_dict)
-
-
 def get_list_or(
     dictionary: Dict[str, Any],
     key: str,
@@ -62,13 +39,11 @@ def get_list_or(
     """Gets a list from the dictionary, and checks that all items in the list are of the correct type"""
     lst = get_or(dictionary, key, list, default)
 
-    idx = 0
-    for item in lst:
+    for idx, item in enumerate(lst):
         if not isinstance(item, list_item_type):
             raise DictTypeError(
                 key + f"[{idx}]", item, list_item_type, type(item), dictionary
             )
-        idx += 1
 
     return lst
 
@@ -96,7 +71,7 @@ def get_or(
         raise DictTypeError(key, value, expected_type, type(value), dictionary)
 
     if default is None:
-        return _no_key_error(key, dictionary)
+        raise DictKeyError(key, dictionary)
 
     return default()
 
