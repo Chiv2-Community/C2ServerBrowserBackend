@@ -13,6 +13,9 @@ The uv workspace contains two packages:
 - `packages/server-browser-api`: generated models, abstract handler interfaces,
   FastAPI bindings, serialization support, and packaged contract resources.
 
+The proposed models/client/server split is in
+[Python packaging proposal](docs/python-packaging.md); it is not implemented yet.
+
 Generated sources under `packages/server-browser-api/src` are never edited by
 hand. Application handlers implement the generated interfaces and return typed
 `ApiResponse` values. Domain conversion functions belong in the application,
