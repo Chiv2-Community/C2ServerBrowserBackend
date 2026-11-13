@@ -20,3 +20,7 @@ The generated router template dispatches synchronous implementation methods via 
 The checkpoint reports 239 passing tests and bounded compatibility replay. Neither was rerun for this record; they do not establish complete compatibility. Reconsider packaging if artifact integrity or offline build requirements change, and handler execution if measured workload or blocking behavior warrants it. Exact rationale, alternatives, benchmarks and full earlier discussion remain open.
 
 Earlier FastAPI annals at commit `fe989ff` recorded the generated boundary and direct Uvicorn deployment; these choices do not supersede that boundary. Those annals were removed by `029f5cd076cc2e3e7762a2842b7d1e577ee61970` and `/annals/` was ignored by `4a98ead6706b28a7bfdd0b4b0d8d0c8c6433d2e9`. The checkpoint reports this removal and ignore were requested by the user. The old records remain accessible in Git history, not as current files; no correction to their claims was established.
+
+## Subsequent developments (2026-11-13)
+
+A separate models/client/server package split was proposed for review; the combined API package and build-time contract packaging described above remain implemented, not superseded. See [Separate Python SDK packages proposed](2026-11-13-python-sdk-packaging-proposal.md).
