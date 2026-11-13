@@ -71,7 +71,8 @@ class BrowserApi(BaseApiV1Api):
             )
         except ValueError:
             return status("invalid_ip", "Invalid IP address", 400)
-        server = server.verified() if shared.is_whitelisted(request) else server.unverified()
+        if shared.is_whitelisted(request):
+            server = server.verified()
         key = shared.server_list.register(server)
         logger.info('Registered server "%s" at %s:%s', server.name, server.ip_address, server.ports.game)
         return ApiResponse(RegistrationResponse(

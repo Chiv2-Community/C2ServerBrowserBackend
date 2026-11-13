@@ -191,34 +191,20 @@ def test_tbio_parses_client_ip_once_per_listing(client: TestClient, monkeypatch)
     assert parsed_inputs == [source_ip]
 
 
-def test_motd_endpoint(client: TestClient):
-    response = client.post("/api/tbio/GetMotd", json={"Language": "test"})
+@pytest.mark.parametrize("body,banned,expected_motd", [
+    pytest.param({"Language": "test"}, False, "test", id="translated"),
+    pytest.param({"Language": "test"}, True, "test banned", id="banned-translated"),
+    pytest.param({}, True, "This address is banned. Ensure your VPN is disabled. Contact an admin for more information.", id="banned-default"),
+    pytest.param({}, False, None, id="default"),
+    pytest.param({"Language": "not_supported"}, False, None, id="fallback"),
+])
+def test_motd_endpoint(client: TestClient, body, banned, expected_motd):
+    if banned:
+        prepare_test_state(ban_list=["127.0.0.1"])
+    response = client.post("/api/tbio/GetMotd", json=body)
     assert response.status_code == 200
-    assert response.json()["Data"]["Motd"] == "test"
-
-def test_banned_motd_endpoint(client: TestClient):
-    prepare_test_state(ban_list=['127.0.0.1'])
-
-    response = client.post("/api/tbio/GetMotd", json={"Language": "test"})
-    assert response.status_code == 200
-    assert response.json()["Data"]["Motd"] == "test banned"
-
-def test_banned_default_motd_endpoint(client: TestClient):
-    prepare_test_state(ban_list=['127.0.0.1'])
-
-    response = client.post("/api/tbio/GetMotd", json={})
-    assert response.status_code == 200
-    assert response.json()["Data"]["Motd"] == "This address is banned. Ensure your VPN is disabled. Contact an admin for more information."
-
-
-def test_motd_endpoint_default(client: TestClient):
-    response = client.post("/api/tbio/GetMotd", json={})
-    assert response.status_code == 200
-
-
-def test_motd_endpoint_fallback(client: TestClient):
-    response = client.post("/api/tbio/GetMotd", json={"Language": "not_supported"})
-    assert response.status_code == 200
+    if expected_motd is not None:
+        assert response.json()["Data"]["Motd"] == expected_motd
 
 
 def test_client_matchmake_2(client: TestClient):
