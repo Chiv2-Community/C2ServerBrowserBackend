@@ -1,41 +1,35 @@
 """Application implementation of the generated API interface."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
-from ipaddress import ip_address
 from importlib.resources import files
+from ipaddress import ip_address
 from typing import Callable
 from uuid import uuid4
-import traceback
-import logging
 
-from fastapi import Request, Response
-from server_browser_server.runtime import RequestContext
-
+from server_browser_models.models import (BanListResponse, BanStatusResponse,
+                                          IpListRequest, JwksResponse,
+                                          LoginRequest, LoginResponse,
+                                          RegistrationResponse,
+                                          ServerListResponse,
+                                          ServerRegistrationRequest,
+                                          StatusResponse,
+                                          UpdateRegisteredServer,
+                                          UpdateResponse, VerifiedListResponse)
+from server_browser_models.runtime import IPAddress
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_models.models import (
-    BanListResponse, BanStatusResponse, ErrorResponse, IpListRequest, JwksResponse,
-    LoginRequest, LoginResponse, RegistrationResponse, ServerListResponse,
-    ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
-    UpdateResponse, VerifiedListResponse,
-)
-from server_browser_server.runtime import ApiResponse
-from server_browser_models.runtime import IPAddress, DictKeyError, DictTypeError, SchemaValidationError
-from server_browser_fastapi.runtime import JsonMissing, render_response
-from server_browser_backend.iterable_util import find
+from server_browser_server.runtime import ApiResponse, RequestContext
+
 from server_browser_backend.ip_list import IpList
-from server_browser_backend.models.base_models import Server, server_listing, server_response
-from server_browser_backend.routes.shared import (
-    Banned, KEY_HEADER, RequestPolicy, get_ip,
-)
-from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
+from server_browser_backend.iterable_util import find
+from server_browser_backend.models.base_models import (Server, server_listing,
+                                                       server_response)
+from server_browser_backend.routes.shared import RequestPolicy, get_ip, status
+from server_browser_backend.server_list import SecretKeyMissing, ServerList
 from server_browser_backend.token_reissuer import TokenReissuer
 
 logger = logging.getLogger(__name__)
-
-
-def status(code: str, message: str, http_status: int) -> ApiResponse[StatusResponse]:
-    return ApiResponse(StatusResponse(status=code, message=message), http_status)
 
 
 def require_key(value: str | None) -> str:
@@ -179,45 +173,3 @@ def change_ip_list(request: RequestContext, ip_list: IpList, ips: list[str] | No
         return status("invalid_ip", "Invalid IP address", 400)
     logger.info("%s changed %s list: %s %s entries", get_ip(request), label, "remove" if remove else "add", len(ips))
     return None
-
-
-async def handle_json_missing(request: Request, error: JsonMissing) -> Response:
-    return render_response(status("missing_json_body", "JSON body is required", 400))
-
-
-async def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:
-    return render_response(ApiResponse(StatusResponse(
-        status="invalid_json_body", message=f"Missing key '{error.key}'", context=error.context,
-    ), 400))
-
-
-async def handle_dict_type_error(request: Request, error: DictTypeError) -> Response:
-    message = f"Invalid type for key '{error.key}'. Got '{error.actual_type.__name__}' with value '{error.value}', but expected '{error.expected_type.__name__}'"
-    return render_response(ApiResponse(StatusResponse(
-        status="invalid_json_body", message=message, context=error.context,
-    ), 400))
-
-
-async def handle_secret_key_missing(request: Request, error: SecretKeyMissing) -> Response:
-    return render_response(status("no_key", KEY_HEADER + " header not specified", 400))
-
-
-async def handle_schema_validation(request: Request, error: SchemaValidationError) -> Response:
-    return render_response(status("invalid_json_body", str(error), 400))
-
-
-async def handle_invalid_secret_key(request: Request, error: InvalidSecretKey) -> Response:
-    return render_response(status("forbidden", "Invalid secret key", 403))
-
-
-async def handle_banned_user(request: Request, error: Banned) -> Response:
-    return render_response(status("forbidden", "You are banned", 403))
-
-
-async def handle_general_exception(request: Request, error: Exception, *, debug_mode: bool) -> Response:
-    logger.error("Unhandled exception: %s", error, exc_info=True)
-    if debug_mode:
-        return render_response(ApiResponse(ErrorResponse(
-            status="error", message=str(error), stack=traceback.format_exc(),
-        ), 500))
-    return render_response(status("error", "An unexpected error occurred.", 500))

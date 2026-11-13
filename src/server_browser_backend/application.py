@@ -2,17 +2,21 @@
 from functools import partial
 
 from fastapi import FastAPI
+from server_browser_fastapi.apis.api_v1_api import \
+    create_router as browser_router
+from server_browser_fastapi.apis.chiv2_compat_api import \
+    create_router as compatibility_router
+from server_browser_fastapi.runtime import JsonMissing, automatic_options
+from server_browser_models.runtime import (DictKeyError, DictTypeError,
+                                           SchemaValidationError, contract)
+from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from server_browser_fastapi.apis.api_v1_api import create_router as browser_router
-from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_fastapi.apis.chiv2_compat_api import create_router as compatibility_router
-from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_models.runtime import DictKeyError, DictTypeError, SchemaValidationError, contract
-from server_browser_fastapi.runtime import JsonMissing, automatic_options
-from server_browser_backend.routes import api_v1
+from server_browser_backend import error_handlers
 from server_browser_backend.routes.shared import Banned
-from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
+from server_browser_backend.server_list import (InvalidSecretKey,
+                                                SecretKeyMissing)
 
 
 class ForwardedHeaders:
@@ -44,14 +48,14 @@ class Application(FastAPI):
         self.browser_api = browser_api
         self.compatibility_api = compatibility_api
         self.add_middleware(ForwardedHeaders)
-        self.exception_handler(JsonMissing)(api_v1.handle_json_missing)
-        self.exception_handler(DictKeyError)(api_v1.handle_dict_key_error)
-        self.exception_handler(DictTypeError)(api_v1.handle_dict_type_error)
-        self.exception_handler(SchemaValidationError)(api_v1.handle_schema_validation)
-        self.exception_handler(SecretKeyMissing)(api_v1.handle_secret_key_missing)
-        self.exception_handler(InvalidSecretKey)(api_v1.handle_invalid_secret_key)
-        self.exception_handler(Banned)(api_v1.handle_banned_user)
-        self.exception_handler(Exception)(partial(api_v1.handle_general_exception, debug_mode=debug_mode))
+        self.exception_handler(JsonMissing)(error_handlers.handle_json_missing)
+        self.exception_handler(DictKeyError)(error_handlers.handle_dict_key_error)
+        self.exception_handler(DictTypeError)(error_handlers.handle_dict_type_error)
+        self.exception_handler(SchemaValidationError)(error_handlers.handle_schema_validation)
+        self.exception_handler(SecretKeyMissing)(error_handlers.handle_secret_key_missing)
+        self.exception_handler(InvalidSecretKey)(error_handlers.handle_invalid_secret_key)
+        self.exception_handler(Banned)(error_handlers.handle_banned_user)
+        self.exception_handler(Exception)(partial(error_handlers.handle_general_exception, debug_mode=debug_mode))
         self.include_router(compatibility_router(compatibility_api))
         self.include_router(browser_router(browser_api))
 

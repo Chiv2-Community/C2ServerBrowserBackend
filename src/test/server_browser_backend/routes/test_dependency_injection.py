@@ -4,6 +4,7 @@ import subprocess
 import sys
 from unittest.mock import Mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
@@ -125,6 +126,35 @@ with patch("cryptography.hazmat.primitives.asymmetric.rsa.generate_private_key",
         import server_browser_backend.application
         import server_browser_backend.routes.api_v1
         import server_browser_backend.routes.chiv2_compat
+assert "server_browser_backend.main" not in sys.modules
+'''
+    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("modules, forbidden", [
+    (
+        ("server_browser_backend.routes.api_v1", "server_browser_backend.routes.chiv2_compat"),
+        ("fastapi", "starlette", "server_browser_fastapi"),
+    ),
+    (
+        ("server_browser_backend.application",),
+        ("server_browser_backend.routes.api_v1", "server_browser_backend.routes.chiv2_compat"),
+    ),
+])
+def test_imports_respect_application_transport_boundary(modules, forbidden):
+    code = f'''
+import importlib
+import importlib.abc
+import sys
+
+class RejectImports(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if any(fullname == name or fullname.startswith(name + ".") for name in {forbidden!r}):
+            raise AssertionError("Unexpected dependency: " + fullname)
+
+sys.meta_path.insert(0, RejectImports())
+for module in {modules!r}:
+    importlib.import_module(module)
 assert "server_browser_backend.main" not in sys.modules
 '''
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)

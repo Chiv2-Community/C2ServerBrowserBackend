@@ -65,6 +65,8 @@ or generated implementation file to fill in. Synchronous handlers run in the
 ASGI thread pool so existing file I/O and EOS HTTP requests do not block the loop.
 Handlers receive a framework-neutral `RequestContext` with the client IP, not
 FastAPI requests or Flask request globals. Only the adapter handles HTTP objects.
+Backend error-to-HTTP translation lives in `error_handlers.py`, registered by
+`application.py`; API implementations do not import FastAPI or its adapter.
 
 `main.py` is the composition root. It reads configuration, constructs the registry,
 IP lists, request policy, and token reissuer once, then injects them into

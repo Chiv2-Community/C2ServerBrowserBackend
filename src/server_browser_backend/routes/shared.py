@@ -1,10 +1,15 @@
-"""Request policy shared by the API implementations."""
-from server_browser_server.runtime import RequestContext
+"""Framework-neutral request policy and responses shared by the API implementations."""
+from server_browser_models.models import StatusResponse
+from server_browser_server.runtime import ApiResponse, RequestContext
 
 from server_browser_backend.ip_list import IpList
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
 KEY_HEADER = "x-chiv2-server-browser-key"
+
+
+def status(code: str, message: str, http_status: int) -> ApiResponse[StatusResponse]:
+    return ApiResponse(StatusResponse(status=code, message=message), http_status)
 
 
 class Banned(Exception):
