@@ -7,7 +7,7 @@ from fastapi import Request, Response
 from starlette.responses import JSONResponse
 from openapi_schema_validator import OAS30Validator
 from server_browser_models.runtime import (
-    DictKeyError, DictTypeError, SchemaValidationError, contract, parse_ip_address, to_wire,
+    DictKeyError, DictTypeError, SchemaValidationError, contract, operation, parse_ip_address, to_wire,
 )
 from server_browser_server.runtime import ApiResponse
 
@@ -47,13 +47,11 @@ async def read_body(request: Request) -> dict[str, Any]:
 
 @lru_cache(maxsize=256)
 def parameter_definition(operation_id: str, location: str, name: str) -> dict[str, Any]:
-    for path in contract()["paths"].values():
-        for operation in path.values():
-            if not isinstance(operation, dict) or operation.get("operationId") != operation_id:
-                continue
-            parameters = path.get("parameters", []) + operation.get("parameters", [])
-            return next(p for p in parameters if p["name"] == name and p["in"] == location)
-    raise RuntimeError(f"Undeclared parameter {operation_id}.{name}")
+    try:
+        parameters = operation(operation_id)[3]
+    except ValueError:
+        raise RuntimeError(f"Undeclared parameter {operation_id}.{name}") from None
+    return next(p for p in parameters if p["name"] == name and p["in"] == location)
 
 
 def read_parameter(operation_id: str, location: str, name: str, value: Any, application_validated: bool = False) -> Any:

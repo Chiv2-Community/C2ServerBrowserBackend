@@ -164,3 +164,49 @@ def test_owned_sessions_close_with_sdk_contexts():
 def test_client_escapes_path_parameters():
     arguments = request_arguments("delete_server", {"server_id": "one/two?other=yes", "X-CHIV2-SERVER-BROWSER-KEY": "key"}, UNSET)
     assert arguments["url"] == "/api/v1/servers/one%2Ftwo%3Fother%3Dyes"
+
+
+def test_request_preparation_preserves_configured_headers():
+    defaults = httpx.Headers({"content-type": "text/plain", "x-trace": "original"})
+    arguments = request_arguments(
+        "login", {}, LoginRequest(token="test"),
+        base_url="http://example.test/prefix", default_headers=defaults,
+    )
+    assert arguments["url"] == "http://example.test/prefix/api/v1/auth/login"
+    assert arguments["headers"]["content-type"] == "application/json"
+    assert arguments["headers"]["x-trace"] == "original"
+    arguments["headers"]["x-trace"] = "changed"
+    assert defaults == httpx.Headers({"content-type": "text/plain", "x-trace": "original"})
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_client_per_request_headers_do_not_leak_to_later_calls(asynchronous):
+    requests = []
+
+    def reply(request):
+        requests.append(request)
+        return httpx.Response(200, json={"banned_ips": []})
+
+    async def exercise():
+        transport = httpx.MockTransport(reply)
+        session = httpx.AsyncClient(transport=transport) if asynchronous else httpx.Client(transport=transport)
+        sdk_type = AsyncClient if asynchronous else Client
+        sdk = sdk_type(
+            "http://example.test/prefix/", session=session, timeout=3.0,
+            headers={"x-chiv2-server-browser-admin-key": "configured"},
+        )
+        try:
+            for parameters in ({"x_chiv2_server_browser_admin_key": "override"}, {}):
+                result = sdk.get_ban_list(**parameters)
+                result = await result if inspect.isawaitable(result) else result
+                assert result.status == 200
+        finally:
+            if asynchronous:
+                await session.aclose()
+            else:
+                session.close()
+
+    asyncio.run(exercise())
+    assert [request.headers["x-chiv2-server-browser-admin-key"] for request in requests] == ["override", "configured"]
+    assert all(str(request.url) == "http://example.test/prefix/api/v1/admin/ban-list" for request in requests)
+    assert all(request.extensions["timeout"] == {"connect": 3.0, "read": 3.0, "write": 3.0, "pool": 3.0} for request in requests)

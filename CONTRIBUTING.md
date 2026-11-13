@@ -57,6 +57,8 @@ business logic.
 OAS remains the source of route names, signatures, and model fields. Request
 constraints are validated against the packaged OAS, without runtime network
 schema retrieval.
+Contract operation and parameter lookup is shared through the models runtime;
+clients and framework adapters must not maintain separate contract scanners.
 
 `base_api.mustache` generates ABCs with `@abstractmethod`; `api.mustache`
 generates `create_router(implementation)`. Application startup passes concrete

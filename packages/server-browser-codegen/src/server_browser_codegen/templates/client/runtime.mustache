@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 import json
 from typing import Any, Generic, Mapping, TypeVar
 from urllib.parse import quote
 
 import httpx
 from server_browser_models import models
-from server_browser_models.runtime import DictKeyError, DictTypeError, contract, to_wire
+from server_browser_models.runtime import DictKeyError, DictTypeError, operation, to_wire
 
 T = TypeVar("T")
 CT = TypeVar("CT", bound="ClientTransport")
@@ -43,16 +42,7 @@ class ClientDecodeError(ValueError):
         self.response = response
 
 
-@lru_cache(maxsize=None)
-def operation(operation_id: str) -> tuple[str, str, dict[str, Any], list[dict[str, Any]]]:
-    for path, entry in contract()["paths"].items():
-        for method, declaration in entry.items():
-            if isinstance(declaration, dict) and declaration.get("operationId") == operation_id:
-                return method.upper(), path, declaration, entry.get("parameters", []) + declaration.get("parameters", [])
-    raise ValueError(f"Unknown operation {operation_id}")
-
-
-def request_arguments(operation_id: str, parameters: Mapping[str, Any], body: Any) -> dict[str, Any]:
+def request_arguments(operation_id: str, parameters: Mapping[str, Any], body: Any, *, base_url: str = "", default_headers: httpx.Headers | None = None) -> dict[str, Any]:
     method, path, _, definitions = operation(operation_id)
     headers: dict[str, str] = {}
     query: dict[str, Any] = {}
@@ -71,7 +61,7 @@ def request_arguments(operation_id: str, parameters: Mapping[str, Any], body: An
             query[parameter["name"]] = to_wire(value)
         elif parameter["in"] == "cookie":
             cookies[parameter["name"]] = value
-    arguments: dict[str, Any] = {"method": method, "url": path, "headers": headers, "params": query}
+    arguments: dict[str, Any] = {"method": method, "url": base_url + path, "headers": headers, "params": query}
     if cookies:
         arguments["cookies"] = cookies
     if not isinstance(body, Unset):
@@ -79,6 +69,10 @@ def request_arguments(operation_id: str, parameters: Mapping[str, Any], body: An
         value = body.model_dump(mode="json", by_alias=True, exclude_unset=True) if hasattr(body, "model_dump") else to_wire(body)
         arguments["content"] = json.dumps(value).encode()
         headers["Content-Type"] = "application/json"
+    if default_headers is not None:
+        merged_headers = default_headers.copy()
+        merged_headers.update(headers)
+        arguments["headers"] = merged_headers
     return arguments
 
 
@@ -113,11 +107,7 @@ class ClientTransport:
         self._headers = httpx.Headers(headers or {})
 
     def _request(self, operation_id: str, *, parameters: Mapping[str, Any], body: Any = UNSET) -> ClientResponse[Any]:
-        arguments = request_arguments(operation_id, parameters, body)
-        arguments["url"] = self._base_url + arguments["url"]
-        headers = self._headers.copy()
-        headers.update(arguments["headers"])
-        arguments["headers"] = headers
+        arguments = request_arguments(operation_id, parameters, body, base_url=self._base_url, default_headers=self._headers)
         return decode_response(operation_id, self._session.request(**arguments, timeout=self._timeout))
 
     def close(self) -> None:
@@ -140,11 +130,7 @@ class AsyncClientTransport:
         self._headers = httpx.Headers(headers or {})
 
     async def _request(self, operation_id: str, *, parameters: Mapping[str, Any], body: Any = UNSET) -> ClientResponse[Any]:
-        arguments = request_arguments(operation_id, parameters, body)
-        arguments["url"] = self._base_url + arguments["url"]
-        headers = self._headers.copy()
-        headers.update(arguments["headers"])
-        arguments["headers"] = headers
+        arguments = request_arguments(operation_id, parameters, body, base_url=self._base_url, default_headers=self._headers)
         return decode_response(operation_id, await self._session.request(**arguments, timeout=self._timeout))
 
     async def aclose(self) -> None:

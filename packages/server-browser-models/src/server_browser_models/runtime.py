@@ -51,6 +51,15 @@ def contract() -> dict[str, Any]:
     return json.loads(files("server_browser_models").joinpath("contract.json").read_text())
 
 
+@lru_cache(maxsize=None)
+def operation(operation_id: str) -> tuple[str, str, dict[str, Any], list[dict[str, Any]]]:
+    for path, entry in contract()["paths"].items():
+        for method, declaration in entry.items():
+            if isinstance(declaration, dict) and declaration.get("operationId") == operation_id:
+                return method.upper(), path, declaration, entry.get("parameters", []) + declaration.get("parameters", [])
+    raise ValueError(f"Unknown operation {operation_id}")
+
+
 @lru_cache(maxsize=256)
 def validator(model_name: str) -> OAS30Validator:
     return OAS30Validator({
