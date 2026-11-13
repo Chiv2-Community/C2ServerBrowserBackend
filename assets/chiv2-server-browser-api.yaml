@@ -506,11 +506,11 @@ paths:
       responses:
         default: *ApiError
         '400':
-          description: No LobbyId provided
+          description: Missing or invalid JSON body
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlayfabErrorResponse'
+                $ref: '#/components/schemas/StatusResponse'
         '404':
           description: Lobby does not exist
           content:

@@ -207,11 +207,17 @@ def test_invalid_json_body_returns_400_without_mutation(client, value):
 @pytest.mark.parametrize("path,body", [
     ("/api/tbio/GetMotd", {"Language": 1}),
     ("/api/playfab/Client/Matchmake", {}),
+    ("/api/playfab/Client/Matchmake", {"LobbyId": 1}),
+    ("/api/playfab/Client/Matchmake", None),
 ])
 def test_compat_validation_errors_are_json_400(client, path, body):
-    response = client.post(path, json=body)
+    response = client.post(
+        path, content=json.dumps(body) if body is not None else b"",
+        headers={"Content-Type": "application/json"},
+    )
     assert response.status_code == 400
-    assert response.json()["status"] == "invalid_json_body"
+    assert response.json()["status"] == ("missing_json_body" if body is None else "invalid_json_body")
+    assert_response_contract(path, "post", response)
 
 
 @pytest.mark.parametrize("list_name,field", [("ban-list", "banned_ips"), ("verified-list", "verified_ips")])

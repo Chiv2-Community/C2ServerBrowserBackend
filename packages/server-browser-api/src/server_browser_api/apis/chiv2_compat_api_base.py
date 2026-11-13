@@ -26,5 +26,5 @@ class BaseChiv2CompatApi(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def playfab_client_matchmake(self, request: Request, *, matchmake_request: MatchmakeRequest) -> ApiResponse[PlayfabErrorResponse] | ApiResponse[PlayfabErrorResponse] | ApiResponse[PlayfabMatchmakeResponse] | ApiResponse[StatusResponse]:
+    def playfab_client_matchmake(self, request: Request, *, matchmake_request: MatchmakeRequest) -> ApiResponse[StatusResponse] | ApiResponse[PlayfabErrorResponse] | ApiResponse[PlayfabMatchmakeResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
