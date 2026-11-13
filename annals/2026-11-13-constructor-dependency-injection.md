@@ -20,3 +20,7 @@ The implementation replaces module-global service lookup rather than using globa
 This review ran the dedicated injection tests: six passed, with one Starlette deprecation warning. They cover shared instances, isolated registrations, lists and keys, injected token services, per-application error configuration, MOTD paths, and import side effects. The checkpoint reports 262 passing tests, successful CI, and bounded compatibility replay with 59 exact matches and three documented differences; these broader results were not independently rerun or verified here and do not prove complete HTTP equivalence.
 
 Commit or otherwise preserve the implementation and rerun the relevant checks before relying on this uncommitted state. Reconsider the composition if deployment requires cross-process shared state or different service lifetimes, or if compatibility tests reveal changed behavior. The full conversation, exact rationale, and any other considered alternatives remain unknown.
+
+## Subsequent developments (2026-11-13)
+
+The implementation was committed and the follow-up interface wiring was added. The historical uncommitted status and commit follow-up above are outdated; the decision itself remains in effect. See [Dependency injection implementation and interface wiring](2026-11-13-injection-implementation-and-interface-wiring.md).
