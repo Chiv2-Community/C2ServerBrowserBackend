@@ -1,4 +1,4 @@
-"""Generated model support. DO NOT EDIT; change codegen/templates instead."""
+"""Generated model support. DO NOT EDIT; change server-browser-codegen templates."""
 from __future__ import annotations
 
 from dataclasses import dataclass

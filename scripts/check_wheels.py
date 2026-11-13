@@ -20,6 +20,8 @@ from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
 assert LoginRequest.from_json({"token": "example"}).token == "example"
 assert not any(name.startswith("server_browser_backend") for name in sys.modules)
 assert files("server_browser_models").joinpath("py.typed").is_file()
+from importlib.util import find_spec
+assert find_spec("server_browser_codegen") is None
 from server_browser_backend.main import app
 import json
 import socket
@@ -111,7 +113,7 @@ def check_contract(wheel: Path, expected: dict) -> None:
 
 
 def main() -> None:
-    names = ["server_browser_models", "server_browser_server", "server_browser_fastapi", "server_browser_client", "chivalry2_unofficial_server_browser_backend"]
+    names = ["server_browser_models", "server_browser_server", "server_browser_fastapi", "server_browser_client", "server_browser_codegen", "chivalry2_unofficial_server_browser_backend"]
     wheels = {}
     sdists = {}
     for name in names:
@@ -136,26 +138,38 @@ def main() -> None:
         rebuilt_wheels = {name: next(rebuilt.glob(f"{name}-*.whl")) for name in wheels}
         check_contract(rebuilt_wheels["server_browser_models"], expected)
         clean_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
-        for package in ("models", "server", "client", "fastapi"):
+        for package in ("models", "server", "client", "fastapi", "codegen"):
             isolated = directory / package
             subprocess.run(["uv", "venv", str(isolated)], check=True)
             executable = isolated / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-            dependencies = ["models"] + (["server"] if package == "fastapi" else []) + ([] if package == "models" else [package])
+            dependencies = ["codegen"] if package == "codegen" else ["models"] + (["server"] if package == "fastapi" else []) + ([] if package == "models" else [package])
             subprocess.run(["uv", "pip", "install", "--python", str(executable), *[str(rebuilt_wheels[f"server_browser_{name}"]) for name in dependencies]], check=True)
             probe = f'''
 from importlib.util import find_spec
 from importlib.resources import files
 import server_browser_{package}
-from server_browser_models.models import LoginRequest
-assert LoginRequest.from_json({{"token": "test"}}).token == "test"
 assert files("server_browser_{package}").joinpath("py.typed").is_file()
 assert find_spec("server_browser_backend") is None
 assert find_spec("uvicorn") is None
+'''
+            if package != "codegen":
+                probe += '''
+from server_browser_models.models import LoginRequest
+assert LoginRequest.from_json({"token": "test"}).token == "test"
+assert find_spec("server_browser_codegen") is None
 '''
             if package != "fastapi":
                 probe += 'assert find_spec("fastapi") is None\nassert find_spec("starlette") is None\n'
             if package in ("models", "server"):
                 probe += 'assert find_spec("httpx") is None\n'
+            if package == "codegen":
+                probe += '''
+resources = files("server_browser_codegen")
+assert resources.joinpath("config.yaml").is_file()
+assert find_spec("server_browser_models") is None
+for owner in ("models", "server", "client", "fastapi", "shared"):
+    assert resources.joinpath("templates", owner).is_dir()
+'''
             if package == "server":
                 probe += '''
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
@@ -174,10 +188,14 @@ class Implementation(BaseChiv2CompatApi):
 assert Implementation().tbio_get_servers(RequestContext("192.0.2.1")).body.data.games == []
 '''
             subprocess.run([str(executable), "-I", "-c", probe], cwd=directory, env=clean_environment, check=True)
+            if package == "codegen":
+                command = isolated / ("Scripts/server-browser-codegen.exe" if os.name == "nt" else "bin/server-browser-codegen")
+                subprocess.run([str(command), "--root", str(ROOT), "--check"], cwd=directory, env=clean_environment, check=True)
         environment = directory / "venv"
         subprocess.run(["uv", "venv", str(environment)], check=True)
         python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        subprocess.run(["uv", "pip", "install", "--python", str(python), *map(str, rebuilt_wheels.values())], check=True)
+        runtime_wheels = [wheel for name, wheel in rebuilt_wheels.items() if name != "server_browser_codegen"]
+        subprocess.run(["uv", "pip", "install", "--python", str(python), *map(str, runtime_wheels)], check=True)
         # Do not inherit a source PYTHONPATH or use the repository as cwd.
         clean_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
         subprocess.run([str(python), "-I", "-c", SMOKE], cwd=directory, env=clean_environment, check=True)

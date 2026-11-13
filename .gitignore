@@ -369,6 +369,7 @@ PublishScripts/
 !/packages/server-browser-server/
 !/packages/server-browser-fastapi/
 !/packages/server-browser-client/
+!/packages/server-browser-codegen/
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed

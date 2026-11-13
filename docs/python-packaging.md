@@ -1,6 +1,7 @@
 # Python packages
 
-The workspace builds five independent wheels and sdists. The OpenAPI contract
+The workspace builds five runtime wheels/sdists and a development-only codegen
+wheel/sdist. The OpenAPI contract
 in `assets/chiv2-server-browser-api.yaml` remains authoritative.
 
 | Distribution | Import | Responsibility |
@@ -10,6 +11,7 @@ in `assets/chiv2-server-browser-api.yaml` remains authoritative.
 | `server-browser-server` | `server_browser_server` | Generated abstract handler interfaces, `RequestContext`, `ApiResponse` |
 | `server-browser-fastapi` | `server_browser_fastapi` | Generated routers, HTTP request decoding and response rendering |
 | `chivalry2-unofficial-server-browser-backend` | `server_browser_backend` | Concrete application, registry, IP policy, token services, Uvicorn startup |
+| `server-browser-codegen` | `server_browser_codegen` | Development-only CLI, pinned toolchain, configuration, and module-scoped templates |
 
 Dependencies flow from client to models, from server interfaces to models, and
 from the FastAPI adapter to interfaces and models. The backend depends on the
@@ -23,6 +25,12 @@ own version. Package-index name ownership has not been established, and no PyPI
 publication is configured. Build artifacts are usable without package-index
 publication. Publishing a GitHub Release attaches the wheels, sdists, and
 authoritative OpenAPI YAML; no new release is created by these changes.
+
+The codegen project is a root development dependency, not a runtime dependency.
+Its independent version starts at `0.1.0`. Run `uv run server-browser-codegen`
+to regenerate SDK sources or add `--check` to detect drift. Configuration,
+templates grouped by generated module, and tests belong to that project rather
+than top-level scripts. See its [README](../packages/server-browser-codegen/README.md).
 
 ## Models
 

@@ -10,13 +10,20 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from importlib.resources import files
+from importlib.resources.abc import Traversable
+from collections.abc import Sequence
 
 import yaml
 from openapi_spec_validator import validate
 
-ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("models", "server", "fastapi", "client")
 BUILD_RESOURCES = {Path("contract.json"), Path("openapi.yaml")}
+ENTRYPOINTS = {
+    "model.mustache": "models/model.mustache",
+    "base_api.mustache": "server/base_api.mustache",
+    "api.mustache": "fastapi/api.mustache",
+}
 
 
 def require_local_references(value: object) -> None:
@@ -47,8 +54,35 @@ def same_sources(left: Path, right: Path) -> bool:
     return left_files == right_files and all(filecmp.cmp(left / p, right / p, shallow=False) for p in left_files)
 
 
-def generate(check: bool) -> None:
-    text = (ROOT / "assets/chiv2-server-browser-api.yaml").read_text()
+def copy_resources(source: Traversable, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    for child in source.iterdir():
+        target = destination / child.name
+        if child.is_dir():
+            copy_resources(child, target)
+        else:
+            target.write_bytes(child.read_bytes())
+
+
+def prepare_config(root: Path, directory: Path) -> Path:
+    resources = files("server_browser_codegen")
+    templates = directory / "templates"
+    copy_resources(resources.joinpath("templates"), templates)
+    # OpenAPI Generator requires these three entry-point filenames at its template root.
+    # Supporting templates retain their module-scoped paths from config.yaml.
+    for name, source in ENTRYPOINTS.items():
+        shutil.copyfile(templates / source, templates / name)
+    config = yaml.safe_load(resources.joinpath("config.yaml").read_text())
+    config["inputSpec"] = str(root / "assets/chiv2-server-browser-api.yaml")
+    config["templateDir"] = str(templates)
+    path = directory / "config.yaml"
+    path.write_text(yaml.safe_dump(config, sort_keys=False))
+    return path
+
+
+def generate(root: Path, check: bool = False) -> None:
+    root = root.resolve()
+    text = (root / "assets/chiv2-server-browser-api.yaml").read_text()
     spec = yaml.safe_load(text)
     require_local_references(spec)
     validate(spec)
@@ -59,12 +93,14 @@ def generate(check: bool) -> None:
     if any(len(operation.get("tags", [])) != 1 for operation in operations):
         raise ValueError("Each API operation must declare exactly one handler-interface tag")
     with tempfile.TemporaryDirectory(prefix="server-browser-codegen-") as directory:
-        output = Path(directory)
+        temporary = Path(directory)
+        config = prepare_config(root, temporary)
+        output = temporary / "generated"
         process = subprocess.run([
             sys.executable, "-c", "from openapi_generator_cli import cli; cli()",
-            "generate", "-c", "codegen/config.yaml", "-o", str(output),
+            "generate", "-c", str(config), "-o", str(output),
             "--global-property", "models,apis,supportingFiles,modelDocs=false,modelTests=false,apiDocs=false,apiTests=false",
-        ], cwd=ROOT, capture_output=True, text=True)
+        ], cwd=root, capture_output=True, text=True)
         if process.returncode:
             print(process.stdout, file=sys.stderr)
             print(process.stderr, file=sys.stderr)
@@ -90,13 +126,6 @@ def generate(check: bool) -> None:
         for name in PACKAGES:
             package = output / f"src/server_browser_{name}"
             if name != "models":
-                exports = '"""Generated API support. DO NOT EDIT."""\n'
-                if name == "client":
-                    exports += "from .client import Client as Client, AsyncClient as AsyncClient\n"
-                    exports += "from .runtime import ClientResponse as ClientResponse, ClientDecodeError as ClientDecodeError\n"
-                if name == "server":
-                    exports += "from .runtime import ApiResponse as ApiResponse, RequestContext as RequestContext\n"
-                (package / "__init__.py").write_text(exports)
                 (package / "py.typed").write_text("")
             if (package / "apis").is_dir():
                 (package / "apis/__init__.py").write_text("")
@@ -106,10 +135,10 @@ def generate(check: bool) -> None:
             ast.parse(text, filename=str(source))
         for name in PACKAGES:
             source = output / f"src/server_browser_{name}"
-            target = ROOT / f"packages/server-browser-{name}/src/server_browser_{name}"
+            target = root / f"packages/server-browser-{name}/src/server_browser_{name}"
             if check:
                 if not same_sources(source, target):
-                    raise SystemExit(f"Generated {name} is stale or hand-edited; run uv run python scripts/generate_api.py")
+                    raise SystemExit(f"Generated {name} is stale or hand-edited; run uv run server-browser-codegen")
             else:
                 if target.exists():
                     shutil.rmtree(target)
@@ -117,7 +146,12 @@ def generate(check: bool) -> None:
         print("Generated API is current." if check else "Generated models, server, FastAPI adapter, and client.")
 
 
-if __name__ == "__main__":
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path.cwd(), help="Repository root containing assets/ and packages/ (default: current directory)")
     parser.add_argument("--check", action="store_true")
-    generate(parser.parse_args().check)
+    arguments = parser.parse_args(argv)
+    root = arguments.root.resolve()
+    if not (root / "assets/chiv2-server-browser-api.yaml").is_file():
+        parser.error("Repository contract not found; pass --root /path/to/repository")
+    generate(root, arguments.check)

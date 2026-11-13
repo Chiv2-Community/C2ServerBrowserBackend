@@ -23,7 +23,7 @@ dev = [
     "autoflake>=2.2.0",
     "mypy>=1.4.1",
     "isort>=5.12.0",
-    "openapi-generator-cli==7.17.0",
+    "server-browser-codegen==0.1.0",
     "pyyaml==6.0.3",
     "openapi-spec-validator==0.7.2",
     "types-pyyaml>=6.0.12.20261111",
@@ -45,13 +45,14 @@ packages = ["src/server_browser_backend"]
 pythonpath = [ "src" ]
 
 [tool.uv.workspace]
-members = ["packages/server-browser-models", "packages/server-browser-server", "packages/server-browser-fastapi", "packages/server-browser-client"]
+members = ["packages/server-browser-models", "packages/server-browser-server", "packages/server-browser-fastapi", "packages/server-browser-client", "packages/server-browser-codegen"]
 
 [tool.uv.sources]
 server-browser-models = { workspace = true }
 server-browser-server = { workspace = true }
 server-browser-fastapi = { workspace = true }
 server-browser-client = { workspace = true }
+server-browser-codegen = { workspace = true }
 
 [tool.mypy]
 mypy_path = "typings"

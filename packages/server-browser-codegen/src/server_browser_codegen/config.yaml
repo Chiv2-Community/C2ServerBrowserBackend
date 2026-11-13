@@ -1,6 +1,4 @@
 generatorName: python-fastapi
-inputSpec: assets/chiv2-server-browser-api.yaml
-templateDir: codegen/templates
 typeMappings:
   string+ip-address: IPAddress
   string+legacy-ip-address: LegacyIPAddress
@@ -12,27 +10,36 @@ additionalProperties:
   hideGenerationTimestamp: true
   sortModelPropertiesByRequiredFlag: true
 files:
-  models_init.mustache:
+  models/models_init.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_models/models/__init__.py
-  runtime.mustache:
+  models/runtime.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_models/runtime.py
-  package.mustache:
+  models/package.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_models/__init__.py
-  typed.mustache:
+  shared/typed.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_models/py.typed
-  server_runtime.mustache:
+  server/runtime.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_server/runtime.py
-  fastapi_runtime.mustache:
+  fastapi/runtime.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_fastapi/runtime.py
-  client_runtime.mustache:
+  client/runtime.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_client/runtime.py
-  client.mustache:
+  client/client.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_client/client.py
+  server/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_server/__init__.py
+  fastapi/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_fastapi/__init__.py
+  client/package.mustache:
+    templateType: SupportingFiles
+    destinationFilename: src/server_browser_client/__init__.py

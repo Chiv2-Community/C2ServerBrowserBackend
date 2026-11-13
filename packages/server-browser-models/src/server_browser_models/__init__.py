@@ -1,1 +1,1 @@
-"""Generated API contract. DO NOT EDIT; run scripts/generate_api.py."""
+"""Generated API contract. DO NOT EDIT; run uv run server-browser-codegen."""

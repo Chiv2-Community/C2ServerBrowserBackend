@@ -18,6 +18,7 @@ COPY packages/server-browser-models/pyproject.toml /code/packages/server-browser
 COPY packages/server-browser-server/pyproject.toml /code/packages/server-browser-server/pyproject.toml
 COPY packages/server-browser-fastapi/pyproject.toml /code/packages/server-browser-fastapi/pyproject.toml
 COPY packages/server-browser-client/pyproject.toml /code/packages/server-browser-client/pyproject.toml
+COPY packages/server-browser-codegen/pyproject.toml /code/packages/server-browser-codegen/pyproject.toml
 RUN uv sync --frozen --no-dev --no-install-workspace
 
 # Copy project files

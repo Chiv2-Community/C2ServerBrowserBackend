@@ -1,4 +1,4 @@
-"""Generated from OpenAPI. DO NOT EDIT; run scripts/generate_api.py."""
+"""Generated from OpenAPI. DO NOT EDIT; run uv run server-browser-codegen."""
 from __future__ import annotations
 
 from pydantic import Field

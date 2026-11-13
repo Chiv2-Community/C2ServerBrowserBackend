@@ -6,7 +6,7 @@ The API is OpenAPI-first. Define every endpoint, request, response, and external
 token model in `assets/chiv2-server-browser-api.yaml` before implementing it.
 This includes the TBIO/PlayFab compatibility endpoints and non-JSON responses.
 
-The uv workspace contains five packages:
+The uv workspace contains five runtime packages and one development-tooling project:
 
 - Root: `chivalry2-unofficial-server-browser-backend`, handwritten application
   handlers and domain state in `src/server_browser_backend`.
@@ -14,11 +14,13 @@ The uv workspace contains five packages:
 - `packages/server-browser-client`: generated sync/async HTTPX clients.
 - `packages/server-browser-server`: framework-neutral abstract handler interfaces.
 - `packages/server-browser-fastapi`: generated FastAPI adapter.
+- `packages/server-browser-codegen`: generation CLI, toolchain, configuration,
+  module-scoped templates, and generation tests (development-only).
 
 See [Python packages](docs/python-packaging.md) for dependency boundaries, client
 usage, alternative implementations, and migration from `server-browser-api`.
 
-Generated sources under `packages/*/src` are never edited by
+Generated SDK sources under the four reusable runtime projects are never edited by
 hand. Application handlers implement the generated interfaces and return typed
 `ApiResponse` values. Domain conversion functions belong in the application,
 not in generated models. Do not declare routes in the application.
@@ -27,7 +29,7 @@ Install uv, Python 3.10 or newer, and Java 11 or newer (CI uses Java 21), then:
 
 ```bash
 uv sync --frozen --all-packages
-uv run python scripts/generate_api.py
+uv run server-browser-codegen
 ./ci.sh
 ```
 
@@ -47,8 +49,10 @@ For API changes:
 3. Implement the generated abstract methods and application conversions.
 4. Add compatibility and contract tests; commit the OAS and generated diff.
 
-`codegen/config.yaml` selects `python-fastapi` and `codegen/templates` supplies
-the abstract interface, injected-router, and immutable Pydantic model templates. Change these
+`packages/server-browser-codegen/src/server_browser_codegen/config.yaml` selects
+`python-fastapi`. Its sibling `templates/` directory groups templates by output
+owner: `models/`, `client/`, `server/`, and `fastapi/`, with common markers in
+`shared/`. Change these
 only for generator behavior, never for operation-specific business logic.
 OAS remains the source of route names, signatures, and model fields. Request
 constraints are validated against the packaged OAS, without runtime network
@@ -86,7 +90,7 @@ Responses use the declared wire models without filtering diagnostic IP subtypes.
 are disabled. Production runs directly under Uvicorn, without Gunicorn.
 
 OAS `string` formats `ip-address` and `legacy-ip-address` map to typed Pydantic
-aliases of `IPv4Address | IPv6Address` through `codegen/config.yaml`. Both accept
+aliases of `IPv4Address | IPv6Address` through the codegen project's config. Both accept
 raw literals and single-bracketed IPv6 input; neither accepts hostnames, CIDRs,
 ports, or bracketed IPv4. Registration, diagnostic, PlayFab, and TBIO address
 fields remain parsed objects until JSON serialization. The ordinary format emits
@@ -98,16 +102,18 @@ the network parser as unchecked strings. The wheel smoke test also opens a real
 IPv6 loopback listener when available and checks bracketed registration, TBIO
 brackets, and raw PlayFab output over that socket.
 
-`uv run python scripts/generate_api.py --check` regenerates into a temporary
+`uv run server-browser-codegen --check` regenerates into a temporary
 directory and rejects missing, extra, stale, or hand-edited generated Python files.
 The ignored contract copies are excluded from drift checks; contract tests and
 wheel checks compare them with the authoritative YAML. Generation also refreshes
 the local copies after OAS edits.
 CI also checks exact runtime/OAS route parity, response schemas, handler
 implementations, client round trips, type checking, all package builds, and
-isolated wheel startup. `uv build --all-packages` builds all five distributions.
+isolated wheel startup. `uv build --all-packages` builds all six distributions,
+including the development-only codegen tool.
 `uv run python scripts/check_wheels.py` rebuilds every sdist outside the checkout,
-checks framework-free models/client/interfaces installs, then starts the backend
+checks framework-free models/client/interfaces installs and the installed codegen
+CLI from outside the checkout, then starts the backend
 from the rebuilt wheels. Keep one current wheel and sdist per package in `dist/`.
 Consumers install only their chosen package and its dependency wheels. For
 example, install the models and client wheels together with `pip install`;
@@ -139,7 +145,7 @@ has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
 
-CI and tag workflows retain all five wheels and sdists plus the authoritative
+CI and tag workflows retain all six wheels and sdists plus the authoritative
 OpenAPI YAML in the `python-distributions-and-contract` Actions artifact. This
 makes the contract available to non-Python tooling without another package.
 Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
@@ -149,6 +155,10 @@ overwrite existing assets. No package-index publication is configured; verify
 name ownership before adding it. The four generated distributions use one coordinated version and
 exact internal dependency constraints; update their `pyproject.toml` versions and
 the backend requirements together, then refresh `uv.lock` and run `./ci.sh`.
+The development-only codegen tool has its own version and owns the pinned
+generator dependency; it is never installed in runtime SDK/backend environments.
+See its [README](packages/server-browser-codegen/README.md) for template ownership
+and the installed `--root` command.
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
