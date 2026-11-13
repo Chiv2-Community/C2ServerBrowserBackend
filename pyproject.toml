@@ -45,7 +45,13 @@ packages = ["src/server_browser_backend"]
 pythonpath = [ "src" ]
 
 [tool.uv.workspace]
-members = ["packages/server-browser-models", "packages/server-browser-server", "packages/server-browser-fastapi", "packages/server-browser-client", "packages/server-browser-codegen"]
+members = [
+    "packages/server-browser-models",
+    "packages/server-browser-server",
+    "packages/server-browser-fastapi",
+    "packages/server-browser-client",
+    "packages/server-browser-codegen",
+]
 
 [tool.uv.sources]
 server-browser-models = { workspace = true }
@@ -55,5 +61,15 @@ server-browser-client = { workspace = true }
 server-browser-codegen = { workspace = true }
 
 [tool.mypy]
+files = [
+    "src",
+    "packages/server-browser-models/src",
+    "packages/server-browser-server/src",
+    "packages/server-browser-fastapi/src",
+    "packages/server-browser-client/src",
+    "packages/server-browser-codegen/src",
+    "scripts",
+    "examples",
+]
 mypy_path = "typings"
 plugins = ["pydantic.mypy"]

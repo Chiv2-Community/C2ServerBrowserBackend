@@ -25,10 +25,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install Dependencies
-        run: uv sync --frozen --all-packages
-
-      - name: Test with pytest
+      - name: Validate and build all packages
         run: ./ci.sh
 
       - name: Upload Python distributions and OpenAPI contract

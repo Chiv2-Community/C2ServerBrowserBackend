@@ -111,6 +111,8 @@ CI also checks exact runtime/OAS route parity, response schemas, handler
 implementations, client round trips, type checking, all package builds, and
 isolated wheel startup. `uv build --all-packages` builds all six distributions,
 including the development-only codegen tool.
+Run `uv run mypy` for type checking; `pyproject.toml` defines the shared source
+paths, including every workspace project's `src/` directory.
 `uv run python scripts/check_wheels.py` rebuilds every sdist outside the checkout,
 checks framework-free models/client/interfaces installs and the installed codegen
 CLI from outside the checkout, then starts the backend

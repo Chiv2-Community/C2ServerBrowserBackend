@@ -85,6 +85,40 @@ def prepare_config(root: Path, directory: Path) -> Path:
     return path
 
 
+def prepare_packages(output: Path, spec: dict, contract_text: str) -> None:
+    """Partition generator output into the four SDK packages and normalize sources."""
+    generated = output / "src/server_browser_models"
+    # Keep the contract/bindings, not the generator's example application.
+    for source in generated.rglob("*"):
+        relative = source.relative_to(generated)
+        if source.is_file() and not (
+            relative.parts[0] in ("models", "apis")
+            or relative.as_posix() in ("__init__.py", "runtime.py", "py.typed")
+        ):
+            source.unlink()
+    (generated / "models/extra_models.py").unlink(missing_ok=True)
+    (generated / "contract.json").write_text(
+        json.dumps(spec, indent=2, sort_keys=True) + "\n"
+    )
+    (generated / "openapi.yaml").write_text(contract_text)
+    server = output / "src/server_browser_server"
+    adapter = output / "src/server_browser_fastapi"
+    for source in (generated / "apis").glob("*.py"):
+        destination = server if source.name.endswith("_base.py") else adapter
+        (destination / "apis").mkdir(exist_ok=True)
+        source.rename(destination / "apis" / source.name)
+    (generated / "apis").rmdir()
+    for name in PACKAGES:
+        package = output / f"src/server_browser_{name}"
+        (package / "py.typed").write_text("")
+        if (package / "apis").is_dir():
+            (package / "apis/__init__.py").write_text("")
+    for source in (output / "src").rglob("*.py"):
+        text = source.read_text().rstrip()
+        ast.parse(text, filename=str(source))
+        source.write_text(text + "\n" if text else "")
+
+
 def generate(root: Path, check: bool = False) -> None:
     root = root.resolve()
     text = (root / "assets/chiv2-server-browser-api.yaml").read_text()
@@ -129,37 +163,7 @@ def generate(root: Path, check: bool = False) -> None:
             print(process.stdout, file=sys.stderr)
             print(process.stderr, file=sys.stderr)
             process.check_returncode()
-        generated = output / "src/server_browser_models"
-        # Keep the contract/bindings, not the generator's example application.
-        for source in list(generated.rglob("*")):
-            if source.is_file() and not (
-                source.relative_to(generated).parts[0] in ("models", "apis")
-                or source.relative_to(generated).as_posix()
-                in ("__init__.py", "runtime.py", "py.typed")
-            ):
-                source.unlink()
-        (generated / "models/extra_models.py").unlink(missing_ok=True)
-        (generated / "contract.json").write_text(
-            json.dumps(spec, indent=2, sort_keys=True) + "\n"
-        )
-        (generated / "openapi.yaml").write_text(text)
-        server = output / "src/server_browser_server"
-        adapter = output / "src/server_browser_fastapi"
-        for source in (generated / "apis").glob("*.py"):
-            destination = server if source.name.endswith("_base.py") else adapter
-            (destination / "apis").mkdir(exist_ok=True)
-            source.rename(destination / "apis" / source.name)
-        (generated / "apis").rmdir()
-        for name in PACKAGES:
-            package = output / f"src/server_browser_{name}"
-            if name != "models":
-                (package / "py.typed").write_text("")
-            if (package / "apis").is_dir():
-                (package / "apis/__init__.py").write_text("")
-        for source in (output / "src").rglob("*.py"):
-            text = source.read_text().rstrip()
-            source.write_text(text + "\n" if text else "")
-            ast.parse(text, filename=str(source))
+        prepare_packages(output, spec, text)
         for name in PACKAGES:
             source = output / f"src/server_browser_{name}"
             target = root / f"packages/server-browser-{name}/src/server_browser_{name}"
