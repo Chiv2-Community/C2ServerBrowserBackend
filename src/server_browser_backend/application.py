@@ -5,13 +5,13 @@ from fastapi import FastAPI
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from server_browser_api.apis.api_v1_api import create_router as browser_router
+from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
 from server_browser_api.apis.chiv2_compat_api import create_router as compatibility_router
+from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from server_browser_api.runtime import (
     DictKeyError, DictTypeError, JsonMissing, SchemaValidationError, automatic_options, contract,
 )
 from server_browser_backend.routes import api_v1
-from server_browser_backend.routes.api_v1 import BrowserApi
-from server_browser_backend.routes.chiv2_compat import CompatibilityApi
 from server_browser_backend.routes.shared import Banned
 from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
 
@@ -40,7 +40,7 @@ class ForwardedHeaders:
 
 
 class Application(FastAPI):
-    def __init__(self, browser_api: BrowserApi, compatibility_api: CompatibilityApi, *, debug_mode: bool):
+    def __init__(self, browser_api: BaseApiV1Api, compatibility_api: BaseChiv2CompatApi, *, debug_mode: bool):
         super().__init__(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
         self.browser_api = browser_api
         self.compatibility_api = compatibility_api

@@ -6,6 +6,11 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
+from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
+from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi
+from server_browser_api.models import LoginResponse, StatusResponse
+from server_browser_api.runtime import ApiResponse
+from server_browser_backend.application import Application
 from server_browser_backend.server_list import ServerList
 from server_browser_backend.token_reissuer import TokenReissuer
 
@@ -14,6 +19,25 @@ REGISTRATION = {
     "player_count": 0, "max_players": 32,
     "ports": {"game": 7777, "ping": 7778, "a2s": 7779},
 }
+
+
+def test_application_accepts_generated_interfaces_without_concrete_services():
+    browser = Mock(spec=BaseApiV1Api)
+    compatibility = Mock(spec=BaseChiv2CompatApi)
+    browser.login.return_value = ApiResponse(LoginResponse(token="injected-token"))
+    compatibility.tbio_get_servers.return_value = ApiResponse(
+        StatusResponse(status="forbidden", message="injected policy"), 403,
+    )
+    application = Application(browser, compatibility, debug_mode=False)
+    with TestClient(application) as client:
+        login = client.post("/api/v1/auth/login", json={"token": "input-token"})
+        listing = client.post("/api/tbio/GetCurrentGames")
+    assert login.status_code == 200
+    assert login.json() == {"token": "injected-token"}
+    assert listing.status_code == 403
+    assert listing.json()["message"] == "injected policy"
+    browser.login.assert_called_once()
+    compatibility.tbio_get_servers.assert_called_once()
 
 
 def test_api_implementations_share_the_injected_services(app):
@@ -57,8 +81,11 @@ def test_login_uses_the_constructed_token_service(app_factory):
     first = app_factory(token_reissuer=first_tokens)
     second = app_factory(token_reissuer=second_tokens)
     with TestClient(first, client=("192.0.2.1", 50000)) as one, TestClient(second, client=("192.0.2.2", 50000)) as two:
-        assert one.post("/api/v1/auth/login", json={"token": "one"}).json() == {"token": "first-token"}
-        assert two.post("/api/v1/auth/login", json={"token": "two"}).json() == {"token": "second-token"}
+        first_login = one.post("/api/v1/auth/login", json={"token": "one"})
+        second_login = two.post("/api/v1/auth/login", json={"token": "two"})
+    assert first_login.status_code == second_login.status_code == 200
+    assert first_login.json() == {"token": "first-token"}
+    assert second_login.json() == {"token": "second-token"}
     first_tokens.validate_and_reissue.assert_called_once_with("one", "192.0.2.1")
     second_tokens.validate_and_reissue.assert_called_once_with("two", "192.0.2.2")
 
