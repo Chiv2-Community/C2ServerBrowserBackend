@@ -1,6 +1,6 @@
 .vscode
 .idea
-/annals/
+annals/
 /packages/server-browser-models/src/server_browser_models/contract.json
 /packages/server-browser-models/src/server_browser_models/openapi.yaml
 
