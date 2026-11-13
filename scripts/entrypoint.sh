@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-exec uv run --frozen --no-dev uvicorn server_browser_backend.main:app \
+exec uvicorn server_browser_backend.main:app \
     --host "${UVICORN_HOST:-0.0.0.0}" \
     --port "${UVICORN_PORT:-8080}" \
     --workers "${UVICORN_WORKERS:-1}" \

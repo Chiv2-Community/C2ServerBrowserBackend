@@ -145,6 +145,13 @@ has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
 
+Docker uses a wheel-builder stage and a clean runtime stage. The builder exports
+locked non-development dependencies, builds the backend plus models/interfaces/
+FastAPI wheels, and installs them into a virtual environment. The final image
+copies only that installed environment, default configuration, and the startup
+script. It contains no repository checkout, client/codegen sources, workspace
+manifests, or uv executable; startup invokes the installed Uvicorn directly.
+
 CI and tag workflows retain all six wheels and sdists plus the authoritative
 OpenAPI YAML in the `python-distributions-and-contract` Actions artifact. This
 makes the contract available to non-Python tooling without another package.
