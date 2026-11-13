@@ -7,7 +7,7 @@ from importlib.resources import files
 from ipaddress import IPv4Address, IPv6Address, ip_address
 import json
 import re
-from typing import Annotated, Any, Generic, TypeVar, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Generic, TypeVar, get_args, get_origin
 from types import UnionType
 from typing import Union
 
@@ -194,7 +194,6 @@ class WireModel(BaseModel):
     @classmethod
     def from_json(cls: type[T], value: dict[str, Any]) -> T:
         arguments: dict[str, Any] = {}
-        hints = get_type_hints(cls, include_extras=True)
         for name, definition in cls.model_fields.items():
             key = definition.alias or name
             metadata = definition.json_schema_extra or {}
@@ -203,7 +202,7 @@ class WireModel(BaseModel):
                 if definition.is_required():
                     raise DictKeyError(key, value)
                 continue
-            annotation = hints[name]
+            annotation = definition.rebuild_annotation()
             if value[key] is None and not metadata["nullable"]:
                 expected = get_args(annotation)[0] if get_origin(annotation) in (Union, UnionType) else annotation
                 if get_origin(expected) is Annotated:
