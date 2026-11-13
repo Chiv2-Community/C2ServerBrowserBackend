@@ -28,15 +28,7 @@ def test_get_servers(client: TestClient):
 
     post_response_1 = client.post(
         "/api/v1/servers",
-        json={
-            "name": "Test Server",
-            "description": "Test Description",
-            "ports": test_ports,
-            "player_count": 0,
-            "max_players": 100,
-            "current_map": "Test Map",
-            "local_ip_address": local_ip
-        },
+        json={**test_server_json, "local_ip_address": local_ip},
         headers={"X-Forwarded-For": source_ip}
     )
 
@@ -46,12 +38,8 @@ def test_get_servers(client: TestClient):
     post_response_2 = client.post(
         "/api/v1/servers",
         json={
+            **test_server_json,
             "name": "Test Server 2",
-            "description": "Test Description",
-            "ports": test_ports,
-            "player_count": 0,
-            "max_players": 100,
-            "current_map": "Test Map",
             "password_protected": True,
         }, headers={"X-Forwarded-For": garbage_ip}
     )
@@ -99,12 +87,10 @@ def test_get_servers_ipv6_uses_bracketed_legacy_address_fields(client: TestClien
     response = client.post(
         "/api/v1/servers",
         json={
+            **test_server_json,
             "name": "IPv6 Server",
             "description": "IPv6 test",
-            "ports": test_ports,
-            "player_count": 0,
             "max_players": 64,
-            "current_map": "Test Map",
             "local_ip_address": f"[{ipv6}]" if bracketed else ipv6,
         },
         headers={"X-Forwarded-For": source_ip},
@@ -123,12 +109,10 @@ def test_ipv6_local_address_is_source_matching_local_client_override(client: Tes
     response = client.post(
         "/api/v1/servers",
         json={
+            **test_server_json,
             "name": "Remote IPv6 Selection",
             "description": "IPv6 selection test",
-            "ports": test_ports,
-            "player_count": 0,
             "max_players": 64,
-            "current_map": "Test Map",
             "local_ip_address": local_ipv6,
         },
         headers={"X-Forwarded-For": source_ip},
@@ -242,15 +226,8 @@ def test_client_matchmake_2(client: TestClient):
     
     registration_response = client.post(
         "/api/v1/servers",
-        json={
-            "name": "Test Server",
-            "description": "Test Description",
-            "ports": test_ports,
-            "player_count": 0,
-            "max_players": 100,
-            "current_map": "Test Map",
-            "local_ip_address": "192.168.1.2"
-        }, headers={"X-Forwarded-For": ip_address}
+        json={**test_server_json, "local_ip_address": "192.168.1.2"},
+        headers={"X-Forwarded-For": ip_address},
     )
 
     unique_id = registration_response.json()["server"]["unique_id"]
@@ -267,16 +244,8 @@ def test_local_client_matchmake(client: TestClient):
     
     registration_response = client.post(
         "/api/v1/servers",
-        json={
-            "name": "Test Server",
-            "description": "Test Description",
-            "ports": test_ports,
-            "player_count": 0,
-            "max_players": 100,
-            "current_map": "Test Map",
-            "local_ip_address": local_ip_address
-
-        }, headers={"X-Forwarded-For": ip_address}
+        json={**test_server_json, "local_ip_address": local_ip_address},
+        headers={"X-Forwarded-For": ip_address},
     )
 
     unique_id = registration_response.json()["server"]["unique_id"]

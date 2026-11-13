@@ -89,7 +89,5 @@ def server_response_with_ip(server: Server) -> ServerResponseWithIP:
 
 
 def server_listing(servers: list[Server], include_ip: bool) -> ServerListResponse:
-    return ServerListResponse(servers=[
-        server_response_with_ip(server) if include_ip else server_response(server)
-        for server in servers
-    ])
+    response = server_response_with_ip if include_ip else server_response
+    return ServerListResponse(servers=[response(server) for server in servers])
