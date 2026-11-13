@@ -1,6 +1,6 @@
-from typing import Any, Callable, Dict, Generic, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
-from server_browser_backend.type_vars import A, B
+from server_browser_backend.type_vars import A
 from server_browser_backend.ip_address import IPAddress
 from server_browser_api.runtime import DictKeyError, DictTypeError, parse_ip_address
 
@@ -30,10 +30,6 @@ TYPE_DECODERS: Dict[Type[Any], Callable[[Any], Any]] = {
 }
 
 
-def _no_key_error(key: str, input_dict: Dict[str, Any]) -> Any:
-    raise DictKeyError(key, input_dict)
-
-
 def get_list_or(
     dictionary: Dict[str, Any],
     key: str,
@@ -43,13 +39,11 @@ def get_list_or(
     """Gets a list from the dictionary, and checks that all items in the list are of the correct type"""
     lst = get_or(dictionary, key, list, default)
 
-    idx = 0
-    for item in lst:
+    for idx, item in enumerate(lst):
         if not isinstance(item, list_item_type):
             raise DictTypeError(
                 key + f"[{idx}]", item, list_item_type, type(item), dictionary
             )
-        idx += 1
 
     return lst
 
@@ -77,7 +71,7 @@ def get_or(
         raise DictTypeError(key, value, expected_type, type(value), dictionary)
 
     if default is None:
-        return _no_key_error(key, dictionary)
+        raise DictKeyError(key, dictionary)
 
     return default()
 

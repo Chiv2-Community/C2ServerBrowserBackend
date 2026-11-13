@@ -2,7 +2,10 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 
 import pytest
 
-from server_browser_backend.dict_util import TYPE_DECODERS, DictKeyError, DictTypeError, get_or, get_or_optional
+from server_browser_backend.dict_util import (
+    TYPE_DECODERS, DictKeyError, DictTypeError, get_list_or, get_list_or_optional,
+    get_or, get_or_optional,
+)
 from server_browser_backend.ip_address import IPAddress
 
 
@@ -104,3 +107,24 @@ def test_get_checks_decoded_type(monkeypatch):
     monkeypatch.setitem(TYPE_DECODERS, float, lambda value: value)
     with pytest.raises(DictTypeError):
         get_or({"value": "1.5"}, "value", float)
+
+
+@pytest.mark.parametrize("getter", [get_list_or, get_list_or_optional])
+def test_list_item_error_reports_first_invalid_index_and_context(getter):
+    data = {"values": ["first", "second", 3, False]}
+    with pytest.raises(DictTypeError) as error:
+        getter(data, "values", str)
+    assert error.value.key == "values[2]"
+    assert error.value.value == 3
+    assert error.value.actual_type is int
+    assert error.value.expected_type is str
+    assert error.value.context is data
+
+
+@pytest.mark.parametrize("getter", [get_or, get_list_or])
+def test_required_key_error_preserves_context(getter):
+    data = {"other": "value"}
+    with pytest.raises(DictKeyError) as error:
+        getter(data, "missing", str)
+    assert error.value.key == "missing"
+    assert error.value.context is data

@@ -81,11 +81,6 @@ class ServerList:
 
             return secured_server.resource
 
-    def get_unsafe(self, server_id: str) -> Server:
-        """Gets the server with the given id. Raises an exception if the server does not exist."""
-        with self.servers_mutex:
-            return self.servers[server_id].resource
-
     def get_all(self) -> List[Server]:
         """Gets all registered servers that have not timed out."""
         with self.servers_mutex:
