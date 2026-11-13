@@ -19,7 +19,7 @@ from server_browser_api.apis.chiv2_compat_api_base import BaseChiv2CompatApi as 
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest, ServerResponseWithIP
-from server_browser_api.runtime import DictKeyError, DictTypeError, WireModel, contract, to_wire
+from server_browser_api.runtime import DictKeyError, DictTypeError, WireModel, contract, parameter_definition, read_parameter, to_wire
 from server_browser_backend.main import app
 from server_browser_backend.routes import shared
 from server_browser_backend.routes.api_v1 import BrowserApi
@@ -137,6 +137,26 @@ def test_generated_decoding_rejects_wrong_types(field, value):
 def test_required_fields_are_not_silently_defaulted():
     with pytest.raises(DictKeyError):
         ServerRegistrationRequest.from_json({key: value for key, value in REGISTRATION.items() if key != "name"})
+
+
+def test_parameter_lookup_is_scoped_to_operation_and_location():
+    for operation in ("update", "heartbeat", "delete_server"):
+        definition = parameter_definition(operation, "path", "server_id")
+        assert definition["name"] == "server_id"
+        assert definition["in"] == "path"
+        assert read_parameter(operation, "path", "server_id", "first") == "first"
+        assert read_parameter(operation, "path", "server_id", "second") == "second"
+    with pytest.raises(RuntimeError, match="Undeclared parameter missing.server_id"):
+        parameter_definition("missing", "path", "server_id")
+
+
+@pytest.mark.parametrize("value", [None, []])
+def test_cached_parameter_definition_preserves_required_and_application_validation(value):
+    name = "X-CHIV2-SERVER-BROWSER-KEY"
+    with pytest.raises(DictKeyError):
+        read_parameter("update", "header", name, value)
+    assert read_parameter("update", "header", name, value, application_validated=True) is None
+    assert read_parameter("update", "header", name, "secret") == "secret"
 
 
 def test_nullable_diagnostic_address_round_trips(client):

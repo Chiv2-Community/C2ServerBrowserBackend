@@ -112,41 +112,46 @@ async def read_body(request: Request) -> dict[str, Any]:
     return value
 
 
-def read_parameter(operation_id: str, location: str, name: str, value: Any, application_validated: bool = False) -> Any:
+@lru_cache(maxsize=256)
+def parameter_definition(operation_id: str, location: str, name: str) -> dict[str, Any]:
     for path in contract()["paths"].values():
         for operation in path.values():
             if not isinstance(operation, dict) or operation.get("operationId") != operation_id:
                 continue
             parameters = path.get("parameters", []) + operation.get("parameters", [])
-            parameter = next(p for p in parameters if p["name"] == name and p["in"] == location)
-            schema = parameter["schema"]
-            if value is None or value == []:
-                if "default" in schema:
-                    return schema["default"]
-                if parameter.get("required") and not application_validated:
-                    raise DictKeyError(name, {})
-                return None
-            if isinstance(value, list) and schema.get("type") != "array":
-                value = value[0]
-            try:
-                if schema.get("type") == "integer":
-                    value = int(value)
-                elif schema.get("type") == "number":
-                    value = float(value)
-                elif schema.get("type") == "boolean":
-                    value = {"true": True, "false": False}[value]
-            except (ValueError, KeyError, TypeError):
-                raise SchemaValidationError(f"Invalid parameter '{name}'") from None
-            error = next(OAS30Validator({"components": contract()["components"], **schema}).iter_errors(value), None)
-            if error is not None:
-                raise SchemaValidationError(f"Invalid parameter '{name}': {error.message}")
-            if schema.get("format") in {"ip-address", "legacy-ip-address"}:
-                try:
-                    return parse_ip_address(value)
-                except ValueError:
-                    raise SchemaValidationError(f"Invalid IP address parameter '{name}'") from None
-            return value
+            return next(p for p in parameters if p["name"] == name and p["in"] == location)
     raise RuntimeError(f"Undeclared parameter {operation_id}.{name}")
+
+
+def read_parameter(operation_id: str, location: str, name: str, value: Any, application_validated: bool = False) -> Any:
+    parameter = parameter_definition(operation_id, location, name)
+    schema = parameter["schema"]
+    if value is None or value == []:
+        if "default" in schema:
+            return schema["default"]
+        if parameter.get("required") and not application_validated:
+            raise DictKeyError(name, {})
+        return None
+    if isinstance(value, list) and schema.get("type") != "array":
+        value = value[0]
+    try:
+        if schema.get("type") == "integer":
+            value = int(value)
+        elif schema.get("type") == "number":
+            value = float(value)
+        elif schema.get("type") == "boolean":
+            value = {"true": True, "false": False}[value]
+    except (ValueError, KeyError, TypeError):
+        raise SchemaValidationError(f"Invalid parameter '{name}'") from None
+    error = next(OAS30Validator({"components": contract()["components"], **schema}).iter_errors(value), None)
+    if error is not None:
+        raise SchemaValidationError(f"Invalid parameter '{name}': {error.message}")
+    if schema.get("format") in {"ip-address", "legacy-ip-address"}:
+        try:
+            return parse_ip_address(value)
+        except ValueError:
+            raise SchemaValidationError(f"Invalid IP address parameter '{name}'") from None
+    return value
 
 
 def decode(annotation: Any, value: Any, key: str, context: dict[str, Any]) -> Any:
