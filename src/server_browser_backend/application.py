@@ -31,7 +31,8 @@ class ForwardedHeaders:
                 if response is not None:
                     await response(scope, receive, send)
                     return
-            scope = dict(scope)
+            # ASGI scopes are per request. Keep routing/proxy context visible to
+            # the outer error handler and Uvicorn access logger as well.
             headers = dict(scope["headers"])
             forwarded = headers.get(b"x-forwarded-for")
             if forwarded:

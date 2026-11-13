@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import threading
 from datetime import datetime
@@ -7,6 +8,8 @@ from typing import Callable, Dict, List, Optional
 
 from server_browser_backend.models.base_models import Server
 from server_browser_backend.secured_resource import SecuredResource
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidSecretKey(Exception):
@@ -82,19 +85,34 @@ class ServerList:
     def get_all(self) -> List[Server]:
         """Gets all registered servers that have not timed out."""
         with self.servers_mutex:
-            self._process_heartbeat_timeouts(datetime.now().timestamp())
-            return [secured_server.resource for secured_server in self.servers.values()]
+            current_time = datetime.now().timestamp()
+            expired = self._process_heartbeat_timeouts(current_time)
+            servers = [
+                secured_server.resource for secured_server in self.servers.values()
+            ]
+        # Log outside the lock: a remote log sink must not block registry operations.
+        for server in expired:
+            logger.info(
+                "Server registration expired server_id=%r name=%r ip=%s game_port=%s age_seconds=%.1f timeout_seconds=%s",
+                server.unique_id,
+                server.name,
+                server.ip_address,
+                server.ports.game,
+                current_time - server.last_heartbeat,
+                self.heartbeat_timeout,
+            )
+        return servers
 
     def clear(self) -> None:
         """Clears all registered servers."""
         with self.servers_mutex:
             self.servers.clear()
 
-    def _process_heartbeat_timeouts(self, current_time: float) -> None:
+    def _process_heartbeat_timeouts(self, current_time: float) -> List[Server]:
         """Remove expired records while the caller holds the registry lock."""
         expired = [
-            server_id for server_id, server in self.servers.items()
+            server_id
+            for server_id, server in self.servers.items()
             if server.resource.last_heartbeat + self.heartbeat_timeout < current_time
         ]
-        for server_id in expired:
-            del self.servers[server_id]
+        return [self.servers.pop(server_id).resource for server_id in expired]
