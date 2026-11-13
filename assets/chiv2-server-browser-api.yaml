@@ -1053,4 +1053,11 @@ components:
         jti:
           type: string
         act:
-          $ref: '#/components/schemas/ExternalAccount'
+          type: object
+          nullable: true
+          # In OAS 3.0, nullable does not relax the referenced schema.
+          anyOf:
+            - $ref: '#/components/schemas/ExternalAccount'
+            - type: object
+              nullable: true
+              enum: [null]

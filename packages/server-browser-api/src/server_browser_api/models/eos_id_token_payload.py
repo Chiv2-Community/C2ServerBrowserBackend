@@ -20,4 +20,4 @@ class EosIdTokenPayload(WireModel):
     exp: int = Field(alias="exp", json_schema_extra={"format": "", "nullable": False})
     iat: int = Field(alias="iat", json_schema_extra={"format": "", "nullable": False})
     jti: str = Field(alias="jti", json_schema_extra={"format": "", "nullable": False})
-    act: ExternalAccount | None = Field(default=None, alias="act", json_schema_extra={"format": "", "nullable": False})
+    act: ExternalAccount | None = Field(default=None, alias="act", json_schema_extra={"format": "", "nullable": True})
