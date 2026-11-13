@@ -6,14 +6,18 @@ from pygelf import GelfTcpHandler
 from os import environ
 import logging
 
-from fastapi import FastAPI
-from starlette.types import ASGIApp, Scope, Receive, Send
-from server_browser_api.runtime import automatic_options, contract, DictKeyError, DictTypeError, JsonMissing, SchemaValidationError
-from server_browser_backend.routes import api_v1
-from server_browser_backend.routes.shared import Banned
-from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
+import secrets
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric import rsa
 
-from server_browser_backend import routes
+from server_browser_backend.application import Application
+from server_browser_backend.env import show_registered_ips
+from server_browser_backend.ip_list import IpList
+from server_browser_backend.routes.api_v1 import BrowserApi
+from server_browser_backend.routes.chiv2_compat import CompatibilityApi
+from server_browser_backend.routes.shared import RequestPolicy
+from server_browser_backend.server_list import ServerList
+from server_browser_backend.token_reissuer import TokenReissuer
 logger = logging.getLogger()
 
 dictConfig(
@@ -45,50 +49,32 @@ if graylog_host is not None:
     logger.addHandler(graylog_handler)
 
 
-class ForwardedHeaders:
-    """Preserve the existing one-trusted-proxy deployment contract.
-
-    The backend must only be reachable through a proxy that overwrites forwarded
-    headers. Trust the last value, as the old ProxyFix(x_for=1) did.
-    """
-    def __init__(self, app: ASGIApp):
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http":
-            if scope["method"] == "OPTIONS":
-                response = automatic_options(scope["path"])
-                if response is not None:
-                    await response(scope, receive, send)
-                    return
-            scope = dict(scope)
-            headers = dict(scope["headers"])
-            forwarded = headers.get(b"x-forwarded-for")
-            if forwarded:
-                scope["client"] = (forwarded.decode("latin-1").split(",")[-1].strip(), 0)
-            scheme = headers.get(b"x-forwarded-proto")
-            if scheme:
-                scope["scheme"] = scheme.decode("latin-1").split(",")[-1].strip()
-        await self.app(scope, receive, send)
-
-
-class ContractFastAPI(FastAPI):
-    def openapi(self) -> dict:
-        return contract()
+def create_default_app() -> Application:
+    """Composition root: read configuration and construct one shared service graph."""
+    admin_key = environ.get("ADMIN_KEY", secrets.token_urlsafe(128))
+    config_dir = Path(environ.get("CONFIG_DIR", "config"))
+    server_list = ServerList(heartbeat_timeout=65)
+    ban_list = IpList(admin_key, str(config_dir / "ban_list.txt"))
+    verified_list = IpList(admin_key, str(config_dir / "verified_list.txt"))
+    policy = RequestPolicy(ban_list, verified_list)
+    token_reissuer = TokenReissuer(
+        private_key=rsa.generate_private_key(public_exponent=65537, key_size=2048),
+        kid="server-browser-backend-key-1",
+        eos_jwks="https://api.epicgames.dev/epic/oauth/v2/.well-known/jwks.json",
+        expected_audience=environ.get("EOS_AUDIENCE", "7f2b13acf2e84ab0ae8604d822f10498"),
+        issuer=environ.get("SERVER_BROWSER_FQDN", "chivalry2-server-browser-backend"),
+    )
+    motd_directory = Path(__file__).resolve().parent / "assets/motd"
+    if not motd_directory.exists():
+        motd_directory = Path(__file__).resolve().parents[2] / "assets/motd"
+    return Application(
+        BrowserApi(
+            server_list=server_list, ban_list=ban_list, verified_list=verified_list,
+            policy=policy, token_reissuer=token_reissuer, show_registered_ips=show_registered_ips,
+        ),
+        CompatibilityApi(server_list=server_list, policy=policy, motd_directory=motd_directory),
+        debug_mode=environ.get("DEBUG_MODE", "false").lower() == "true",
+    )
 
 
-app = ContractFastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
-app.add_middleware(ForwardedHeaders)
-
-
-app.exception_handler(JsonMissing)(api_v1.handle_json_missing)
-app.exception_handler(DictKeyError)(api_v1.handle_dict_key_error)
-app.exception_handler(DictTypeError)(api_v1.handle_dict_type_error)
-app.exception_handler(SchemaValidationError)(api_v1.handle_schema_validation)
-app.exception_handler(SecretKeyMissing)(api_v1.handle_secret_key_missing)
-app.exception_handler(InvalidSecretKey)(api_v1.handle_invalid_secret_key)
-app.exception_handler(Banned)(api_v1.handle_banned_user)
-app.exception_handler(Exception)(api_v1.handle_general_exception)
-
-app.include_router(routes.compat_router)
-app.include_router(routes.api_v1_router)
+app = create_default_app()

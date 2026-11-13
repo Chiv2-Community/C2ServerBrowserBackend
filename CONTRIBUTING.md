@@ -56,6 +56,21 @@ or generated implementation file to fill in. Synchronous handlers run in the
 ASGI thread pool so existing file I/O and EOS HTTP requests do not block the loop.
 Requests are passed explicitly, not through Flask request globals.
 
+`main.py` is the composition root. It reads configuration, constructs the registry,
+IP lists, request policy, and token reissuer once, then injects them into
+`BrowserApi` and `CompatibilityApi` through required constructor arguments.
+`application.Application` binds those instances to the generated routers and
+captures error-display configuration per application. The handlers do not look
+up services through globals, `app.state`, or request-time dependency resolution.
+The diagnostic-IP setting is an injected callable so its existing environment
+lookup behavior is preserved. MOTD storage is an injected directory.
+
+Library and route imports do not construct the production application. Uvicorn
+still loads `server_browser_backend.main:app`; importing that entry point creates
+the production graph. Tests construct isolated graphs with their own IP-list
+files and can inject alternate token services, registries, configuration, and
+MOTD directories. Registry state and signing keys remain process-local.
+
 The compact model override preserves OAS defaults (including empty lists), wire
 aliases, omitted versus nullable fields, and union serialization. The transport
 decodes requests against the packaged OAS before Pydantic construction, preserving

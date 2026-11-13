@@ -20,8 +20,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest, ServerResponseWithIP
 from server_browser_api.runtime import DictKeyError, DictTypeError, WireModel, contract, parameter_definition, read_parameter, to_wire
-from server_browser_backend.main import app
-from server_browser_backend.routes import shared
+from server_browser_backend.routes.shared import ADMIN_KEY_HEADER, KEY_HEADER
 from server_browser_backend.routes.api_v1 import BrowserApi
 from server_browser_backend.routes.chiv2_compat import CompatibilityApi
 
@@ -52,7 +51,7 @@ def test_spec_is_valid_and_generated_resources_match_source():
     assert yaml.safe_load(files("server_browser_api").joinpath("openapi.yaml").read_text()) == source
 
 
-def test_runtime_routes_match_oas_exactly():
+def test_runtime_routes_match_oas_exactly(app):
     def flatten(routes):
         for route in routes:
             # FastAPI 0.162+ retains included routers instead of copying routes.
@@ -105,9 +104,12 @@ def test_generated_models_cover_every_schema():
             assert {field.alias or name for name, field in model.model_fields.items()} == set(schema["properties"])
 
 
-def test_handlers_implement_generated_interfaces():
-    assert isinstance(BrowserApi(), ApiV1Controller)
-    assert isinstance(CompatibilityApi(), Chiv2CompatController)
+def test_handlers_implement_generated_interfaces(app):
+    assert isinstance(app.browser_api, ApiV1Controller)
+    assert isinstance(app.compatibility_api, Chiv2CompatController)
+    for implementation in (BrowserApi, CompatibilityApi):
+        with pytest.raises(TypeError):
+            implementation()
     for interface in (ApiV1Controller, Chiv2CompatController):
         with pytest.raises(TypeError):
             interface()
@@ -168,14 +170,14 @@ def test_nullable_diagnostic_address_round_trips(client):
     assert to_wire(listing) == {"servers": [value]}
 
 
-def test_all_successful_api_flows_match_response_schemas(client):
+def test_all_successful_api_flows_match_response_schemas(client, admin_key):
     response = client.post("/api/v1/servers", json=REGISTRATION)
     assert response.status_code == 201
     assert_response_contract("/api/v1/servers", "post", response)
     registration = response.json()
     server_id = registration["server"]["unique_id"]
-    headers = {shared.KEY_HEADER: registration["key"]}
-    admin_headers = {shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}
+    headers = {KEY_HEADER: registration["key"]}
+    admin_headers = {ADMIN_KEY_HEADER: admin_key}
     requests = [
         ("/api/v1/servers", "/api/v1/servers", "GET", {}),
         ("/api/v1/auth/jwks.json", "/api/v1/auth/jwks.json", "GET", {}),
@@ -197,10 +199,10 @@ def test_all_successful_api_flows_match_response_schemas(client):
 
 
 @pytest.mark.parametrize("value", [None, [], "body", 1, True])
-def test_invalid_json_body_returns_400_without_mutation(client, value):
+def test_invalid_json_body_returns_400_without_mutation(client, browser, value):
     response = client.post("/api/v1/servers", content=json.dumps(value), headers={"Content-Type": "application/json"})
     assert response.status_code == 400
-    assert shared.server_list.get_all() == []
+    assert browser.server_list.get_all() == []
     assert_response_contract("/api/v1/servers", "post", response)
 
 
@@ -221,14 +223,14 @@ def test_compat_validation_errors_are_json_400(client, path, body):
 
 
 @pytest.mark.parametrize("list_name,field", [("ban-list", "banned_ips"), ("verified-list", "verified_ips")])
-def test_legacy_invalid_removal_response_is_preserved(client, list_name, field):
-    response = client.request("DELETE", f"/api/v1/admin/{list_name}", headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}, json={field: ["invalid"]})
+def test_legacy_invalid_removal_response_is_preserved(client, admin_key, list_name, field):
+    response = client.request("DELETE", f"/api/v1/admin/{list_name}", headers={ADMIN_KEY_HEADER: admin_key}, json={field: ["invalid"]})
     assert response.status_code == 403
     assert response.json()["message"] == "Invalid admin key"
 
 
-def test_banned_request_policy_runs_before_body_decoding(client):
-    prepare_test_state(ban_list=["127.0.0.1"])
+def test_banned_request_policy_runs_before_body_decoding(client, browser, admin_key):
+    prepare_test_state(browser, admin_key, ban_list=["127.0.0.1"])
     response = client.post("/api/v1/servers", json={})
     assert response.status_code == 403
     assert response.json()["message"] == "You are banned"

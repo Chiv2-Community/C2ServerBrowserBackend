@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from server_browser_backend.routes import shared
+from server_browser_backend.routes.shared import ADMIN_KEY_HEADER, KEY_HEADER
 from ipaddress import ip_network
 
 from . import prepare_test_state
@@ -37,7 +37,7 @@ test_server_json = {
 }
 
 
-def test_register(client: TestClient):
+def test_register(client: TestClient, browser):
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.json()
     refresh_before = response_json["refresh_before"]
@@ -46,45 +46,45 @@ def test_register(client: TestClient):
     assert "key" in response_json
     assert "server" in response_json
     assert "unique_id" in response_json["server"]
-    assert shared.server_list.exists(response_json["server"]["unique_id"])
-    assert [x.is_verified for x in shared.server_list.get_all()][0] == True
+    assert browser.server_list.exists(response_json["server"]["unique_id"])
+    assert [x.is_verified for x in browser.server_list.get_all()][0] == True
     assert refresh_before > datetime.now().timestamp()
     assert len(response_json["server"]["mods"]) == 2
     assert response_json["server"]["mods"][0]["active"] == True
     assert response_json["server"]["mods"][1]["active"] == False
 
-def test_register_unauthorized(client: TestClient):
-    prepare_test_state(verified_list=[])
+def test_register_unauthorized(client: TestClient, browser, admin_key):
+    prepare_test_state(browser, admin_key, verified_list=[])
 
     response = client.post("/api/v1/servers", json=test_server_json)
 
     assert response.status_code == 201
-    assert [x.is_verified for x in shared.server_list.get_all()][0] == False
+    assert [x.is_verified for x in browser.server_list.get_all()][0] == False
 
 
-def test_register_invalid_local_ip(client: TestClient):
+def test_register_invalid_local_ip(client: TestClient, browser):
     response = client.post(
         "/api/v1/servers", json={**test_server_json, "local_ip_address": "invalid"}
     )
     assert response.status_code == 400
     assert response.json()["status"] == "invalid_json_body"
     assert "local_ip_address" in response.json()["message"]
-    assert shared.server_list.get_all() == []
+    assert browser.server_list.get_all() == []
 
-def test_update(client: TestClient):
+def test_update(client: TestClient, browser):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map", "mods": [{"organization": "Active mod", "name": "Updated Mod", "version": "1.0.0", "active": True}]}
     )
 
     response_json = response.json()
     unique_id = response_json["server"]["unique_id"]
-    server = shared.server_list.get(unique_id)
+    server = browser.server_list.get(unique_id)
 
 
     assert response.status_code == 200
@@ -106,7 +106,7 @@ def test_update(client: TestClient):
         ("127.0.0.1", "2001:db8::1", False),
     ],
 )
-def test_update_requester_ip(client_for_ip, heartbeat, registered_ip, requester_ip, allowed):
+def test_update_requester_ip(client_for_ip, browser, heartbeat, registered_ip, requester_ip, allowed):
     registered_client = client_for_ip(registered_ip)
     registration_response = registered_client.post(
         "/api/v1/servers",
@@ -119,7 +119,7 @@ def test_update_requester_ip(client_for_ip, heartbeat, registered_ip, requester_
 
     response = client_for_ip(requester_ip).request(
         "POST" if heartbeat else "PUT", path,
-        headers={shared.KEY_HEADER: registration_response["key"]},
+        headers={KEY_HEADER: registration_response["key"]},
         json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
     )
 
@@ -132,49 +132,49 @@ def test_update_requester_ip(client_for_ip, heartbeat, registered_ip, requester_
             "message": "Invalid IP address",
             "context": None,
         }
-        assert shared.server_list.get(server_id) is None
+        assert browser.server_list.get(server_id) is None
         retry_response = registered_client.request(
             "POST" if heartbeat else "PUT", path,
-            headers={shared.KEY_HEADER: registration_response["key"]},
+            headers={KEY_HEADER: registration_response["key"]},
             json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
         )
         assert retry_response.status_code == 404
 
 
 @pytest.mark.parametrize("heartbeat", [False, True])
-def test_changed_ip_invalid_key_preserves_registration(client: TestClient, client_for_ip, heartbeat):
+def test_changed_ip_invalid_key_preserves_registration(client: TestClient, client_for_ip, browser, heartbeat):
     registration = client.post("/api/v1/servers", json=test_server_json).json()
     server_id = registration["server"]["unique_id"]
-    original_server = shared.server_list.get(server_id)
+    original_server = browser.server_list.get(server_id)
     path = f"/api/v1/servers/{server_id}"
     if heartbeat:
         path += "/heartbeat"
 
     response = client_for_ip("127.0.0.2").request(
         "POST" if heartbeat else "PUT", path,
-        headers={shared.KEY_HEADER: registration["key"] + "invalid"},
+        headers={KEY_HEADER: registration["key"] + "invalid"},
         json={"player_count": 10, "max_players": 100, "current_map": "Updated Map"},
     )
 
     assert response.status_code == 403
     assert response.json()["message"] == "Invalid secret key"
-    assert shared.server_list.get(server_id) == original_server
+    assert browser.server_list.get(server_id) == original_server
 
 
-def test_update_no_mods(client: TestClient):
+def test_update_no_mods(client: TestClient, browser):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"}
     )
 
     response_json = response.json()
     unique_id = response_json["server"]["unique_id"]
-    server = shared.server_list.get(unique_id)
+    server = browser.server_list.get(unique_id)
 
 
     assert response.status_code == 200
@@ -192,7 +192,7 @@ def test_update_non_existent(client: TestClient):
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: 'bar',
+            KEY_HEADER: 'bar',
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
@@ -200,24 +200,24 @@ def test_update_non_existent(client: TestClient):
     assert response.status_code == 404
 
 
-def test_delete(client: TestClient):
+def test_delete(client: TestClient, browser):
     
     createResponse = client.post("/api/v1/servers", json=test_server_json).json()
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete(
-        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key}
+        "/api/v1/servers/{}".format(id), headers={KEY_HEADER: key}
     )
 
     response_json = deleteResponse.json()
     assert deleteResponse.status_code == 200
     assert response_json["status"] == "deleted"
-    assert not shared.server_list.exists(id)
+    assert not browser.server_list.exists(id)
 
 
 def test_delete_nonexistant_server(client: TestClient):
     deleteResponse = client.delete(
-        "/api/v1/servers/not-registered", headers={shared.KEY_HEADER: "Invalid-unused"}
+        "/api/v1/servers/not-registered", headers={KEY_HEADER: "Invalid-unused"}
     )
 
     assert deleteResponse.status_code == 404
@@ -233,7 +233,7 @@ def test_update_no_json(client: TestClient):
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
             "Content-Type": "application/json",
         },
     )
@@ -255,7 +255,7 @@ def test_delete_invalid_key(client: TestClient):
     id, key = createResponse["server"]["unique_id"], createResponse["key"]
 
     deleteResponse = client.delete(
-        "/api/v1/servers/{}".format(id), headers={shared.KEY_HEADER: key + "Invalid"}
+        "/api/v1/servers/{}".format(id), headers={KEY_HEADER: key + "Invalid"}
     )
 
     assert deleteResponse.status_code == 403
@@ -274,7 +274,7 @@ def test_update_invalid_key(client: TestClient):
     response = client.put(
         f"/api/v1/servers/{server_id}",
         headers={
-            shared.KEY_HEADER: registration_response.json()["key"] + "invalid",
+            KEY_HEADER: registration_response.json()["key"] + "invalid",
         },
         json={"player_count": 10, "max_players": 100, "current_map": "Test Map"},
     )
@@ -288,7 +288,7 @@ def test_heartbeat(client: TestClient):
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
         headers={
-            shared.KEY_HEADER: registration_response.json()["key"],
+            KEY_HEADER: registration_response.json()["key"],
         },
         json={"port": 1234},
     )
@@ -309,7 +309,7 @@ def test_heartbeat_invalid_key(client: TestClient):
     server_id = registration_response.json()["server"]["unique_id"]
     response = client.post(
         f"/api/v1/servers/{server_id}/heartbeat",
-        headers={shared.KEY_HEADER: "invalid", "Content-Type": "application/json"},
+        headers={KEY_HEADER: "invalid", "Content-Type": "application/json"},
     )
 
     assert response.status_code == 403
@@ -353,7 +353,7 @@ def test_get_servers(client: TestClient):
     assert response.json()["servers"][0]["password_protected"] != response.json()["servers"][1]["password_protected"]
 
 
-def test_heartbeat_timeout(client: TestClient):
+def test_heartbeat_timeout(client: TestClient, browser):
     registration_response = client.post(
         "/api/v1/servers",
         json={
@@ -370,11 +370,11 @@ def test_heartbeat_timeout(client: TestClient):
     unique_id = response_json["server"]["unique_id"]
 
     # Force expiration.
-    result = shared.server_list.update(
+    result = browser.server_list.update(
         unique_id,
         response_json["key"],
         lambda server: server.with_heartbeat(
-            datetime.now().timestamp() - shared.heartbeat_timeout - 1
+            datetime.now().timestamp() - browser.server_list.heartbeat_timeout - 1
         ),
     )
 
@@ -435,17 +435,17 @@ def test_bad_json_invalid_type(client: TestClient):
 ])
 @pytest.mark.parametrize("remove", [False, True])
 @pytest.mark.parametrize("valid_key", [False, True])
-def test_change_ip_list(client: TestClient, list_name, field, attribute, remove, valid_key):
+def test_change_ip_list(client: TestClient, browser, admin_key, list_name, field, attribute, remove, valid_key):
     target = "12.34.56.78"
     if remove:
-        prepare_test_state(**{attribute: [target]})
-    ip_list = getattr(shared, attribute)
-    before = ip_list.get_all(shared.ADMIN_KEY).copy()
+        prepare_test_state(browser, admin_key, **{attribute: [target]})
+    ip_list = getattr(browser, attribute)
+    before = ip_list.get_all(admin_key).copy()
 
     response = client.request(
         "DELETE" if remove else "PUT", f"/api/v1/admin/{list_name}",
         json={field: [target]},
-        headers={shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY if valid_key else "beep"},
+        headers={ADMIN_KEY_HEADER: admin_key if valid_key else "beep"},
     )
 
     assert response.status_code == (200 if valid_key else 403)
@@ -454,11 +454,11 @@ def test_change_ip_list(client: TestClient, list_name, field, attribute, remove,
         network = ip_network(target)
         expected = before - {network} if remove else before | {network}
         assert {ip_network(ip) for ip in response.json()[field]} == expected
-    assert ip_list.get_all(shared.ADMIN_KEY) == expected
+    assert ip_list.get_all(admin_key) == expected
 
-def test_is_banned_true(client: TestClient):
+def test_is_banned_true(client: TestClient, browser, admin_key):
     ban_target = "12.34.56.78"
-    prepare_test_state(ban_list=[ban_target])
+    prepare_test_state(browser, admin_key, ban_list=[ban_target])
 
     response = client.get(f"/api/v1/check-banned/{ban_target}")
 
@@ -466,10 +466,10 @@ def test_is_banned_true(client: TestClient):
     assert response.json()["banned"] == True
 
 
-def test_is_banned_false(client: TestClient):
+def test_is_banned_false(client: TestClient, browser, admin_key):
     ban_target = "12.34.56.78"
     
-    prepare_test_state(ban_list=[ban_target])
+    prepare_test_state(browser, admin_key, ban_list=[ban_target])
 
     response = client.get(
         f"/api/v1/check-banned/127.0.0.1"

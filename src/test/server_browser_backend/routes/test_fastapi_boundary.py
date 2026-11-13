@@ -11,9 +11,7 @@ from server_browser_api.apis.api_v1_api import create_router
 from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
 from server_browser_api.models import Mod, ServerListResponse, ServerRegistrationRequest
 from server_browser_api.runtime import ApiResponse, contract
-from server_browser_backend.main import app
 from server_browser_backend.routes.api_v1 import BrowserApi
-from server_browser_backend.routes import shared
 
 from . import prepare_test_state
 
@@ -60,7 +58,7 @@ def test_routers_use_only_the_explicit_instance_and_keep_it_alive():
     ]
 
 
-def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread():
+def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread(browser):
     threads = []
 
     class Implementation(BrowserApi):
@@ -72,7 +70,10 @@ def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread():
             return ApiResponse(ServerListResponse(servers=[]))
 
     application = FastAPI()
-    application.include_router(create_router(Implementation()))
+    application.include_router(create_router(Implementation(
+        server_list=browser.server_list, ban_list=browser.ban_list, verified_list=browser.verified_list,
+        policy=browser.policy, token_reissuer=browser.token_reissuer, show_registered_ips=browser.show_registered_ips,
+    )))
 
     async def exercise():
         event_loop_thread = threading.get_ident()
@@ -84,21 +85,19 @@ def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread():
     asyncio.run(exercise())
 
 
-def test_oas_is_authoritative_and_no_implicit_docs_routes_exist():
+def test_oas_is_authoritative_and_no_implicit_docs_routes_exist(app):
     assert app.openapi() == contract()
     with TestClient(app) as client:
         for path in ("/docs", "/redoc", "/openapi.json"):
             assert client.get(path).status_code == 404
 
 
-def test_general_exception_handler_preserves_debug_traceback(monkeypatch):
-    prepare_test_state()
-    monkeypatch.setattr(shared, "DEBUG_MODE", True)
+def test_general_exception_handler_preserves_debug_traceback(app, browser, monkeypatch):
 
     def fail_listing():
         raise RuntimeError("listing failed")
 
-    monkeypatch.setattr(shared.server_list, "get_all", fail_listing)
+    monkeypatch.setattr(browser.server_list, "get_all", fail_listing)
     with TestClient(app, raise_server_exceptions=False) as client:
         response = client.get("/api/v1/servers")
     assert response.status_code == 500
@@ -108,8 +107,8 @@ def test_general_exception_handler_preserves_debug_traceback(monkeypatch):
     assert "RuntimeError: listing failed" in body["stack"]
 
 
-def test_forwarded_ip_uses_one_proxy_hop_and_does_not_leak_between_requests():
-    prepare_test_state(ban_list=["192.0.2.2"])
+def test_forwarded_ip_uses_one_proxy_hop_and_does_not_leak_between_requests(app, browser, admin_key):
+    prepare_test_state(browser, admin_key, ban_list=["192.0.2.2"])
     with TestClient(app, client=("127.0.0.1", 1234)) as client:
         assert client.get("/api/v1/servers", headers={"X-Forwarded-For": "192.0.2.1, 192.0.2.2"}).status_code == 403
         assert client.get("/api/v1/servers", headers={"X-Forwarded-For": "192.0.2.2, 192.0.2.1"}).status_code == 200
@@ -117,16 +116,15 @@ def test_forwarded_ip_uses_one_proxy_hop_and_does_not_leak_between_requests():
 
 
 @pytest.mark.parametrize("address", ["2001:db8::1", "2001:0db8:0:0:0:0:0:1", "[2001:db8::1]"])
-def test_ban_check_parameter_accepts_equivalent_ipv6_literals(address):
-    prepare_test_state(ban_list=["2001:db8::/64"])
+def test_ban_check_parameter_accepts_equivalent_ipv6_literals(app, browser, admin_key, address):
+    prepare_test_state(browser, admin_key, ban_list=["2001:db8::/64"])
     with TestClient(app, client=("127.0.0.1", 1234)) as client:
         response = client.get("/api/v1/check-banned/" + address)
         assert response.status_code == 200
         assert response.json() == {"banned": True}
 
 
-def test_ban_check_rejects_a_hostname_as_an_ip_parameter():
-    prepare_test_state()
+def test_ban_check_rejects_a_hostname_as_an_ip_parameter(app):
     with TestClient(app, client=("127.0.0.1", 1234)) as client:
         response = client.get("/api/v1/check-banned/hostname.example")
         assert response.status_code == 400
@@ -148,8 +146,7 @@ def test_pydantic_defaults_are_independent_and_models_are_frozen():
 
 
 @pytest.mark.parametrize("body", [b"{", b"null", b"[]", b'"body"'])
-def test_malformed_requests_are_json_400_not_framework_422(body):
-    prepare_test_state()
+def test_malformed_requests_are_json_400_not_framework_422(app, body):
     with TestClient(app, client=("127.0.0.1", 1234)) as client:
         response = client.post("/api/v1/servers", content=body, headers={"Content-Type": "application/json"})
         assert response.status_code == 400

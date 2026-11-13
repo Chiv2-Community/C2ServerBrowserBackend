@@ -7,8 +7,6 @@ from server_browser_backend.token_reissuer import TokenReissuer
 
 import jwt
 from fastapi.testclient import TestClient
-from server_browser_backend.main import app
-from server_browser_backend.routes import api_v1
 from server_browser_api.runtime import DictTypeError
 
 
@@ -39,10 +37,10 @@ def eos_payload():
     }}, id="populated"),
 ])
 def test_login_external_account_claim(
-    monkeypatch, private_key, eos_private_key, eos_jwks, eos_payload, act_claim,
+    app_factory, private_key, eos_private_key, eos_jwks, eos_payload, act_claim,
 ):
     reissuer = TokenReissuer(private_key=private_key, kid="test-kid", eos_jwks=eos_jwks)
-    monkeypatch.setattr(api_v1, "token_reissuer", reissuer)
+    app = app_factory(token_reissuer=reissuer)
     token = jwt.encode(
         {**eos_payload, **act_claim}, eos_private_key,
         algorithm="RS256", headers={"kid": "eos-key-1"},

@@ -3,7 +3,7 @@ from ipaddress import ip_address
 import pytest
 from fastapi.testclient import TestClient
 
-from server_browser_backend.routes import chiv2_compat, shared
+from server_browser_backend.routes import chiv2_compat
 from . import prepare_test_state
 
 test_ports = {"game": 1234, "ping": 1235, "a2s": 1236}
@@ -135,7 +135,7 @@ def test_ipv6_local_address_is_source_matching_local_client_override(client: Tes
         ("2001:db8::1", "2001:0db8:0:0:0:0:0:1", "fd00::1"),
     ],
 )
-def test_compat_serializes_parsed_ips(client: TestClient, joining_locally, public_ip, client_ip, local_ip):
+def test_compat_serializes_parsed_ips(client: TestClient, browser, joining_locally, public_ip, client_ip, local_ip):
     registration = client.post(
         "/api/v1/servers",
         json={**test_server_json, "local_ip_address": local_ip},
@@ -143,7 +143,7 @@ def test_compat_serializes_parsed_ips(client: TestClient, joining_locally, publi
     )
     assert registration.status_code == 201
     server_id = registration.json()["server"]["unique_id"]
-    server = shared.server_list.get(server_id)
+    server = browser.server_list.get(server_id)
     assert server is not None
     assert server.ip_address == ip_address(public_ip)
     assert server.local_ip_address == ip_address(local_ip)
@@ -198,9 +198,9 @@ def test_tbio_parses_client_ip_once_per_listing(client: TestClient, monkeypatch)
     pytest.param({}, False, None, id="default"),
     pytest.param({"Language": "not_supported"}, False, None, id="fallback"),
 ])
-def test_motd_endpoint(client: TestClient, body, banned, expected_motd):
+def test_motd_endpoint(client: TestClient, browser, admin_key, body, banned, expected_motd):
     if banned:
-        prepare_test_state(ban_list=["127.0.0.1"])
+        prepare_test_state(browser, admin_key, ban_list=["127.0.0.1"])
     response = client.post("/api/tbio/GetMotd", json=body)
     assert response.status_code == 200
     if expected_motd is not None:

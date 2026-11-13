@@ -30,8 +30,21 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives import serialization
 
 from server_browser_backend.main import app
-from server_browser_backend.routes import shared, api_v1, chiv2_compat
+from server_browser_backend.routes import api_v1, chiv2_compat
 import server_browser_backend.server_list as registry
+
+if sys.argv[1] == "flask":
+    from server_browser_backend.routes import shared
+    server_list = shared.server_list
+    token_reissuer = shared.token_reissuer
+    ban_list = shared.ban_list
+    key_header, admin_header, admin_key = shared.KEY_HEADER, shared.ADMIN_KEY_HEADER, shared.ADMIN_KEY
+else:
+    from server_browser_backend.routes.shared import KEY_HEADER, ADMIN_KEY_HEADER
+    server_list = app.browser_api.server_list
+    token_reissuer = app.browser_api.token_reissuer
+    ban_list = app.browser_api.ban_list
+    key_header, admin_header, admin_key = KEY_HEADER, ADMIN_KEY_HEADER, os.environ["ADMIN_KEY"]
 
 class Clock(datetime):
     @classmethod
@@ -42,8 +55,8 @@ api_v1.datetime = chiv2_compat.datetime = registry.datetime = Clock
 api_v1.uuid4 = lambda: "registration-id"
 chiv2_compat.uuid4 = lambda: "ticket-id"
 registry.secrets.token_hex = lambda n: "fixed-secret"
-shared.token_reissuer.private_key = serialization.load_pem_private_key(Path(os.environ["PROBE_KEY"]).read_bytes(), password=None)
-shared.token_reissuer.public_key = shared.token_reissuer.private_key.public_key()
+token_reissuer.private_key = serialization.load_pem_private_key(Path(os.environ["PROBE_KEY"]).read_bytes(), password=None)
+token_reissuer.public_key = token_reissuer.private_key.public_key()
 
 if sys.argv[1] == "flask":
     client = app.test_client()
@@ -82,7 +95,7 @@ def record(name, method, path, **kwargs):
     records[name] = {
         "status": code, "content_type": media, "body": body,
         "allow": sorted(item.strip() for item in allow.split(",")) if allow else None,
-        "servers": plain(shared.server_list.get_all()),
+        "servers": plain(server_list.get_all()),
         "files": {path.name: path.read_text() for path in sorted(Path(os.environ["CONFIG_DIR"]).glob("*.txt"))},
     }
     return body
@@ -91,10 +104,10 @@ registration = {
     "name": "Probe", "description": "", "current_map": "Map", "player_count": 2,
     "max_players": 32, "ports": {"game": 7777, "ping": 7778, "a2s": 7779},
 }
-key = {shared.KEY_HEADER: "fixed-secret"}
-admin = {shared.ADMIN_KEY_HEADER: shared.ADMIN_KEY}
+key = {key_header: "fixed-secret"}
+admin = {admin_header: admin_key}
 for family, ip in (("ipv4", "192.0.2.1"), ("ipv6", "2001:db8::1"), ("ipv6-bracketed", "2001:0db8:0:0:0:0:0:1")):
-    shared.server_list.clear()
+    server_list.clear()
     source = {"X-Forwarded-For": ip}
     local_ip = "[fd00:0:0:0:0:0:0:1]" if family == "ipv6-bracketed" else "fd00::1"
     record(family + ":register", "POST", "/api/v1/servers", json={**registration, "local_ip_address": local_ip}, headers=source)
@@ -106,12 +119,12 @@ for family, ip in (("ipv4", "192.0.2.1"), ("ipv6", "2001:db8::1"), ("ipv6-bracke
     record(family + ":update", "PUT", "/api/v1/servers/registration-id", json={"current_map": "Next", "player_count": 3, "max_players": 32}, headers={**source, **key})
     record(family + ":heartbeat", "POST", "/api/v1/servers/registration-id/heartbeat", headers={**source, **key})
     record(family + ":missing-key", "POST", "/api/v1/servers/registration-id/heartbeat", headers=source)
-    record(family + ":invalid-key", "DELETE", "/api/v1/servers/registration-id", headers={**source, shared.KEY_HEADER: "invalid"})
-    record(family + ":changed-ip-invalid-key", "POST", "/api/v1/servers/registration-id/heartbeat", headers={shared.KEY_HEADER: "invalid"})
+    record(family + ":invalid-key", "DELETE", "/api/v1/servers/registration-id", headers={**source, key_header: "invalid"})
+    record(family + ":changed-ip-invalid-key", "POST", "/api/v1/servers/registration-id/heartbeat", headers={key_header: "invalid"})
     record(family + ":changed-ip", "POST", "/api/v1/servers/registration-id/heartbeat", headers=key)
     record(family + ":missing-registration", "DELETE", "/api/v1/servers/registration-id", headers=key)
 
-shared.server_list.clear()
+server_list.clear()
 record("defaults", "POST", "/api/v1/servers", json=registration)
 record("delete", "DELETE", "/api/v1/servers/registration-id", headers=key)
 record("missing-json", "POST", "/api/v1/servers")
@@ -121,7 +134,7 @@ for field, value in (("name", 3), ("mods", [1]), ("local_ip_address", None), ("p
     record("invalid:" + field, "POST", "/api/v1/servers", json={**registration, field: value})
 record("missing-field", "POST", "/api/v1/servers", json={key: value for key, value in registration.items() if key != "current_map"})
 record("jwks", "GET", "/api/v1/auth/jwks.json")
-with patch.object(shared.token_reissuer, "validate_and_reissue", return_value="fixed-token"):
+with patch.object(token_reissuer, "validate_and_reissue", return_value="fixed-token"):
     record("login", "POST", "/api/v1/auth/login", json={"token": "eos-token"})
 record("motd", "POST", "/api/tbio/GetMotd", json={})
 record("missing-lobby", "POST", "/api/playfab/Client/Matchmake", json={"LobbyId": "missing"})
@@ -130,7 +143,7 @@ for list_name, field in (("ban-list", "banned_ips"), ("verified-list", "verified
         record(list_name + ":" + method, method, "/api/v1/admin/" + list_name, headers=admin, **({"json": {field: ["192.0.2.1"]}} if method != "GET" else {}))
     record(list_name + ":unauthorized", "GET", "/api/v1/admin/" + list_name)
 record("banned-check", "GET", "/api/v1/check-banned/192.0.2.1")
-shared.ban_list.add_all(shared.ADMIN_KEY, ["127.0.0.1"])
+ban_list.add_all(admin_key, ["127.0.0.1"])
 record("banned-before-body", "POST", "/api/v1/servers", json={})
 record("banned-tbio", "POST", "/api/tbio/GetCurrentGames")
 record("banned-motd", "POST", "/api/tbio/GetMotd", json={})

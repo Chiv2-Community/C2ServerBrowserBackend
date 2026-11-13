@@ -12,7 +12,6 @@ import logging
 from fastapi import Request, Response
 
 from server_browser_api.apis.api_v1_api_base import BaseApiV1Api
-from server_browser_api.apis.api_v1_api import create_router
 from server_browser_api.models import (
     BanListResponse, BanStatusResponse, ErrorResponse, IpListRequest, JwksResponse,
     LoginRequest, LoginResponse, RegistrationResponse, ServerListResponse,
@@ -22,15 +21,14 @@ from server_browser_api.models import (
 from server_browser_api.runtime import (
     ApiResponse, IPAddress, DictKeyError, DictTypeError, JsonMissing, SchemaValidationError, render_response,
 )
-from server_browser_backend.env import show_registered_ips
 from server_browser_backend.iterable_util import find
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.models.base_models import Server, server_listing, server_response
-from server_browser_backend.routes import shared
 from server_browser_backend.routes.shared import (
-    Banned, get_and_validate_ip, get_ip, token_reissuer,
+    Banned, KEY_HEADER, RequestPolicy, get_ip,
 )
-from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing
+from server_browser_backend.server_list import InvalidSecretKey, SecretKeyMissing, ServerList
+from server_browser_backend.token_reissuer import TokenReissuer
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +44,27 @@ def require_key(value: str | None) -> str:
 
 
 class BrowserApi(BaseApiV1Api):
+    def __init__(
+        self, *, server_list: ServerList, ban_list: IpList, verified_list: IpList,
+        policy: RequestPolicy, token_reissuer: TokenReissuer,
+        show_registered_ips: Callable[[], bool],
+    ):
+        self.server_list = server_list
+        self.ban_list = ban_list
+        self.verified_list = verified_list
+        self.policy = policy
+        self.token_reissuer = token_reissuer
+        self.show_registered_ips = show_registered_ips
+
     def before_operation(self, request: Request, operation_id: str) -> None:
         if operation_id not in {"jwks", "login"}:
-            get_and_validate_ip(request)
+            self.policy.get_and_validate_ip(request)
 
     def jwks(self, request: Request) -> ApiResponse[JwksResponse]:
-        return ApiResponse(token_reissuer.get_jwks_response())
+        return ApiResponse(self.token_reissuer.get_jwks_response())
 
     def login(self, request: Request, login_request: LoginRequest) -> ApiResponse[LoginResponse]:
-        token = token_reissuer.validate_and_reissue(login_request.token, get_ip(request))
+        token = self.token_reissuer.validate_and_reissue(login_request.token, get_ip(request))
         return ApiResponse(LoginResponse(token=token))
 
     def send_swagger(self, request: Request) -> ApiResponse[str]:
@@ -62,7 +72,7 @@ class BrowserApi(BaseApiV1Api):
         return ApiResponse(spec.read_text(), content_type="text/yaml")
 
     def check_banned(self, request: Request, ip: IPAddress) -> ApiResponse[BanStatusResponse]:
-        return ApiResponse(BanStatusResponse(banned=shared.ban_list.contains(str(ip))))
+        return ApiResponse(BanStatusResponse(banned=self.ban_list.contains(str(ip))))
 
     def register(self, request: Request, server_registration_request: ServerRegistrationRequest) -> ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
         try:
@@ -71,23 +81,23 @@ class BrowserApi(BaseApiV1Api):
             )
         except ValueError:
             return status("invalid_ip", "Invalid IP address", 400)
-        if shared.is_whitelisted(request):
+        if self.policy.is_whitelisted(request):
             server = server.verified()
-        key = shared.server_list.register(server)
+        key = self.server_list.register(server)
         logger.info('Registered server "%s" at %s:%s', server.name, server.ip_address, server.ports.game)
         return ApiResponse(RegistrationResponse(
-            key=key, refresh_before=server.last_heartbeat + shared.server_list.heartbeat_timeout,
+            key=key, refresh_before=server.last_heartbeat + self.server_list.heartbeat_timeout,
             server=server_response(server),
         ), 201)
 
     def heartbeat(self, request: Request, server_id: str, x_chiv2_server_browser_key: str | None) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
-        return update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_heartbeat(datetime.now().timestamp()))
+        return self._update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_heartbeat(datetime.now().timestamp()))
 
     def update(self, request: Request, server_id: str, update_registered_server: UpdateRegisteredServer, x_chiv2_server_browser_key: str | None) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
-        return update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_update(update_registered_server))
+        return self._update_server(request, server_id, x_chiv2_server_browser_key, lambda server: server.with_update(update_registered_server))
 
     def delete_server(self, request: Request, server_id: str, x_chiv2_server_browser_key: str | None) -> ApiResponse[StatusResponse]:
-        server = shared.server_list.delete(server_id, require_key(x_chiv2_server_browser_key))
+        server = self.server_list.delete(server_id, require_key(x_chiv2_server_browser_key))
         if server is None:
             logger.warning('Deletion failed. Server with id %s not registered.', server_id)
             return status("not_registered", "server not registered", 404)
@@ -95,7 +105,7 @@ class BrowserApi(BaseApiV1Api):
         return status("deleted", "The server has been deleted", 200)
 
     def get_servers(self, request: Request) -> ApiResponse[ServerListResponse]:
-        return ApiResponse(server_listing(shared.server_list.get_all(), include_ip=show_registered_ips()))
+        return ApiResponse(server_listing(self.server_list.get_all(), include_ip=self.show_registered_ips()))
 
     def add_to_ban_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
         return self._change_ban_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=False)
@@ -105,16 +115,16 @@ class BrowserApi(BaseApiV1Api):
 
     def _change_ban_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
         key = credential or ""
-        error = change_ip_list(request, shared.ban_list, body.banned_ips, "banned_ips", "ban", key, remove)
+        error = change_ip_list(request, self.ban_list, body.banned_ips, "banned_ips", "ban", key, remove)
         if error is not None:
             return error
-        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in shared.ban_list.get_all(key)]))
+        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in self.ban_list.get_all(key)]))
 
     def get_ban_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[BanListResponse] | ApiResponse[StatusResponse]:
         key = x_chiv2_server_browser_admin_key or ""
-        if not shared.ban_list.validate(key):
+        if not self.ban_list.validate(key):
             return status("forbidden", "Invalid admin key", 403)
-        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in shared.ban_list.get_all(key)]))
+        return ApiResponse(BanListResponse(banned_ips=[str(ip) for ip in self.ban_list.get_all(key)]))
 
     def add_to_verified_list(self, request: Request, ip_list_request: IpListRequest, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
         return self._change_verified_list(request, ip_list_request, x_chiv2_server_browser_admin_key, remove=False)
@@ -124,19 +134,35 @@ class BrowserApi(BaseApiV1Api):
 
     def _change_verified_list(self, request: Request, body: IpListRequest, credential: str | None, remove: bool) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
         key = credential or ""
-        error = change_ip_list(request, shared.verified_list, body.verified_ips, "verified_ips", "verified", key, remove)
+        error = change_ip_list(request, self.verified_list, body.verified_ips, "verified_ips", "verified", key, remove)
         if error is not None:
             return error
-        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in shared.verified_list.get_all(key)]))
+        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in self.verified_list.get_all(key)]))
 
     def get_verified_list(self, request: Request, x_chiv2_server_browser_admin_key: str | None) -> ApiResponse[VerifiedListResponse] | ApiResponse[StatusResponse]:
         key = x_chiv2_server_browser_admin_key or ""
-        if not shared.verified_list.validate(key):
+        if not self.verified_list.validate(key):
             return status("forbidden", "Invalid admin key", 403)
-        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in shared.verified_list.get_all(key)]))
+        return ApiResponse(VerifiedListResponse(verified_ips=[str(ip) for ip in self.verified_list.get_all(key)]))
 
-
-api_v1_router = create_router(BrowserApi())
+    def _update_server(self, request: Request, server_id: str, credential: str | None, transform: Callable[[Server], Server]) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
+        key = require_key(credential)
+        existing = find(self.server_list.get_all(), lambda server: server.unique_id == server_id)
+        if existing is None:
+            logger.warning("Update failed: server %s is not registered", server_id)
+            return status("not_registered", "server not registered", 404)
+        if ip_address(get_ip(request)) != existing.ip_address:
+            self.server_list.delete(server_id, key)
+            logger.warning("Registration invalidated: requester IP changed for %s", server_id)
+            return status("unauthorized", "Invalid IP address", 401)
+        server = self.server_list.update(server_id, key, transform)
+        if server is None:
+            return status("not_registered", "server not registered", 400)
+        logger.info("Update/heartbeat received for %s (%s)", server.name, server.unique_id)
+        return ApiResponse(UpdateResponse(
+            refresh_before=server.last_heartbeat + self.server_list.heartbeat_timeout,
+            server=server_response(server),
+        ))
 
 
 def change_ip_list(request: Request, ip_list: IpList, ips: list[str] | None, field: str, label: str, key: str, remove: bool) -> ApiResponse[StatusResponse] | None:
@@ -172,7 +198,7 @@ async def handle_dict_type_error(request: Request, error: DictTypeError) -> Resp
 
 
 async def handle_secret_key_missing(request: Request, error: SecretKeyMissing) -> Response:
-    return render_response(status("no_key", shared.KEY_HEADER + " header not specified", 400))
+    return render_response(status("no_key", KEY_HEADER + " header not specified", 400))
 
 
 async def handle_schema_validation(request: Request, error: SchemaValidationError) -> Response:
@@ -187,30 +213,10 @@ async def handle_banned_user(request: Request, error: Banned) -> Response:
     return render_response(status("forbidden", "You are banned", 403))
 
 
-async def handle_general_exception(request: Request, error: Exception) -> Response:
+async def handle_general_exception(request: Request, error: Exception, *, debug_mode: bool) -> Response:
     logger.error("Unhandled exception: %s", error, exc_info=True)
-    if shared.DEBUG_MODE:
+    if debug_mode:
         return render_response(ApiResponse(ErrorResponse(
             status="error", message=str(error), stack=traceback.format_exc(),
         ), 500))
     return render_response(status("error", "An unexpected error occurred.", 500))
-
-
-def update_server(request: Request, server_id: str, credential: str | None, transform: Callable[[Server], Server]) -> ApiResponse[UpdateResponse] | ApiResponse[StatusResponse]:
-    key = require_key(credential)
-    existing = find(shared.server_list.get_all(), lambda server: server.unique_id == server_id)
-    if existing is None:
-        logger.warning("Update failed: server %s is not registered", server_id)
-        return status("not_registered", "server not registered", 404)
-    if ip_address(get_ip(request)) != existing.ip_address:
-        shared.server_list.delete(server_id, key)
-        logger.warning("Registration invalidated: requester IP changed for %s", server_id)
-        return status("unauthorized", "Invalid IP address", 401)
-    server = shared.server_list.update(server_id, key, transform)
-    if server is None:
-        return status("not_registered", "server not registered", 400)
-    logger.info("Update/heartbeat received for %s (%s)", server.name, server.unique_id)
-    return ApiResponse(UpdateResponse(
-        refresh_before=server.last_heartbeat + shared.server_list.heartbeat_timeout,
-        server=server_response(server),
-    ))
