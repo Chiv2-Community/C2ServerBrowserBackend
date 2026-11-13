@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional
+from typing import Generic, Optional
 
 from server_browser_backend.type_vars import A
 
@@ -20,7 +20,7 @@ class SecuredResource(Generic[A]):
     def with_resource(
         self, secret_key: str, new_resource: A
     ) -> Optional[SecuredResource[A]]:
-        """Validates the secret key and updates the resource with the update_func."""
+        """Return a replacement resource when the secret key is valid."""
         if self.validate(secret_key):
             return SecuredResource(secret_key, new_resource)
 
