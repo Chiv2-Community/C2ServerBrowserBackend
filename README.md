@@ -39,13 +39,12 @@ Container arguments are passed directly to Uvicorn. Gunicorn and its
 `GUNICORN_*` settings are no longer used; migrate deployment settings above.
 There is no equivalent of Gunicorn's worker request timeout or thread setting.
 
-### Authentication migration (development)
+### Discord authentication (development)
 
-The legacy EOS token exchange is retired (HTTP 410). Discord signing/JWKS and
-internal session-storage foundations are available, but OAuth/session APIs and
-game admission are not yet implemented. See [Discord authentication](docs/discord-auth.md) for provisioning,
-rotation, compatibility limits, and rollout gates. Do not deploy this migration
-to clients that still require the EOS exchange.
+Discord signing/JWKS and internal session-storage foundations are available,
+but OAuth/session APIs and game admission are not yet implemented. See
+[Discord authentication](docs/discord-auth.md) for provisioning, rotation,
+storage limits, and rollout gates.
 
 ### Logs
 

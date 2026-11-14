@@ -15,15 +15,6 @@ Not implemented: Discord OAuth, client handoff, public session/ticket operations
 plugin validation/admission, or launcher policy configuration. No HTTP operation
 can mint join tickets. Do not enable required Discord authentication yet.
 
-EOS authentication is removed. The deprecated `/api/v1/auth/login` operation
-returns HTTP 410 (`auth_retired`) for a valid legacy request instead of contacting
-Epic or issuing a JWT. Malformed requests still follow normal API validation.
-`EOS_AUDIENCE` and the old `SERVER_BROWSER_FQDN` issuer setting are unused.
-EOS payload and login-response SDK models are removed; regenerate consumers.
-This does not remove Epic storefront support, change engine networking IDs, or
-prove that existing client/server joins work without the old exchange. That
-compatibility check belongs to the plugin integration gate before deployment.
-
 ## Provisioning
 
 Provision with the installed backend package on the Linux backend host, using
