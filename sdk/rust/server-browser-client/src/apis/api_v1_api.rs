@@ -12,7 +12,7 @@ use super::{configuration, ContentType, Error};
 use crate::{apis::ResponseContent, models};
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for typed errors of method [`add_to_ban_list`]
+/// Typed HTTP errors from [`add_to_ban_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AddToBanListError {
@@ -22,154 +22,17 @@ pub enum AddToBanListError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`add_to_verified_list`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum AddToVerifiedListError {
-    Status400(models::StatusResponse),
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`check_banned`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CheckBannedError {
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`delete_server`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteServerError {
-    Status400(models::StatusResponse),
-    Status404(models::StatusResponse),
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`get_ban_list`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum GetBanListError {
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`get_servers`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum GetServersError {
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`get_verified_list`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum GetVerifiedListError {
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`heartbeat`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum HeartbeatError {
-    Status401(models::StatusResponse),
-    Status400(models::StatusResponse),
-    Status403(models::StatusResponse),
-    Status404(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`jwks`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum JwksError {
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`login`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum LoginError {
-    Status410(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`register`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RegisterError {
-    Status400(models::StatusResponse),
-    Status429(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`remove_from_ban_list`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RemoveFromBanListError {
-    Status400(models::StatusResponse),
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`remove_from_verified_list`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RemoveFromVerifiedListError {
-    Status400(models::StatusResponse),
-    Status403(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`send_swagger`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum SendSwaggerError {
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`update`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UpdateError {
-    Status401(models::StatusResponse),
-    Status400(models::StatusResponse),
-    Status403(models::StatusResponse),
-    Status404(models::StatusResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn add_to_ban_list(
+pub async fn add_to_ban_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
     ip_list_request: models::IpListRequest,
 ) -> Result<models::BanListResponse, Error<AddToBanListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-
     let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -178,9 +41,8 @@ pub fn add_to_ban_list(
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
     req_builder = req_builder.json(&p_body_ip_list_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -188,7 +50,7 @@ pub fn add_to_ban_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -223,21 +85,28 @@ pub fn add_to_ban_list(
     }
 }
 
+/// Typed HTTP errors from [`add_to_verified_list`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AddToVerifiedListError {
+    Status400(models::StatusResponse),
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Listings and update responses reflect the current verified policy for existing registrations as well as new ones.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn add_to_verified_list(
+pub async fn add_to_verified_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
     ip_list_request: models::IpListRequest,
 ) -> Result<models::VerifiedListResponse, Error<AddToVerifiedListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-
     let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -246,9 +115,8 @@ pub fn add_to_verified_list(
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
     req_builder = req_builder.json(&p_body_ip_list_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -256,7 +124,7 @@ pub fn add_to_verified_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -291,28 +159,32 @@ pub fn add_to_verified_list(
     }
 }
 
+/// Typed HTTP errors from [`check_banned`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CheckBannedError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn check_banned(
+pub async fn check_banned(
     configuration: &configuration::Configuration,
     ip: &str,
 ) -> Result<models::BanStatusResponse, Error<CheckBannedError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_path_ip = ip;
-
     let uri_str = format!(
         "{}/api/v1/check-banned/{ip}",
         configuration.base_path,
         ip = crate::apis::urlencode(p_path_ip)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -320,7 +192,7 @@ pub fn check_banned(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -345,17 +217,26 @@ pub fn check_banned(
     }
 }
 
+/// Typed HTTP errors from [`delete_server`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteServerError {
+    Status400(models::StatusResponse),
+    Status404(models::StatusResponse),
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn delete_server(
+pub async fn delete_server(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_key: &str,
     server_id: &str,
 ) -> Result<models::StatusResponse, Error<DeleteServerError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
-
     let uri_str = format!(
         "{}/api/v1/servers/{server_id}",
         configuration.base_path,
@@ -364,7 +245,6 @@ pub fn delete_server(
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -372,9 +252,8 @@ pub fn delete_server(
         "X-CHIV2-SERVER-BROWSER-KEY",
         p_header_x_chiv2_server_browser_key.to_string(),
     );
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -382,7 +261,7 @@ pub fn delete_server(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -421,18 +300,24 @@ pub fn delete_server(
     }
 }
 
+/// Typed HTTP errors from [`get_ban_list`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetBanListError {
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn get_ban_list(
+pub async fn get_ban_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
 ) -> Result<models::BanListResponse, Error<GetBanListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
-
     let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -440,9 +325,8 @@ pub fn get_ban_list(
         "X-CHIV2-SERVER-BROWSER-ADMIN-KEY",
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -450,7 +334,7 @@ pub fn get_ban_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -479,20 +363,26 @@ pub fn get_ban_list(
     }
 }
 
+/// Typed HTTP errors from [`get_servers`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetServersError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn get_servers(
+pub async fn get_servers(
     configuration: &configuration::Configuration,
 ) -> Result<models::ServerListResponse, Error<GetServersError>> {
     let uri_str = format!("{}/api/v1/servers", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -500,7 +390,7 @@ pub fn get_servers(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -525,18 +415,24 @@ pub fn get_servers(
     }
 }
 
+/// Typed HTTP errors from [`get_verified_list`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetVerifiedListError {
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn get_verified_list(
+pub async fn get_verified_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
 ) -> Result<models::VerifiedListResponse, Error<GetVerifiedListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
-
     let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -544,9 +440,8 @@ pub fn get_verified_list(
         "X-CHIV2-SERVER-BROWSER-ADMIN-KEY",
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -554,7 +449,7 @@ pub fn get_verified_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -585,17 +480,27 @@ pub fn get_verified_list(
     }
 }
 
+/// Typed HTTP errors from [`heartbeat`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum HeartbeatError {
+    Status401(models::StatusResponse),
+    Status400(models::StatusResponse),
+    Status403(models::StatusResponse),
+    Status404(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn heartbeat(
+pub async fn heartbeat(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_key: &str,
     server_id: &str,
 ) -> Result<models::UpdateResponse, Error<HeartbeatError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
-
     let uri_str = format!(
         "{}/api/v1/servers/{server_id}/heartbeat",
         configuration.base_path,
@@ -604,7 +509,6 @@ pub fn heartbeat(
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -612,9 +516,8 @@ pub fn heartbeat(
         "X-CHIV2-SERVER-BROWSER-KEY",
         p_header_x_chiv2_server_browser_key.to_string(),
     );
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -622,7 +525,7 @@ pub fn heartbeat(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -663,21 +566,27 @@ pub fn heartbeat(
     }
 }
 
+/// Typed HTTP errors from [`jwks`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum JwksError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Empty while Discord signing is unconfigured. Never contains private key material.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn jwks(
+pub async fn jwks(
     configuration: &configuration::Configuration,
 ) -> Result<models::JwksResponse, Error<JwksError>> {
     let uri_str = format!("{}/api/v1/auth/jwks.json", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -685,7 +594,7 @@ pub fn jwks(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -710,29 +619,34 @@ pub fn jwks(
     }
 }
 
+/// Typed HTTP errors from [`login`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoginError {
+    Status410(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// EOS authentication has been removed. This endpoint returns 410 and never validates or exchanges credentials.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 #[deprecated]
-pub fn login(
+pub async fn login(
     configuration: &configuration::Configuration,
     login_request: models::LoginRequest,
 ) -> Result<models::StatusResponse, Error<LoginError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_body_login_request = login_request;
-
     let uri_str = format!("{}/api/v1/auth/login", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
     req_builder = req_builder.json(&p_body_login_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -740,7 +654,7 @@ pub fn login(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -769,28 +683,34 @@ pub fn login(
     }
 }
 
+/// Typed HTTP errors from [`register`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RegisterError {
+    Status400(models::StatusResponse),
+    Status429(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Bounded by global and source-IP registration quotas; capacity rejection does not evict existing registrations.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn register(
+pub async fn register(
     configuration: &configuration::Configuration,
     server_registration_request: models::ServerRegistrationRequest,
 ) -> Result<models::RegistrationResponse, Error<RegisterError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_body_server_registration_request = server_registration_request;
-
     let uri_str = format!("{}/api/v1/servers", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
     req_builder = req_builder.json(&p_body_server_registration_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -798,7 +718,7 @@ pub fn register(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -831,22 +751,29 @@ pub fn register(
     }
 }
 
+/// Typed HTTP errors from [`remove_from_ban_list`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RemoveFromBanListError {
+    Status400(models::StatusResponse),
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn remove_from_ban_list(
+pub async fn remove_from_ban_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
     ip_list_request: models::IpListRequest,
 ) -> Result<models::BanListResponse, Error<RemoveFromBanListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-
     let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -855,9 +782,8 @@ pub fn remove_from_ban_list(
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
     req_builder = req_builder.json(&p_body_ip_list_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -865,7 +791,7 @@ pub fn remove_from_ban_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -900,23 +826,30 @@ pub fn remove_from_ban_list(
     }
 }
 
+/// Typed HTTP errors from [`remove_from_verified_list`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RemoveFromVerifiedListError {
+    Status400(models::StatusResponse),
+    Status403(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// Revokes verified/official status in subsequent listings and update responses without requiring re-registration.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn remove_from_verified_list(
+pub async fn remove_from_verified_list(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_admin_key: &str,
     ip_list_request: models::IpListRequest,
 ) -> Result<models::VerifiedListResponse, Error<RemoveFromVerifiedListError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-
     let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -925,9 +858,8 @@ pub fn remove_from_verified_list(
         p_header_x_chiv2_server_browser_admin_key.to_string(),
     );
     req_builder = req_builder.json(&p_body_ip_list_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -935,7 +867,7 @@ pub fn remove_from_verified_list(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -971,20 +903,26 @@ pub fn remove_from_verified_list(
     }
 }
 
+/// Typed HTTP errors from [`send_swagger`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SendSwaggerError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn send_swagger(
+pub async fn send_swagger(
     configuration: &configuration::Configuration,
 ) -> Result<String, Error<SendSwaggerError>> {
     let uri_str = format!("{}/api/v1/swagger.yaml", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -999,10 +937,10 @@ pub fn send_swagger(
             .trim()
             .eq_ignore_ascii_case("text/yaml")
     {
-        return resp.text().map_err(Error::from);
+        return resp.text().await.map_err(Error::from);
     }
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -1027,27 +965,36 @@ pub fn send_swagger(
     }
 }
 
+/// Typed HTTP errors from [`update`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UpdateError {
+    Status401(models::StatusResponse),
+    Status400(models::StatusResponse),
+    Status403(models::StatusResponse),
+    Status404(models::StatusResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// A successful authenticated update also counts as a heartbeat, advancing `last_heartbeat` and `refresh_before`. Rejected updates do not renew the lease.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn update(
+pub async fn update(
     configuration: &configuration::Configuration,
     x_chiv2_server_browser_key: &str,
     server_id: &str,
     update_registered_server: models::UpdateRegisteredServer,
 ) -> Result<models::UpdateResponse, Error<UpdateError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
     let p_body_update_registered_server = update_registered_server;
-
     let uri_str = format!(
         "{}/api/v1/servers/{server_id}",
         configuration.base_path,
         server_id = crate::apis::urlencode(p_path_server_id)
     );
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -1056,9 +1003,8 @@ pub fn update(
         p_header_x_chiv2_server_browser_key.to_string(),
     );
     req_builder = req_builder.json(&p_body_update_registered_server);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -1066,7 +1012,7 @@ pub fn update(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {

@@ -1,14 +1,21 @@
 use super::*;
 use models::{RegistrationResponse, ServerResponse, UpdateResponse};
-use std::{
-    cell::{Cell, RefCell},
-    collections::VecDeque,
-    rc::Rc,
-};
+use std::collections::VecDeque;
+
+#[derive(Default)]
+struct Value<T>(Mutex<T>);
+impl<T: Copy> Value<T> {
+    fn get(&self) -> T {
+        *self.0.lock().unwrap()
+    }
+    fn set(&self, value: T) {
+        *self.0.lock().unwrap() = value;
+    }
+}
 
 #[derive(Clone)]
 struct TestClock {
-    now: Rc<Cell<Instant>>,
+    now: Arc<Value<Instant>>,
 }
 impl Clock for TestClock {
     fn now(&self) -> Instant {
@@ -23,16 +30,28 @@ impl TestClock {
 
 #[derive(Default)]
 struct Fake {
-    calls: RefCell<Vec<&'static str>>,
-    failures: RefCell<VecDeque<RequestFailure>>,
-    sequence: Cell<u32>,
-    lifetime: Cell<f64>,
-    heartbeat: Cell<f64>,
+    calls: Mutex<Vec<&'static str>>,
+    failures: Mutex<VecDeque<RequestFailure>>,
+    sequence: Value<u32>,
+    lifetime: Value<f64>,
+    heartbeat: Value<f64>,
+    blocked: Mutex<Option<&'static str>>,
+    entered: Notify,
+    release: Notify,
 }
 impl Fake {
-    fn call(&self, name: &'static str) -> Result<(), RequestFailure> {
-        self.calls.borrow_mut().push(name);
-        self.failures.borrow_mut().pop_front().map_or(Ok(()), Err)
+    async fn call(&self, name: &'static str) -> Result<(), RequestFailure> {
+        self.calls.lock().unwrap().push(name);
+        let blocked = *self.blocked.lock().unwrap() == Some(name);
+        if blocked {
+            self.entered.notify_one();
+            self.release.notified().await;
+        }
+        self.failures
+            .lock()
+            .unwrap()
+            .pop_front()
+            .map_or(Ok(()), Err)
     }
     fn server(&self) -> ServerResponse {
         ServerResponse {
@@ -42,12 +61,12 @@ impl Fake {
         }
     }
 }
-impl RegistrationTransport for Rc<Fake> {
-    fn register(
+impl RegistrationTransport for Arc<Fake> {
+    async fn register(
         &self,
         _: ServerRegistrationRequest,
     ) -> Result<RegistrationResponse, RequestFailure> {
-        self.call("register")?;
+        self.call("register").await?;
         self.sequence.set(self.sequence.get() + 1);
         self.heartbeat.set(2_000_000_000.0);
         Ok(RegistrationResponse::new(
@@ -56,44 +75,44 @@ impl RegistrationTransport for Rc<Fake> {
             self.server(),
         ))
     }
-    fn heartbeat(&self, _: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
+    async fn heartbeat(&self, _: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
         assert_eq!(key, "secret-test-key");
-        self.call("heartbeat")?;
+        self.call("heartbeat").await?;
         self.heartbeat.set(self.heartbeat.get() + 30.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
             self.server(),
         ))
     }
-    fn update(
+    async fn update(
         &self,
         _: &str,
         _: &str,
         _: UpdateRegisteredServer,
     ) -> Result<UpdateResponse, RequestFailure> {
-        self.call("update")?;
+        self.call("update").await?;
         self.heartbeat.set(self.heartbeat.get() + 1.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
             self.server(),
         ))
     }
-    fn delete(&self, _: &str, _: &str) -> Result<(), RequestFailure> {
-        self.call("delete")
+    async fn delete(&self, _: &str, _: &str) -> Result<(), RequestFailure> {
+        self.call("delete").await
     }
 }
 
 struct Fixture {
-    registration: Registration<Rc<Fake>, TestClock>,
-    transport: Rc<Fake>,
+    registration: Registration<Arc<Fake>, TestClock>,
+    transport: Arc<Fake>,
     clock: TestClock,
 }
 
 fn fixture() -> Fixture {
-    let transport = Rc::new(Fake::default());
+    let transport = Arc::new(Fake::default());
     transport.lifetime.set(65.0);
     let clock = TestClock {
-        now: Rc::new(Cell::new(Instant::now())),
+        now: Arc::new(Value(Mutex::new(Instant::now()))),
     };
     let registration = Registration::with_clock(
         transport.clone(),
@@ -109,22 +128,22 @@ fn fixture() -> Fixture {
     }
 }
 
-#[test]
-fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
+#[tokio::test]
+async fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::Registered {
             server_id: "1".into()
         })
     );
     assert_eq!(registration.next_delay(), Some(Duration::from_secs(30)));
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::Waiting(Duration::from_secs(30)))
     );
     registration
@@ -133,34 +152,35 @@ fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
     registration
         .set_update(UpdateRegisteredServer::new(2, 32, "second".into()))
         .unwrap();
-    assert_eq!(registration.poll(), Ok(Event::Updated));
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
     clock.advance(30);
-    assert_eq!(registration.poll(), Ok(Event::Heartbeat));
-    registration.stop().unwrap();
-    registration.stop().unwrap();
-    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(registration.poll().await, Ok(Event::Heartbeat));
+    registration.stop().await.unwrap();
+    registration.stop().await.unwrap();
+    assert_eq!(registration.poll().await, Err(SdkError::Stopped));
     assert_eq!(
-        *transport.calls.borrow(),
+        *transport.calls.lock().unwrap(),
         ["register", "update", "heartbeat", "delete"]
     );
     assert!(!format!("{registration:?}").contains("secret-test-key"));
 }
 
-#[test]
-fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
+#[tokio::test]
+async fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     clock.advance(30);
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .extend([RequestFailure::Transport, RequestFailure::Http(503)]);
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::RetryScheduled(Duration::from_secs(10)))
     );
     registration
@@ -169,39 +189,40 @@ fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
     assert_eq!(registration.next_delay(), Some(Duration::from_secs(10)));
     clock.advance(10);
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::RetryScheduled(Duration::from_secs(20)))
     );
     clock.advance(20);
-    assert_eq!(registration.poll(), Ok(Event::Updated));
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
     assert_eq!(registration.server_id(), Some("1"));
     assert_eq!(transport.sequence.get(), 1);
 }
 
-#[test]
-fn continuous_metadata_updates_renew_without_separate_heartbeats() {
+#[tokio::test]
+async fn continuous_metadata_updates_renew_without_separate_heartbeats() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     let original_heartbeat = transport.server().last_heartbeat;
     for second in 1..=60 {
         clock.advance(1);
         registration
             .set_update(UpdateRegisteredServer::new(second, 64, "next".into()))
             .unwrap();
-        let before = transport.calls.borrow().len();
-        assert_eq!(registration.poll(), Ok(Event::Updated));
-        assert_eq!(transport.calls.borrow().len(), before + 1);
+        let before = transport.calls.lock().unwrap().len();
+        assert_eq!(registration.poll().await, Ok(Event::Updated));
+        assert_eq!(transport.calls.lock().unwrap().len(), before + 1);
         assert_eq!(registration.next_delay(), Some(Duration::from_secs(30)));
         assert!(transport.server().last_heartbeat > original_heartbeat);
     }
     assert_eq!(
         transport
             .calls
-            .borrow()
+            .lock()
+            .unwrap()
             .iter()
             .filter(|call| **call == "heartbeat")
             .count(),
@@ -210,24 +231,25 @@ fn continuous_metadata_updates_renew_without_separate_heartbeats() {
     assert_eq!(registration.server_id(), Some("1"));
 }
 
-#[test]
-fn metadata_renewal_respects_backoff() {
+#[tokio::test]
+async fn metadata_renewal_respects_backoff() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     clock.advance(25);
     registration
         .set_update(UpdateRegisteredServer::new(1, 32, "first".into()))
         .unwrap();
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .push_back(RequestFailure::Http(503));
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::RetryScheduled(Duration::from_secs(10)))
     );
     clock.advance(5);
@@ -235,36 +257,40 @@ fn metadata_renewal_respects_backoff() {
         .set_update(UpdateRegisteredServer::new(2, 32, "latest".into()))
         .unwrap();
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::Waiting(Duration::from_secs(5)))
     );
-    assert_eq!(*transport.calls.borrow(), ["register", "update"]);
+    assert_eq!(*transport.calls.lock().unwrap(), ["register", "update"]);
     clock.advance(5);
-    assert_eq!(registration.poll(), Ok(Event::Updated));
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::Waiting(Duration::from_secs(30)))
     );
-    assert_eq!(*transport.calls.borrow(), ["register", "update", "update"]);
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "update", "update"]
+    );
 }
 
-#[test]
-fn expired_registration_recovers_but_rejected_credentials_halt() {
+#[tokio::test]
+async fn expired_registration_recovers_but_rejected_credentials_halt() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     clock.advance(30);
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .push_back(RequestFailure::Http(404));
-    assert_eq!(registration.poll(), Ok(Event::RegistrationLost));
+    assert_eq!(registration.poll().await, Ok(Event::RegistrationLost));
     assert_eq!(registration.server_id(), None);
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::Registered {
             server_id: "2".into()
         })
@@ -272,16 +298,17 @@ fn expired_registration_recovers_but_rejected_credentials_halt() {
     clock.advance(30);
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .push_back(RequestFailure::Http(403));
-    assert_eq!(registration.poll(), Err(SdkError::Rejected(403)));
-    assert_eq!(registration.poll(), Err(SdkError::Rejected(403)));
+    assert_eq!(registration.poll().await, Err(SdkError::Rejected(403)));
+    assert_eq!(registration.poll().await, Err(SdkError::Rejected(403)));
     assert_eq!(registration.server_id(), Some("2"));
-    registration.stop().unwrap();
+    registration.stop().await.unwrap();
 }
 
-#[test]
-fn ambiguous_registration_is_never_retried() {
+#[tokio::test]
+async fn ambiguous_registration_is_never_retried() {
     for failure in [
         RequestFailure::Transport,
         RequestFailure::InvalidResponse,
@@ -292,16 +319,22 @@ fn ambiguous_registration_is_never_retried() {
             transport,
             ..
         } = fixture();
-        transport.failures.borrow_mut().push_back(failure);
-        assert_eq!(registration.poll(), Err(SdkError::RegistrationUncertain));
-        assert_eq!(registration.poll(), Err(SdkError::RegistrationUncertain));
-        registration.stop().unwrap();
-        assert_eq!(*transport.calls.borrow(), ["register"]);
+        transport.failures.lock().unwrap().push_back(failure);
+        assert_eq!(
+            registration.poll().await,
+            Err(SdkError::RegistrationUncertain)
+        );
+        assert_eq!(
+            registration.poll().await,
+            Err(SdkError::RegistrationUncertain)
+        );
+        registration.stop().await.unwrap();
+        assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
     }
 }
 
-#[test]
-fn throttled_registration_retries_with_a_bound() {
+#[tokio::test]
+async fn throttled_registration_retries_with_a_bound() {
     let Fixture {
         mut registration,
         transport,
@@ -311,31 +344,32 @@ fn throttled_registration_retries_with_a_bound() {
     registration.policy.maximum_backoff = Duration::from_secs(15);
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .extend([RequestFailure::Http(429); 3]);
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::RetryScheduled(Duration::from_secs(10)))
     );
     clock.advance(10);
     assert_eq!(
-        registration.poll(),
+        registration.poll().await,
         Ok(Event::RetryScheduled(Duration::from_secs(15)))
     );
     clock.advance(15);
-    assert_eq!(registration.poll(), Err(SdkError::RetriesExhausted));
+    assert_eq!(registration.poll().await, Err(SdkError::RetriesExhausted));
     assert_eq!(registration.next_delay(), None);
 }
 
-#[test]
-fn short_leases_use_server_time_and_invalid_leases_halt() {
+#[tokio::test]
+async fn short_leases_use_server_time_and_invalid_leases_halt() {
     let Fixture {
         mut registration,
         transport,
         ..
     } = fixture();
     transport.lifetime.set(4.0);
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     assert_eq!(registration.next_delay(), Some(Duration::from_secs(2)));
     for lifetime in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         let Fixture {
@@ -344,22 +378,25 @@ fn short_leases_use_server_time_and_invalid_leases_halt() {
             ..
         } = fixture();
         transport.lifetime.set(lifetime);
-        assert_eq!(registration.poll(), Err(SdkError::InvalidLease));
-        registration.stop().unwrap();
-        assert_eq!(*transport.calls.borrow(), ["register", "delete"]);
+        assert_eq!(registration.poll().await, Err(SdkError::InvalidLease));
+        registration.stop().await.unwrap();
+        assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
     }
 }
 
-#[test]
-fn cancellation_cleans_up_and_control_is_single_run() {
+#[tokio::test]
+async fn cancellation_cleans_up_and_control_is_single_run() {
     let Fixture {
         mut registration,
         transport,
         ..
     } = fixture();
     let control = RegistrationControl::default();
-    registration.run(&control, |_| control.cancel()).unwrap();
-    assert_eq!(*transport.calls.borrow(), ["register", "delete"]);
+    registration
+        .run(&control, |_| control.cancel())
+        .await
+        .unwrap();
+    assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
     assert!(!control.publish(UpdateRegisteredServer::default()));
     let Fixture {
         mut registration,
@@ -368,81 +405,84 @@ fn cancellation_cleans_up_and_control_is_single_run() {
     } = fixture();
     registration
         .run(&control, |_| panic!("cancelled before start"))
+        .await
         .unwrap();
-    assert!(transport.calls.borrow().is_empty());
+    assert!(transport.calls.lock().unwrap().is_empty());
 }
 
-#[test]
-fn cleanup_reports_failure_without_logging_secrets_or_retrying() {
+#[tokio::test]
+async fn cleanup_reports_failure_without_logging_secrets_or_retrying() {
     let Fixture {
         mut registration,
         transport,
         ..
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .push_back(RequestFailure::Transport);
     assert_eq!(
-        registration.stop(),
+        registration.stop().await,
         Err(SdkError::CleanupFailed(RequestFailure::Transport))
     );
-    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(registration.poll().await, Err(SdkError::Stopped));
     assert_eq!(registration.next_delay(), None);
-    registration.stop().unwrap();
-    assert_eq!(*transport.calls.borrow(), ["register", "delete"]);
+    registration.stop().await.unwrap();
+    assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
 }
 
-#[test]
-fn stopping_overrides_terminal_failure_and_blocks_future_work() {
+#[tokio::test]
+async fn stopping_overrides_terminal_failure_and_blocks_future_work() {
     let Fixture {
         mut registration,
         transport,
         clock,
     } = fixture();
-    registration.poll().unwrap();
+    registration.poll().await.unwrap();
     clock.advance(30);
     transport
         .failures
-        .borrow_mut()
+        .lock()
+        .unwrap()
         .push_back(RequestFailure::Http(403));
-    assert_eq!(registration.poll(), Err(SdkError::Rejected(403)));
+    assert_eq!(registration.poll().await, Err(SdkError::Rejected(403)));
     assert_eq!(registration.next_delay(), None);
     assert_eq!(
         registration.set_update(UpdateRegisteredServer::default()),
         Err(SdkError::Rejected(403))
     );
-    registration.stop().unwrap();
+    registration.stop().await.unwrap();
     assert_eq!(registration.server_id(), None);
     assert_eq!(registration.next_delay(), None);
-    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(registration.poll().await, Err(SdkError::Stopped));
     assert_eq!(
         registration.set_update(UpdateRegisteredServer::default()),
         Err(SdkError::Stopped)
     );
-    registration.stop().unwrap();
+    registration.stop().await.unwrap();
     assert_eq!(
-        *transport.calls.borrow(),
+        *transport.calls.lock().unwrap(),
         ["register", "heartbeat", "delete"]
     );
 }
 
-#[test]
-fn stopping_before_registration_never_performs_network_io() {
+#[tokio::test]
+async fn stopping_before_registration_never_performs_network_io() {
     let Fixture {
         mut registration,
         transport,
         ..
     } = fixture();
-    registration.stop().unwrap();
+    registration.stop().await.unwrap();
     assert_eq!(registration.next_delay(), None);
-    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(registration.poll().await, Err(SdkError::Stopped));
     assert_eq!(
         registration.set_update(UpdateRegisteredServer::default()),
         Err(SdkError::Stopped)
     );
-    assert!(transport.calls.borrow().is_empty());
+    assert!(transport.calls.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -483,7 +523,7 @@ fn invalid_policy_fails_before_network_io() {
             ..Policy::default()
         },
     ] {
-        let transport = Rc::new(Fake::default());
+        let transport = Arc::new(Fake::default());
         assert!(matches!(
             Registration::new(
                 transport.clone(),
@@ -492,6 +532,171 @@ fn invalid_policy_fails_before_network_io() {
             ),
             Err(SdkError::InvalidPolicy)
         ));
-        assert!(transport.calls.borrow().is_empty());
+        assert!(transport.calls.lock().unwrap().is_empty());
+    }
+}
+
+async fn interrupt(future: impl std::future::Future, entered: &Notify) {
+    tokio::select! {
+        biased;
+        _ = future => panic!("request unexpectedly completed"),
+        () = entered.notified() => {},
+    }
+}
+
+#[tokio::test]
+async fn dropping_unpolled_registration_has_no_side_effect() {
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
+    drop(registration.poll());
+    assert!(transport.calls.lock().unwrap().is_empty());
+    assert!(registration.terminal_error.is_none());
+    registration.poll().await.unwrap();
+}
+
+#[tokio::test]
+async fn interrupted_registration_never_blindly_registers_again() {
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
+    *transport.blocked.lock().unwrap() = Some("register");
+    interrupt(registration.poll(), &transport.entered).await;
+    assert_eq!(
+        registration.poll().await,
+        Err(SdkError::RegistrationUncertain)
+    );
+    assert_eq!(registration.next_delay(), None);
+    registration.stop().await.unwrap();
+    assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
+}
+
+#[tokio::test]
+async fn interrupted_renewals_keep_identity_and_unpublished_metadata() {
+    for operation in ["heartbeat", "update"] {
+        let Fixture {
+            mut registration,
+            transport,
+            clock,
+        } = fixture();
+        registration.poll().await.unwrap();
+        clock.advance(30);
+        if operation == "update" {
+            registration
+                .set_update(UpdateRegisteredServer::new(1, 32, "new".into()))
+                .unwrap();
+        }
+        let published = registration.published.clone();
+        let deadline = registration.next_attempt;
+        *transport.blocked.lock().unwrap() = Some(operation);
+        interrupt(registration.poll(), &transport.entered).await;
+        assert_eq!(registration.server_id(), Some("1"));
+        assert_eq!(registration.published, published);
+        assert_eq!(registration.next_attempt, deadline);
+        *transport.blocked.lock().unwrap() = None;
+        let event = registration.poll().await.unwrap();
+        assert_eq!(
+            event,
+            if operation == "update" {
+                Event::Updated
+            } else {
+                Event::Heartbeat
+            }
+        );
+        assert_eq!(transport.sequence.get(), 1);
+    }
+}
+
+#[tokio::test]
+async fn interrupted_cleanup_is_still_single_shot() {
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
+    registration.poll().await.unwrap();
+    *transport.blocked.lock().unwrap() = Some("delete");
+    interrupt(registration.stop(), &transport.entered).await;
+    assert_eq!(registration.server_id(), None);
+    assert_eq!(registration.poll().await, Err(SdkError::Stopped));
+    registration.stop().await.unwrap();
+    assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
+}
+
+#[tokio::test]
+async fn spawned_driver_waits_without_blocking_and_observes_notifications() {
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
+    let control = RegistrationControl::default();
+    let worker_control = control.clone();
+    let (events, mut received) = tokio::sync::mpsc::unbounded_channel();
+    let worker = tokio::spawn(async move {
+        registration
+            .run(&worker_control, |event| events.send(event.clone()).unwrap())
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(1), async {
+        assert!(matches!(
+            received.recv().await,
+            Some(Event::Registered { .. })
+        ));
+        assert!(control.publish(UpdateRegisteredServer::new(1, 32, "notified".into())));
+        assert_eq!(received.recv().await, Some(Event::Updated));
+        control.cancel();
+        worker.await.unwrap().unwrap();
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "update", "delete"]
+    );
+}
+
+#[tokio::test]
+async fn cancellation_finishes_in_flight_requests_and_cleans_up_once() {
+    for operation in ["register", "heartbeat", "update", "delete"] {
+        let Fixture {
+            mut registration,
+            transport,
+            clock,
+        } = fixture();
+        let control = RegistrationControl::default();
+        if operation != "register" {
+            registration.poll().await.unwrap();
+            clock.advance(30);
+            if operation == "update" {
+                registration
+                    .set_update(UpdateRegisteredServer::new(1, 32, "pending".into()))
+                    .unwrap();
+            } else if operation == "delete" {
+                control.cancel();
+            }
+        }
+        *transport.blocked.lock().unwrap() = Some(operation);
+        let worker_control = control.clone();
+        let worker = tokio::spawn(async move { registration.run(&worker_control, |_| {}).await });
+        tokio::time::timeout(Duration::from_secs(1), async {
+            transport.entered.notified().await;
+            control.cancel();
+            tokio::task::yield_now().await;
+            assert!(!worker.is_finished());
+            transport.release.notify_one();
+            worker.await.unwrap().unwrap();
+        })
+        .await
+        .unwrap();
+        let expected = match operation {
+            "register" | "delete" => vec!["register", "delete"],
+            _ => vec!["register", operation, "delete"],
+        };
+        assert_eq!(*transport.calls.lock().unwrap(), expected);
     }
 }

@@ -13,7 +13,8 @@ def test_text_decoding_comes_from_declared_success_media_types():
         return {"responses": {"200": {"content": {"text/yaml": {"schema": schema}}}}}
 
     spec = {"paths": {"/text": {"get": operation({"type": "string"})},
-                      "/model": {"get": operation({"$ref": "#/components/schemas/Model"})}}}
+                      "/model": {"get": operation({"$ref": "#/components/schemas/Model"})}},
+            "components": {"schemas": {"Model": {"type": "object"}}}}
     rust.normalize_text_responses(spec)
     assert spec["paths"]["/text"]["get"]["x-rust-text-media-types"] == ["text/yaml"]
     assert "x-rust-text-media-types" not in spec["paths"]["/model"]["get"]
@@ -115,6 +116,9 @@ def test_rust_stages_owned_templates_without_rewriting(tmp_path, monkeypatch):
 
     def inspect_templates(arguments, root):
         assert root == tmp_path
+        options = next(arg for arg in arguments if arg.startswith("--additional-properties="))
+        assert "supportAsync=true" in options
+        assert "supportAsync=false" not in options
         templates = Path(arguments[arguments.index("-t") + 1])
         expected = tmp_path / "expected"
         generation.copy_resources(resources, expected)
@@ -138,3 +142,89 @@ def test_rust_stages_owned_templates_without_rewriting(tmp_path, monkeypatch):
         rust.generate(tmp_path, check=True)
     assert {"models/model-default.mustache", "reqwest/api.mustache",
             "UPSTREAM.md", "LICENSE.apache-2.0"} <= set(checked)
+
+
+@pytest.mark.parametrize("media", ["multipart/form-data", "application/x-www-form-urlencoded", "application/octet-stream", "text/plain", "application/custom+json"])
+def test_rust_rejects_unsupported_request_media(media):
+    spec = {"paths": {"/upload": {"post": {
+        "requestBody": {"content": {media: {"schema": {"type": "string"}}}},
+        "responses": {},
+    }}}}
+    with pytest.raises(ValueError, match="request media"):
+        rust.validate_capabilities(spec)
+
+
+@pytest.mark.parametrize("schema", [
+    {"type": "string", "format": "binary"},
+    {"type": "string", "format": "byte"},
+    {"type": "file"},
+    {"type": "object", "properties": {"data": {"type": "string", "format": "binary"}}},
+])
+def test_rust_rejects_binary_schemas(schema):
+    spec = {"paths": {}, "components": {"schemas": {"Unsupported": schema}}}
+    with pytest.raises(ValueError, match="binary/file"):
+        rust.validate_capabilities(spec)
+
+
+@pytest.mark.parametrize("media,schema,status", [
+    ("application/octet-stream", {"type": "string"}, "200"),
+    ("text/yaml", {"type": "object"}, "200"),
+    ("text/plain", {"type": "string"}, "400"),
+])
+def test_rust_rejects_unsupported_responses(media, schema, status):
+    spec = {"paths": {"/response": {"get": {"responses": {
+        status: {"content": {media: {"schema": schema}}},
+    }}}}}
+    with pytest.raises(ValueError, match="response"):
+        rust.validate_capabilities(spec)
+
+
+def test_rust_rejects_security_schemes_and_complex_parameters():
+    with pytest.raises(ValueError, match="security schemes"):
+        rust.validate_capabilities({"components": {"securitySchemes": {"OAuth": {"type": "oauth2"}}}})
+    for location, schema in [("query", {"type": "array"}), ("cookie", {"type": "string"})]:
+        with pytest.raises(ValueError, match="scalar query/path/header"):
+            rust.validate_capabilities({"paths": {"/query": {"get": {
+                "parameters": [{"in": location, "schema": schema}], "responses": {},
+            }}}})
+
+
+def test_rust_rejects_unsupported_options_before_generator(tmp_path, monkeypatch):
+    spec = {"paths": {"/option": {"get": {"x-group-parameters": True, "responses": {}}}}}
+    monkeypatch.setattr(rust, "load_contract", lambda root: ("", spec))
+    monkeypatch.setattr(rust, "run_generator", lambda *args: pytest.fail("generator invoked"))
+    with pytest.raises(ValueError, match="generator option"):
+        rust.generate(tmp_path)
+
+
+def test_rust_templates_have_no_removed_capabilities():
+    resources = files("server_browser_codegen").joinpath("templates/rust")
+    text = "\n".join(resources.joinpath(path).read_text() for path in [
+        "reqwest/api.mustache", "reqwest/configuration.mustache",
+        "client/response.mustache", "client/text_response.mustache", "client/Cargo.mustache",
+    ])
+    for removed in ["blocking", "supportAsync", "AWSV4", "multipart", "FramedRead", "token_source", "api_key", "oauth_access_token"]:
+        assert removed not in text
+
+
+def test_rust_resolves_declared_text_components_and_rejects_mixed_success_schemas():
+    spec = {
+        "components": {
+            "schemas": {"Text": {"type": "string"}},
+            "responses": {"Yaml": {"content": {
+                "text/yaml": {"schema": {"$ref": "#/components/schemas/Text"}},
+            }}},
+        },
+        "paths": {"/yaml": {"get": {"responses": {
+            "200": {"$ref": "#/components/responses/Yaml"},
+        }}}},
+    }
+    rust.validate_capabilities(spec)
+    rust.normalize_text_responses(spec)
+    operation = spec["paths"]["/yaml"]["get"]
+    assert operation["x-rust-text-media-types"] == ["text/yaml"]
+    operation["responses"]["201"] = {"content": {
+        "application/json": {"schema": {"type": "object"}},
+    }}
+    with pytest.raises(ValueError, match="one successful response schema"):
+        rust.validate_capabilities(spec)

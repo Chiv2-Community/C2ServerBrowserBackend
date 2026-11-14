@@ -23,7 +23,7 @@ fn configuration() -> Configuration {
     Configuration {
         base_path: url,
         ..Configuration::with_client(
-            reqwest::blocking::Client::builder()
+            reqwest::Client::builder()
                 .no_proxy()
                 .timeout(Duration::from_secs(5))
                 .redirect(reqwest::redirect::Policy::none())
@@ -44,9 +44,9 @@ fn request() -> ServerRegistrationRequest {
     )
 }
 
-#[test]
+#[tokio::test]
 #[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
-fn registration_sdk_against_python_backend() {
+async fn registration_sdk_against_python_backend() {
     let configuration = configuration();
     let request = request();
     let transport = HttpTransport::from_configuration(configuration.clone());
@@ -61,26 +61,30 @@ fn registration_sdk_against_python_backend() {
     )
     .unwrap();
     assert!(matches!(
-        registration.poll().unwrap(),
+        registration.poll().await.unwrap(),
         Event::Registered { .. }
     ));
     let id = registration.server_id().unwrap().to_owned();
     registration
         .set_update(UpdateRegisteredServer::new(2, 32, "next".into()))
         .unwrap();
-    assert_eq!(registration.poll(), Ok(Event::Updated));
-    let listing = api::get_servers(&configuration).unwrap();
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
+    let listing = api::get_servers(&configuration).await.unwrap();
     let value = serde_json::to_value(&listing.servers[0]).unwrap();
     assert_eq!(value["unique_id"], id);
     assert_eq!(value["player_count"], 2);
     assert_eq!(value["current_map"], "next");
     clock.now.set(clock.now.get() + Duration::from_secs(31));
-    assert_eq!(registration.poll(), Ok(Event::Heartbeat));
+    assert_eq!(registration.poll().await, Ok(Event::Heartbeat));
 
-    registration.stop().unwrap();
-    assert!(api::get_servers(&configuration).unwrap().servers.is_empty());
+    registration.stop().await.unwrap();
+    assert!(api::get_servers(&configuration)
+        .await
+        .unwrap()
+        .servers
+        .is_empty());
 
-    // The blocking driver coalesces updates and cancels without waiting a lease.
+    // The async driver coalesces updates and cancels without waiting a lease.
     let mut registration = Registration::new(transport, request, Policy::default()).unwrap();
     let control = RegistrationControl::default();
     let mut events = Vec::new();
@@ -95,14 +99,19 @@ fn registration_sdk_against_python_backend() {
                 _ => panic!("unexpected lifecycle event"),
             }
         })
+        .await
         .unwrap();
     assert_eq!(events.len(), 2);
-    assert!(api::get_servers(&configuration).unwrap().servers.is_empty());
+    assert!(api::get_servers(&configuration)
+        .await
+        .unwrap()
+        .servers
+        .is_empty());
 }
 
-#[test]
+#[tokio::test]
 #[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
-fn metadata_updates_renew_lease_without_heartbeats() {
+async fn metadata_updates_renew_lease_without_heartbeats() {
     let configuration = configuration();
     let mut registration = Registration::new(
         HttpTransport::from_configuration(configuration.clone()),
@@ -115,7 +124,7 @@ fn metadata_updates_renew_lease_without_heartbeats() {
     )
     .unwrap();
     assert!(matches!(
-        registration.poll().unwrap(),
+        registration.poll().await.unwrap(),
         Event::Registered { .. }
     ));
     let id = registration.server_id().unwrap().to_owned();
@@ -131,21 +140,25 @@ fn metadata_updates_renew_lease_without_heartbeats() {
                 "changing".into(),
             ))
             .unwrap();
-        match registration.poll().unwrap() {
+        match registration.poll().await.unwrap() {
             Event::Updated => updates += 1,
             event => panic!("unexpected event: {event:?}"),
         }
         assert_eq!(registration.server_id(), Some(id.as_str()));
-        std::thread::sleep(Duration::from_millis(40));
+        tokio::time::sleep(Duration::from_millis(40)).await;
     }
     assert!(updates >= 5);
-    let listing = api::get_servers(&configuration).unwrap();
+    let listing = api::get_servers(&configuration).await.unwrap();
     assert_eq!(listing.servers.len(), 1);
     let server = serde_json::to_value(&listing.servers[0]).unwrap();
     assert_eq!(server["unique_id"], id);
     assert_eq!(server["player_count"], updates);
     assert_eq!(server["max_players"], 64);
     assert_eq!(server["current_map"], "changing");
-    registration.stop().unwrap();
-    assert!(api::get_servers(&configuration).unwrap().servers.is_empty());
+    registration.stop().await.unwrap();
+    assert!(api::get_servers(&configuration)
+        .await
+        .unwrap()
+        .servers
+        .is_empty());
 }

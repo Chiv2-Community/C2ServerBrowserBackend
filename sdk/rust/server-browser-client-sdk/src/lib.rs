@@ -7,9 +7,10 @@ pub use transport::{HttpTransport, RegistrationTransport, RequestFailure};
 
 use models::{ServerRegistrationRequest, UpdateRegisteredServer};
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+use tokio::sync::Notify;
 
 /// Supplies monotonic time for lifecycle scheduling.
 pub trait Clock {
@@ -285,14 +286,23 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// # Errors
     /// Returns a terminal lifecycle error for rejection, uncertain registration,
     /// invalid leases, exhausted retries, or polling after shutdown.
-    pub fn poll(&mut self) -> Result<Event, SdkError> {
+    ///
+    /// # Cancellation
+    /// Dropping an in-flight first registration halts with uncertainty. Dropping
+    /// a renewal retains the known identity and previous publication schedule.
+    pub async fn poll(&mut self) -> Result<Event, SdkError> {
         self.check_running()?;
         let started = self.clock.now();
         if started < self.next_attempt {
             return Ok(Event::Waiting(self.next_attempt.duration_since(started)));
         }
         let Some(identity) = self.identity.as_ref() else {
-            return match self.transport.register(self.request.clone()) {
+            // Persist uncertainty before suspension: dropping this future must
+            // not permit another non-idempotent registration attempt.
+            self.terminal_error = Some(SdkError::RegistrationUncertain);
+            let response = self.transport.register(self.request.clone()).await;
+            self.terminal_error = None;
+            return match response {
                 Ok(response) => {
                     if response.server.unique_id.is_empty()
                         || response.key.is_empty()
@@ -328,9 +338,11 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         let snapshot = self.snapshot();
         let changed = self.published.as_ref() != Some(&snapshot);
         let response = if changed {
-            self.transport.update(&identity.id, &identity.key, snapshot)
+            self.transport
+                .update(&identity.id, &identity.key, snapshot)
+                .await
         } else {
-            self.transport.heartbeat(&identity.id, &identity.key)
+            self.transport.heartbeat(&identity.id, &identity.key).await
         };
         match response {
             Ok(response) => {
@@ -368,10 +380,13 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     ///
     /// # Errors
     /// Returns [`SdkError::CleanupFailed`] if deletion fails, except HTTP 404.
-    pub fn stop(&mut self) -> Result<(), SdkError> {
+    ///
+    /// # Cancellation
+    /// Dropping this future after deletion starts never permits a second attempt.
+    pub async fn stop(&mut self) -> Result<(), SdkError> {
         self.terminal_error = Some(SdkError::Stopped);
         match self.identity.take() {
-            Some(identity) => match self.transport.delete(&identity.id, &identity.key) {
+            Some(identity) => match self.transport.delete(&identity.id, &identity.key).await {
                 Ok(()) | Err(RequestFailure::Http(404)) => Ok(()),
                 Err(error) => Err(SdkError::CleanupFailed(error)),
             },
@@ -379,8 +394,9 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         }
     }
 
-    /// Drive the lifecycle on the calling thread; callers may spawn that thread.
-    /// Cancellation wakes waits but cannot interrupt an in-flight HTTP request.
+    /// Drive the lifecycle in the caller's Tokio task and runtime.
+    /// Cancellation wakes waits promptly but lets an in-flight request finish;
+    /// injected transports must bound request duration. No runtime is created.
     /// On error, call `stop` explicitly to attempt cleanup of a known registration.
     ///
     /// # Errors
@@ -388,37 +404,36 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     ///
     /// # Panics
     /// Panics if the control mutex was poisoned or the observer panics.
-    pub fn run(
+    pub async fn run(
         &mut self,
         control: &RegistrationControl,
         mut observe: impl FnMut(&Event),
     ) -> Result<(), SdkError> {
         loop {
-            let mut pending = control.inner.pending.lock().unwrap();
-            if pending.cancelled {
-                drop(pending);
-                return self.stop();
+            // Register before checking shared state. A publication between the
+            // check and await leaves a permit, so notifications cannot be lost.
+            let notified = control.inner.wake.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let (cancelled, update) = {
+                let mut pending = control.inner.pending.lock().unwrap();
+                (pending.cancelled, pending.update.take())
+            };
+            if cancelled {
+                return self.stop().await;
             }
-            let update = pending.update.take();
-            drop(pending);
             if let Some(update) = update {
                 self.set_update(update)?;
             }
-            let event = self.poll()?;
+            let event = self.poll().await?;
             if !matches!(event, Event::Waiting(_)) {
                 observe(&event);
             }
             let delay = self.next_delay().ok_or(SdkError::Stopped)?;
-            let pending = control.inner.pending.lock().unwrap();
-            drop(
-                control
-                    .inner
-                    .wake
-                    .wait_timeout_while(pending, delay, |pending| {
-                        !pending.cancelled && pending.update.is_none()
-                    })
-                    .unwrap(),
-            );
+            tokio::select! {
+                () = &mut notified => {},
+                () = tokio::time::sleep(delay) => {},
+            }
         }
     }
 }
@@ -447,7 +462,7 @@ impl std::fmt::Debug for RegistrationControl {
 #[derive(Default)]
 struct ControlState {
     pending: Mutex<Pending>,
-    wake: Condvar,
+    wake: Notify,
 }
 
 impl RegistrationControl {
@@ -469,7 +484,7 @@ impl RegistrationControl {
         }
         pending.update = Some(update);
         drop(pending);
-        self.inner.wake.notify_all();
+        self.inner.wake.notify_one();
         true
     }
 
@@ -479,6 +494,6 @@ impl RegistrationControl {
     /// Panics if the control mutex was poisoned.
     pub fn cancel(&self) {
         self.inner.pending.lock().unwrap().cancelled = true;
-        self.inner.wake.notify_all();
+        self.inner.wake.notify_one();
     }
 }
