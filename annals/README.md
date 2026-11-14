@@ -2,6 +2,7 @@
 
 | Date | Record | Status | Scope | Git provenance |
 | --- | --- | --- | --- | --- |
+| 2026-11-14 | [Rust lifecycle SDK and real-server client tests](2026-11-14-rust-lifecycle-sdk-implementation.md) | implemented on branch; merge pending at source response | Rust lifecycle, client E2E, plugin | `6167869`, `v1.3.0-alpha` |
 | 2026-11-14 | [SDK lifecycle and client interop direction](2026-11-14-sdk-lifecycle-and-client-interop.md) | proposed; interop work uncommitted | Registration, heartbeats, client E2E | `62f8cd0`, `v1.3.0-alpha-6` |
 | 2026-11-14 | [Backend-owned language SDKs](2026-11-14-backend-owned-language-sdks.md) | implemented on branch; merge pending at source response | SDK ownership, OpenAPI, Python, Rust | `0149b1a`, `v1.3.0-alpha` |
 | 2026-11-13 | [Total JSON upload deadline](2026-11-13-json-upload-deadline.md) | implemented locally; uncommitted | JSON uploads, HTTP timeout | `866990d`, `v1.2.3` |

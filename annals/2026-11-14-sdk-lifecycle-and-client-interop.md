@@ -22,3 +22,7 @@ The checkpoint also identifies ambiguous registration timeouts as a possible nee
 ## Consequences and reconsideration
 
 Validate final E2E changes against local services and review generated text decoding before treating them as complete. Agree lifecycle semantics and integration boundaries before implementation; retain secret-safe errors and logging. Reconsider retry design when registration outcomes, duplicate behavior and any idempotency contract are established. No release, PR state change, implementation authorization or lifecycle approval can be established from the supplied checkpoint.
+
+## Subsequent developments (2026-11-14)
+
+The proposed package direction and pending implementation described above were superseded by the user's separate client SDK boundary and subsequent branch implementation. See [Rust lifecycle SDK and real-server client tests](2026-11-14-rust-lifecycle-sdk-implementation.md); Python lifecycle work remains deferred.

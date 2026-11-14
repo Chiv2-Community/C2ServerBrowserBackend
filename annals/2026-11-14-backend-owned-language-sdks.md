@@ -26,3 +26,7 @@ Commit `0149b1a049c6d9c8101ef9eaa64ba031388787c8` moves Python packages, adds Ru
 The earlier [SDK/Discord split](https://github.com/Chiv2-Community/C2ServerBrowserBackend/blob/f8553c3ad03ccadccc1dbad5bd3e38206a05515e/annals/2026-11-14-sdk-and-discord-pr-split.md) and [PR replacement](https://github.com/Chiv2-Community/C2ServerBrowserBackend/blob/f8553c3ad03ccadccc1dbad5bd3e38206a05515e/annals/2026-11-14-sdk-migration-pr-replacement.md) remain applicable, but their plugin-owned generation and old commit references describe earlier states. The source checkpoint reports local tests, packaging, Docker build and interop passed, and backend CI passed; these results were not independently rerun or verified here. Required authentication remains disabled according to the checkpoint; OAuth and native admission are unfinished.
 
 Coordinate PR merge order, pin updates and eventual registry ownership before publication. Reconsider the repository boundary if independent maintainers or release cadence justify another repository, or if contract compatibility and publication evidence require a different distribution scheme. Exact deliberations, current remote CI and PR state, and publication timing remain open.
+
+## Subsequent developments (2026-11-14)
+
+The models/client-only Rust package scope in Decision and context is partially superseded: a separate handwritten lifecycle SDK was added. Backend ownership and generated protocol boundaries remain. See [Rust lifecycle SDK and real-server client tests](2026-11-14-rust-lifecycle-sdk-implementation.md).
