@@ -1,5 +1,6 @@
 .vscode
 .idea
+# Local decision records; do not force-add these files.
 annals/
 /sdk/python/server-browser-models/src/server_browser_models/contract.json
 /sdk/python/server-browser-models/src/server_browser_models/openapi.yaml
