@@ -15,6 +15,7 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 from server_browser_models.models import JoinTicketClaims
+from server_browser_models.runtime import contract
 
 from server_browser_backend.auth import signing
 from server_browser_backend.auth.signing import SigningKeys, provision
@@ -41,6 +42,16 @@ def issue(keys):
 
 def issue_in_worker(path):
     return issue(SigningKeys(path))
+
+
+def test_join_timestamps_use_64_bit_generated_contracts(keys, monkeypatch):
+    monkeypatch.setattr(signing.time, "time", lambda: 4_000_000_000)
+    token = issue(keys)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert JoinTicketClaims.from_json(claims).exp == 4_000_000_060
+    properties = contract()["components"]["schemas"]["JoinTicketClaims"]["properties"]
+    for name in ("auth_time", "iat", "nbf", "exp"):
+        assert properties[name]["format"] == "int64"
 
 
 def verify(keys, token):
