@@ -12,7 +12,7 @@ class CustomBuildHook(BuildHookInterface):
         # Sdists carry their own build input; workspace builds use the OAS source.
         source = root / "assets/chiv2-server-browser-api.yaml"
         if not source.is_file():
-            source = root.parent.parent / "assets/chiv2-server-browser-api.yaml"
+            source = root.parents[2] / "assets/chiv2-server-browser-api.yaml"
         if self.target_name == "sdist":
             build_data["force_include"][str(source)] = "assets/chiv2-server-browser-api.yaml"
             return

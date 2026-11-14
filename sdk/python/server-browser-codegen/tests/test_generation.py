@@ -93,7 +93,7 @@ def test_cli_passes_explicit_root_and_check_to_generation(tmp_path, monkeypatch)
     monkeypatch.setattr(
         generation, "generate", lambda root, check: calls.append((root, check))
     )
-    generation.main(["--root", str(tmp_path), "--check"])
+    generation.main(["--root", str(tmp_path), "--check", "--language", "python"])
     assert calls == [(tmp_path.resolve(), True)]
 
 

@@ -346,9 +346,9 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pygelf", specifier = ">=0.4.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.0" },
-    { name = "server-browser-fastapi", editable = "packages/server-browser-fastapi" },
-    { name = "server-browser-models", editable = "packages/server-browser-models" },
-    { name = "server-browser-server", editable = "packages/server-browser-server" },
+    { name = "server-browser-fastapi", editable = "sdk/python/server-browser-fastapi" },
+    { name = "server-browser-models", editable = "sdk/python/server-browser-models" },
+    { name = "server-browser-server", editable = "sdk/python/server-browser-server" },
     { name = "uvicorn", specifier = ">=0.34,<1" },
 ]
 
@@ -362,8 +362,8 @@ dev = [
     { name = "openapi-spec-validator", specifier = "==0.7.2" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
-    { name = "server-browser-client", editable = "packages/server-browser-client" },
-    { name = "server-browser-codegen", editable = "packages/server-browser-codegen" },
+    { name = "server-browser-client", editable = "sdk/python/server-browser-client" },
+    { name = "server-browser-codegen", editable = "sdk/python/server-browser-codegen" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20261111" },
 ]
 
@@ -1613,7 +1613,7 @@ wheels = [
 [[package]]
 name = "server-browser-client"
 version = "1.0.0"
-source = { editable = "packages/server-browser-client" }
+source = { editable = "sdk/python/server-browser-client" }
 dependencies = [
     { name = "httpx" },
     { name = "server-browser-models" },
@@ -1622,13 +1622,13 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
-    { name = "server-browser-models", editable = "packages/server-browser-models" },
+    { name = "server-browser-models", editable = "sdk/python/server-browser-models" },
 ]
 
 [[package]]
 name = "server-browser-codegen"
 version = "0.1.0"
-source = { editable = "packages/server-browser-codegen" }
+source = { editable = "sdk/python/server-browser-codegen" }
 dependencies = [
     { name = "openapi-generator-cli" },
     { name = "openapi-spec-validator" },
@@ -1645,7 +1645,7 @@ requires-dist = [
 [[package]]
 name = "server-browser-fastapi"
 version = "1.0.0"
-source = { editable = "packages/server-browser-fastapi" }
+source = { editable = "sdk/python/server-browser-fastapi" }
 dependencies = [
     { name = "anyio" },
     { name = "fastapi" },
@@ -1657,14 +1657,14 @@ dependencies = [
 requires-dist = [
     { name = "anyio", specifier = ">=4,<5" },
     { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "server-browser-models", editable = "packages/server-browser-models" },
-    { name = "server-browser-server", editable = "packages/server-browser-server" },
+    { name = "server-browser-models", editable = "sdk/python/server-browser-models" },
+    { name = "server-browser-server", editable = "sdk/python/server-browser-server" },
 ]
 
 [[package]]
 name = "server-browser-models"
 version = "1.0.0"
-source = { editable = "packages/server-browser-models" }
+source = { editable = "sdk/python/server-browser-models" }
 dependencies = [
     { name = "openapi-schema-validator" },
     { name = "pydantic" },
@@ -1679,13 +1679,13 @@ requires-dist = [
 [[package]]
 name = "server-browser-server"
 version = "1.0.0"
-source = { editable = "packages/server-browser-server" }
+source = { editable = "sdk/python/server-browser-server" }
 dependencies = [
     { name = "server-browser-models" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "server-browser-models", editable = "packages/server-browser-models" }]
+requires-dist = [{ name = "server-browser-models", editable = "sdk/python/server-browser-models" }]
 
 [[package]]
 name = "six"

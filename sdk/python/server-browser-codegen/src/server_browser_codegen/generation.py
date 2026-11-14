@@ -119,8 +119,7 @@ def prepare_packages(output: Path, spec: dict, contract_text: str) -> None:
         source.write_text(text + "\n" if text else "")
 
 
-def generate(root: Path, check: bool = False) -> None:
-    root = root.resolve()
+def load_contract(root: Path) -> tuple[str, dict]:
     text = (root / "assets/chiv2-server-browser-api.yaml").read_text()
     spec = yaml.safe_load(text)
     require_local_references(spec)
@@ -138,16 +137,37 @@ def generate(root: Path, check: bool = False) -> None:
         raise ValueError(
             "Each API operation must declare exactly one handler-interface tag"
         )
+    return text, spec
+
+
+def run_generator(arguments: Sequence[str], root: Path) -> None:
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from openapi_generator_cli import cli; cli()",
+            "generate",
+            *arguments,
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if process.returncode:
+        print(process.stdout, file=sys.stderr)
+        print(process.stderr, file=sys.stderr)
+        process.check_returncode()
+
+
+def generate(root: Path, check: bool = False) -> None:
+    root = root.resolve()
+    text, spec = load_contract(root)
     with tempfile.TemporaryDirectory(prefix="server-browser-codegen-") as directory:
         temporary = Path(directory)
         config = prepare_config(root, temporary)
         output = temporary / "generated"
-        process = subprocess.run(
+        run_generator(
             [
-                sys.executable,
-                "-c",
-                "from openapi_generator_cli import cli; cli()",
-                "generate",
                 "-c",
                 str(config),
                 "-o",
@@ -155,18 +175,12 @@ def generate(root: Path, check: bool = False) -> None:
                 "--global-property",
                 "models,apis,supportingFiles,modelDocs=false,modelTests=false,apiDocs=false,apiTests=false",
             ],
-            cwd=root,
-            capture_output=True,
-            text=True,
+            root,
         )
-        if process.returncode:
-            print(process.stdout, file=sys.stderr)
-            print(process.stderr, file=sys.stderr)
-            process.check_returncode()
         prepare_packages(output, spec, text)
         for name in PACKAGES:
             source = output / f"src/server_browser_{name}"
-            target = root / f"packages/server-browser-{name}/src/server_browser_{name}"
+            target = root / f"sdk/python/server-browser-{name}/src/server_browser_{name}"
             if check:
                 if not same_sources(source, target):
                     raise SystemExit(
@@ -189,11 +203,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--root",
         type=Path,
         default=Path.cwd(),
-        help="Repository root containing assets/ and packages/ (default: current directory)",
+        help="Repository root containing assets/ and sdk/ (default: current directory)",
     )
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--language", choices=("python", "rust", "all"), default="all")
     arguments = parser.parse_args(argv)
     root = arguments.root.resolve()
     if not (root / "assets/chiv2-server-browser-api.yaml").is_file():
         parser.error("Repository contract not found; pass --root /path/to/repository")
-    generate(root, arguments.check)
+    if arguments.language in ("python", "all"):
+        generate(root, arguments.check)
+    if arguments.language in ("rust", "all"):
+        from server_browser_codegen.rust import generate as generate_rust
+
+        generate_rust(root, arguments.check)

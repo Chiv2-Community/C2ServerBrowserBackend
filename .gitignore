@@ -1,8 +1,10 @@
 .vscode
 .idea
+# Local decision records; do not force-add these files.
 annals/
-/packages/server-browser-models/src/server_browser_models/contract.json
-/packages/server-browser-models/src/server_browser_models/openapi.yaml
+/sdk/python/server-browser-models/src/server_browser_models/contract.json
+/sdk/python/server-browser-models/src/server_browser_models/openapi.yaml
+/sdk/rust/target/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -365,11 +367,6 @@ PublishScripts/
 *.snupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
-!/packages/server-browser-models/
-!/packages/server-browser-server/
-!/packages/server-browser-fastapi/
-!/packages/server-browser-client/
-!/packages/server-browser-codegen/
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed
