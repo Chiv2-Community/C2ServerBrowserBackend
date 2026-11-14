@@ -11,6 +11,8 @@
 
 > Subsequent development (2026-11-13): The level field's minimum-width, no-truncation policy in Decision and context is superseded by [fixed-width console log levels](2026-11-13-fixed-width-log-levels.md) in `v1.2.3`. The rest of this decision remains applicable. The Git tree also shows that PR #16 was merged and tagged `v1.2.2`; deployment remains unverified.
 
+> Subsequent development (2026-11-13): The reused forwarded-header policy changed to restrict trust to configured peer networks in a security patch, committed locally after its source response. This partially supersedes the earlier proxy-policy assumption, not the logging format. See [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md).
+
 ## Decision and context
 
 The user requested one console format after observing that v1.2.1 application and Uvicorn logs used different handlers and formats. The accepted format is `DATE | LEVEL | REQUESTOR IP | NS - message`; levels have minimum width five and IPs minimum width 15, right-padded without truncating long values. A prior assistant proposal omitted the requestor IP; the user subsequently added it. The earlier proposal on the other branch is therefore partially superseded, not refuted. That branch's annals are absent from this worktree; its record could not be backlinked without changing another branch.
