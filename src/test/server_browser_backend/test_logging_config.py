@@ -74,8 +74,9 @@ logging.getLogger("uvicorn.error").info("UVICORN-INFO-PROBE")
     )
     assert f" | WARNING | {'-':<15} | uvicorn.error - STARTUP-PROBE" in output
     for line in output.splitlines():
+        ip = "127.0.0.1" if " | uvicorn.access - " in line else "-"
         assert re.fullmatch(
-            r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \| (?:INFO |WARNING|ERROR) \| - {14} \| [\w.]+ - .*",
+            rf"\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}:\d{{2}}:\d{{2}},\d{{3}} \| (?:INFO |WARNING|ERROR) \| {re.escape(f'{ip:<15}')} \| [\w.]+ - .*",
             line,
         ), line
     assert "Backend services initialized" in output
@@ -143,28 +144,42 @@ for ip in ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
         assert f" | INFO  | {ip:<15} | uvicorn.access - IP-PROBE" in line
 
 
-def test_real_uvicorn_unhandled_errors_keep_ip_without_leaking_context(tmp_path):
+@pytest.mark.parametrize("cancel_on_shutdown", [False, True])
+def test_real_uvicorn_unhandled_errors_keep_ip_without_leaking_context(
+    tmp_path, cancel_on_shutdown
+):
     environment = {
         key: value
         for key, value in os.environ.items()
         if key not in {"GRAYLOG_HOST", "GRAYLOG_PORT", "ADMIN_KEY", "DEBUG_MODE"}
     }
     environment["CONFIG_DIR"] = str(tmp_path)
+    environment["CANCEL_ON_SHUTDOWN"] = str(cancel_on_shutdown)
     code = """
 import asyncio
 import logging
+import os
+import queue
 import socket
+import threading
 import httpx
 import uvicorn
 
 async def main():
-    config = uvicorn.Config("server_browser_backend.main:app", proxy_headers=False, lifespan="off")
+    cancel = os.environ["CANCEL_ON_SHUTDOWN"] == "True"
+    config = uvicorn.Config("server_browser_backend.main:app", proxy_headers=False, lifespan="off", timeout_graceful_shutdown=0.01)
     config.load()
     from server_browser_backend.main import app
     from server_browser_backend.request_logging import request_scope
 
+    started = queue.Queue()
+    release = threading.Event()
     def fail():
         logging.getLogger("server_browser_backend.probe").info("SYNC-PROBE")
+        if cancel:
+            started.put(True)
+            assert release.wait(10), "workers were not released"
+            return []
         raise RuntimeError("HTTP-FAILURE-PROBE")
 
     app.browser_api.server_list.get_all = fail
@@ -184,15 +199,24 @@ async def main():
             while not server.started:
                 await asyncio.sleep(0.01)
             async with httpx.AsyncClient() as client:
-                responses = await asyncio.gather(*(
+                requests = asyncio.gather(*(
                     client.get(
                         f"http://127.0.0.1:{sock.getsockname()[1]}/api/v1/servers",
                         headers={"X-Forwarded-For": "198.51.100.1, " + ip},
                     )
                     for ip in ("192.0.2.8", "2001:db8:1234:5678:abcd:1234:5678:abcd")
                 ))
+                if cancel:
+                    async def wait_for_workers():
+                        while started.qsize() != 2:
+                            await asyncio.sleep(0.01)
+                    await asyncio.wait_for(wait_for_workers(), timeout=5)
+                    server.should_exit = True
+                    await task
+                responses = await requests
                 assert all(response.status_code == 500 for response in responses)
         finally:
+            release.set()
             server.should_exit = True
             await task
         logging.getLogger("uvicorn.error").warning("OUTSIDE-PROBE")
@@ -210,18 +234,27 @@ asyncio.run(main())
     output = process.stdout + process.stderr
     lines = output.splitlines()
     for ip in ("192.0.2.8", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
-        for level, namespace, message in (
+        expected = [
             ("INFO", "server_browser_backend.probe", "SYNC-PROBE"),
-            ("ERROR", "server_browser_backend.error_handlers", "Unhandled exception"),
             ("INFO", "uvicorn.access", f'{ip}:0 - "GET /api/v1/servers HTTP/1.1" 500'),
             ("ERROR", "uvicorn.error", "Exception in ASGI application"),
-        ):
+        ]
+        if not cancel_on_shutdown:
+            expected.append(
+                ("ERROR", "server_browser_backend.error_handlers", "Unhandled exception")
+            )
+        for level, namespace, message in expected:
             matching = [
                 line for line in lines
                 if f" | {level:<5} | {ip:<15} | {namespace} - {message}" in line
             ]
             assert len(matching) == 1, output
             assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \| ", matching[0])
+    if cancel_on_shutdown:
+        assert output.count(
+            "asyncio.exceptions.CancelledError: Task cancelled, timeout graceful shutdown exceeded"
+        ) == 2
+        assert "Unhandled exception" not in output
     for marker, count in (("AFTER-ASGI-PROBE", 2), ("OUTSIDE-PROBE", 1)):
         assert sum(
             f" | WARNING | {'-':<15} | uvicorn.error - {marker}" in line

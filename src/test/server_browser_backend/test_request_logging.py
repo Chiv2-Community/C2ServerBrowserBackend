@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 import httpx
+import pytest
 from anyio import to_thread
 
 from server_browser_backend.request_logging import ConsoleFormatter, request_scope
@@ -118,3 +119,57 @@ def test_unhandled_error_retains_forwarded_ip(app, browser, monkeypatch, caplog)
         logger.removeHandler(handler)
     assert len(messages) == 1
     assert messages[0].startswith("192.0.2.8 | Unhandled exception")
+
+
+def test_cancellation_preserves_exception_identity_and_resets_context(app):
+    cancellation = asyncio.CancelledError("cancellation probe")
+
+    @app.get("/cancel-probe")
+    async def cancel():
+        raise cancellation
+
+    async def exercise():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            with pytest.raises(asyncio.CancelledError) as caught:
+                await client.get(
+                    "/cancel-probe", headers={"X-Forwarded-For": "192.0.2.9"}
+                )
+        assert caught.value is cancellation
+        assert getattr(cancellation, "_request_log_ip") == "192.0.2.9"
+        assert request_scope.get() is None
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "address, expected",
+    [
+        ("192.0.2.8:0", "192.0.2.8"),
+        (
+            "2001:0db8:1234:5678:abcd:1234:5678:abcd:0",
+            "2001:db8:1234:5678:abcd:1234:5678:abcd",
+        ),
+        ("not-an-ip:0", "-"),
+        ("", "-"),
+    ],
+)
+def test_access_fallback_normalizes_existing_client_argument(address, expected):
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        (address, "GET", "/", "1.1", 500),
+        None,
+    )
+    formatter = ConsoleFormatter("%(requestor_ip)s | %(message)s")
+    assert formatter.format(record).startswith(f"{expected} | ")
+    assert record.args == (address, "GET", "/", "1.1", 500)
+    token = request_scope.set({"client": ("192.0.2.10", 0)})
+    try:
+        assert formatter.format(record).startswith("192.0.2.10 | ")
+    finally:
+        request_scope.reset(token)

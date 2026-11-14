@@ -51,7 +51,7 @@ class Application(FastAPI):
         token = request_scope.set(scope if scope["type"] == "http" else None)
         try:
             await super().__call__(scope, receive, send)
-        except Exception as exc:
+        except BaseException as exc:
             # Uvicorn logs escaping errors after the request context is reset.
             setattr(exc, "_request_log_ip", requestor_ip(request_scope.get()))
             raise
