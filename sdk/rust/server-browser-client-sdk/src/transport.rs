@@ -75,8 +75,7 @@ impl HttpTransport {
         }
         Ok(Self::from_configuration(Configuration {
             base_path: base_url.trim_end_matches('/').into(),
-            client: builder.build()?,
-            ..Configuration::default()
+            ..Configuration::with_client(builder.build()?)
         }))
     }
 

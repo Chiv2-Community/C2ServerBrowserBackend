@@ -18,14 +18,20 @@ impl Configuration {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Use an existing transport without constructing a default HTTP client.
+    #[must_use]
+    pub fn with_client(client: reqwest::blocking::Client) -> Self {
+        Self {
+            base_path: "http://localhost".to_owned(),
+            user_agent: Some("server-browser-client/1.0.0".to_owned()),
+            client,
+        }
+    }
 }
 
 impl Default for Configuration {
     fn default() -> Self {
-        Self {
-            base_path: "http://localhost".to_owned(),
-            user_agent: Some("server-browser-client/1.0.0".to_owned()),
-            client: reqwest::blocking::Client::new(),
-        }
+        Self::with_client(reqwest::blocking::Client::new())
     }
 }

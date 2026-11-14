@@ -24,13 +24,14 @@ fn registration_sdk_against_python_backend() {
     let url = std::env::var("SDK_E2E_URL").expect("Python harness URL required");
     let configuration = Configuration {
         base_path: url,
-        client: reqwest::blocking::Client::builder()
-            .no_proxy()
-            .timeout(Duration::from_secs(5))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap(),
-        ..Configuration::default()
+        ..Configuration::with_client(
+            reqwest::blocking::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(5))
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
+        )
     };
     let request = ServerRegistrationRequest::new(
         Chivalry2Ports::new(7777, 7778, 7779),

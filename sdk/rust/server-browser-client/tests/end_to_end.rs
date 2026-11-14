@@ -34,13 +34,14 @@ fn generated_client_against_python_backend() {
     let diagnostic = std::env::var("SDK_E2E_DIAGNOSTIC").unwrap() == "True";
     let config = Configuration {
         base_path,
-        client: reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .redirect(reqwest::redirect::Policy::none())
-            .no_proxy()
-            .build()
-            .unwrap(),
-        ..Configuration::default()
+        ..Configuration::with_client(
+            reqwest::blocking::Client::builder()
+                .timeout(Duration::from_secs(5))
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy()
+                .build()
+                .unwrap(),
+        )
     };
     assert!(!success(api::jwks(&config)).keys.is_empty());
     assert!(success(api::send_swagger(&config)).contains("openapi:"));
