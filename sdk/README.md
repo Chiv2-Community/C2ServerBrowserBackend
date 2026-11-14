@@ -72,7 +72,7 @@ Discord verification remain consumer code.
   toolchain versions are locked; public API breaks are currently permitted.
 - Generated model modules allow only named upstream-template style lints;
   handwritten code and tests retain the strict defaults. Multiple transitive
-  dependency versions are allowed because TLS/Serde dependencies select them.
+  dependency versions are allowed because HTTP/TLS dependencies select them.
 - Use named fields instead of tuple-based state, fixtures, or interfaces. Standard
   library tuple-returning APIs and unit `()` remain usable.
 
