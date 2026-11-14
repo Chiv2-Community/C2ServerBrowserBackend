@@ -20,3 +20,7 @@ The change is a behavioral restriction for clients that relied on borrowed-sessi
 The local CI log reports 435 passing tests, mypy across 105 files, generated-source checks and installed-wheel smoke tests. The transcript reports successful compatibility replay and both dependency audits. This review inspected the log and artifacts but did not rerun these checks. Mock mypy's normal command failed because it inherited an unavailable Pydantic plugin; a standalone-config source check passed. Dependency updates and redirect changes were uncommitted at the source response and remain uncommitted at recording; PR #18 did not include them at that checkpoint. Verify supported Python/platform resolution, independent security review, CI, and remote PR state before release. Reassess versions as advisories change. No independent inventory of deployed clients or earlier design deliberation was available.
 
 The earlier [HTTP security boundaries record](2026-11-13-http-security-boundaries.md) covers separate server-side hardening; this record does not supersede its decisions.
+
+## Subsequent developments (2026-11-13)
+
+The checkpoint's uncommitted-status claim was accurate then but is no longer current: commit `54a77cd7d3caa6fc4a59773772a69222ca410444` implements these changes. The supplied transcript reports it pushed to PR #18. The decision is unchanged; release and current remote status remain unverified. See [registry resource bounds](2026-11-13-registry-resource-bounds.md).
