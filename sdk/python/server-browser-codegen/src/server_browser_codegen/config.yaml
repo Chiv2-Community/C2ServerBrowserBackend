@@ -19,9 +19,6 @@ files:
   models/package.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_models/__init__.py
-  shared/typed.mustache:
-    templateType: SupportingFiles
-    destinationFilename: src/server_browser_models/py.typed
   server/runtime.mustache:
     templateType: SupportingFiles
     destinationFilename: src/server_browser_server/runtime.py

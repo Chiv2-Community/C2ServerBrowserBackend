@@ -72,7 +72,8 @@ def copy_resources(source: Traversable, destination: Path) -> None:
 def prepare_config(root: Path, directory: Path) -> Path:
     resources = files("server_browser_codegen")
     templates = directory / "templates"
-    copy_resources(resources.joinpath("templates"), templates)
+    for name in PACKAGES:
+        copy_resources(resources.joinpath("templates", name), templates / name)
     # OpenAPI Generator requires these three entry-point filenames at its template root.
     # Supporting templates retain their module-scoped paths from config.yaml.
     for name, source in ENTRYPOINTS.items():
