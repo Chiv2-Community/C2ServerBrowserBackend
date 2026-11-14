@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
-import sys
 import tempfile
 import zipfile
 from importlib.resources import files
@@ -14,9 +12,7 @@ from pathlib import Path
 import openapi_generator_cli
 import yaml
 
-from server_browser_codegen.generation import copy_resources, load_contract
-
-PACKAGES = ("models", "client")
+from server_browser_codegen.generation import copy_resources, load_contract, run_generator
 
 
 def normalize_text_responses(spec: dict) -> None:
@@ -135,12 +131,8 @@ def generate(root: Path, check: bool = False) -> None:
             )
         )
         output = directory / "output"
-        subprocess.run(
+        run_generator(
             [
-                sys.executable,
-                "-c",
-                "from openapi_generator_cli import cli; cli()",
-                "generate",
                 "-g",
                 "rust",
                 "-i",
@@ -154,9 +146,7 @@ def generate(root: Path, check: bool = False) -> None:
                 "--additional-properties=packageName=server-browser-client,packageVersion=1.0.0,supportAsync=false,avoidBoxedModels=true",
                 "--global-property=apiDocs=false,modelDocs=false,apiTests=false,modelTests=false",
             ],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            root,
         )
         models = output / "models-package"
         shutil.move(str(output / "src/models"), models / "src/models")

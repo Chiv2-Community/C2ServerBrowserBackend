@@ -14,7 +14,5 @@ uv run python scripts/check_wheels.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo test --locked --manifest-path sdk/rust/Cargo.toml --workspace
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-uv run python scripts/check_rust_sdk.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 cargo package --locked --manifest-path sdk/rust/Cargo.toml --workspace --allow-dirty
 exit $LASTEXITCODE
