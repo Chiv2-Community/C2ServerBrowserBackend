@@ -11,6 +11,20 @@ fn ban_status_decodes_boolean_not_text() {
 }
 
 #[test]
+fn join_claims_accept_timestamps_after_2038() {
+    let mut value =
+        serde_json::to_value(server_browser_models::JoinTicketClaims::default()).unwrap();
+    for field in ["auth_time", "iat", "nbf", "exp"] {
+        value[field] = json!(2_200_000_000_i64);
+    }
+    let claims: server_browser_models::JoinTicketClaims = serde_json::from_value(value).unwrap();
+    assert_eq!(claims.auth_time, 2_200_000_000);
+    assert_eq!(claims.iat, 2_200_000_000);
+    assert_eq!(claims.nbf, 2_200_000_000);
+    assert_eq!(claims.exp, 2_200_000_000);
+}
+
+#[test]
 fn listings_preserve_plain_and_diagnostic_variants() {
     let plain = serde_json::to_value(ServerResponse::default()).unwrap();
     let mut diagnostic = plain.clone();
