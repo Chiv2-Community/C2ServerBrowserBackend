@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from importlib.resources import files
 from pathlib import Path
 
@@ -19,6 +20,13 @@ def resolve_component(spec: dict, value: dict) -> dict:
         section, name = value["$ref"].split("/")[-2:]
         return spec["components"][section][name]
     return value
+
+
+def operations(spec: dict) -> Iterator[tuple[dict, dict]]:
+    for path in spec["paths"].values():
+        for method, operation in path.items():
+            if method in {"get", "post", "put", "delete", "patch", "head", "options"}:
+                yield path, operation
 
 
 def validate_capabilities(spec: dict) -> None:
@@ -38,63 +46,57 @@ def validate_capabilities(spec: dict) -> None:
                         check_schema(item)
 
     check_schema(spec.get("components", {}).get("schemas", {}))
-    for path in spec["paths"].values():
-        for method, operation in path.items():
-            if method not in {"get", "post", "put", "delete", "patch", "head", "options"}:
-                continue
-            if operation.get("security"):
-                raise ValueError("Rust client does not support security schemes")
-            if any(key in {
-                "x-group-parameters", "x-rust-group-parameters", "x-use-async-file-stream",
-            } for key in operation):
-                raise ValueError("Unsupported Rust generator option")
-            for parameter in [*path.get("parameters", []), *operation.get("parameters", [])]:
-                parameter = resolve_component(spec, parameter)
-                schema = resolve_component(spec, parameter.get("schema", {}))
+    for path, operation in operations(spec):
+        if operation.get("security"):
+            raise ValueError("Rust client does not support security schemes")
+        if any(key in {
+            "x-group-parameters", "x-rust-group-parameters", "x-use-async-file-stream",
+        } for key in operation):
+            raise ValueError("Unsupported Rust generator option")
+        for parameter in [*path.get("parameters", []), *operation.get("parameters", [])]:
+            parameter = resolve_component(spec, parameter)
+            schema = resolve_component(spec, parameter.get("schema", {}))
+            check_schema(schema)
+            if parameter.get("in") not in {"query", "path", "header"} or schema.get("type") not in {"string", "integer", "number", "boolean"}:
+                raise ValueError("Rust client supports scalar query/path/header parameters only")
+            if parameter["in"] == "path" and (not parameter.get("required") or schema.get("nullable")):
+                raise ValueError("Rust path parameters must be required and nonnullable")
+        for media, content in resolve_component(spec, operation.get("requestBody", {})).get("content", {}).items():
+            if media != "application/json":
+                raise ValueError(f"Unsupported Rust request media type: {media}")
+            check_schema(content.get("schema", {}))
+        success_schemas = []
+        for status, response in operation["responses"].items():
+            for media, content in resolve_component(spec, response).get("content", {}).items():
+                schema = resolve_component(spec, content.get("schema", {}))
+                if str(status).startswith("2"):
+                    success_schemas.append(schema)
                 check_schema(schema)
-                if parameter.get("in") not in {"query", "path", "header"} or schema.get("type") not in {"string", "integer", "number", "boolean"}:
-                    raise ValueError("Rust client supports scalar query/path/header parameters only")
-                if parameter["in"] == "path" and (not parameter.get("required") or schema.get("nullable")):
-                    raise ValueError("Rust path parameters must be required and nonnullable")
-            for media, content in resolve_component(spec, operation.get("requestBody", {})).get("content", {}).items():
-                if media != "application/json":
-                    raise ValueError(f"Unsupported Rust request media type: {media}")
-                check_schema(content.get("schema", {}))
-            success_schemas = []
-            for status, response in operation["responses"].items():
-                for media, content in resolve_component(spec, response).get("content", {}).items():
-                    schema = resolve_component(spec, content.get("schema", {}))
-                    if str(status).startswith("2"):
-                        success_schemas.append(schema)
-                    check_schema(schema)
-                    if media != "application/json" and not media.endswith("+json") and not (
-                        media in {"text/plain", "text/yaml", "application/yaml", "application/x-yaml"}
-                        and schema.get("type") == "string"
-                    ):
-                        raise ValueError(f"Unsupported Rust response media type: {media}")
-                    if not str(status).startswith("2") and media != "application/json" and not media.endswith("+json"):
-                        raise ValueError("Rust error responses must be JSON")
-            if success_schemas and any(schema != success_schemas[0] for schema in success_schemas):
-                raise ValueError("Rust client requires one successful response schema per operation")
+                if media != "application/json" and not media.endswith("+json") and not (
+                    media in {"text/plain", "text/yaml", "application/yaml", "application/x-yaml"}
+                    and schema.get("type") == "string"
+                ):
+                    raise ValueError(f"Unsupported Rust response media type: {media}")
+                if not str(status).startswith("2") and media != "application/json" and not media.endswith("+json"):
+                    raise ValueError("Rust error responses must be JSON")
+        if success_schemas and any(schema != success_schemas[0] for schema in success_schemas):
+            raise ValueError("Rust client requires one successful response schema per operation")
 
 
 def normalize_text_responses(spec: dict) -> None:
-    for path in spec["paths"].values():
-        for method, operation in path.items():
-            if method not in {"get", "post", "put", "delete", "patch", "head", "options"}:
-                continue
-            contents = [
-                (media, resolve_component(spec, content["schema"]))
-                for status, response in operation["responses"].items()
-                if str(status).startswith("2")
-                for media, content in resolve_component(spec, response).get("content", {}).items()
+    for _, operation in operations(spec):
+        contents = [
+            (media, resolve_component(spec, content["schema"]))
+            for status, response in operation["responses"].items()
+            if str(status).startswith("2")
+            for media, content in resolve_component(spec, response).get("content", {}).items()
+        ]
+        # Returning raw text is safe only when every success has a string type.
+        if contents and all(schema.get("type") == "string" for _, schema in contents):
+            operation["x-rust-text-media-types"] = [
+                media for media, _ in contents
+                if media != "application/json" and not media.endswith("+json")
             ]
-            # Returning raw text is safe only when every success has a string type.
-            if contents and all(schema.get("type") == "string" for _, schema in contents):
-                operation["x-rust-text-media-types"] = [
-                    media for media, _ in contents
-                    if media != "application/json" and not media.endswith("+json")
-                ]
 
 
 def normalize_anyof(schemas: dict) -> None:

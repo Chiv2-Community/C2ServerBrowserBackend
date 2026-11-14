@@ -8,6 +8,23 @@ import pytest
 from server_browser_codegen import generation, rust
 
 
+def test_operation_traversal_skips_path_metadata_and_preserves_parent():
+    operation = {"responses": {}}
+    path = {
+        "summary": "Path metadata",
+        "parameters": [],
+        "x-extra": {},
+        **{method: operation for method in (
+            "get", "post", "put", "delete", "patch", "head", "options",
+        )},
+    }
+    found = list(rust.operations({"paths": {"/servers": path}}))
+    assert len(found) == 7
+    assert all(parent is path and child is operation for parent, child in found)
+    rust.validate_capabilities({"paths": {"/servers": path}})
+    rust.normalize_text_responses({"paths": {"/servers": path}})
+
+
 def test_text_decoding_comes_from_declared_success_media_types():
     def operation(schema):
         return {"responses": {"200": {"content": {"text/yaml": {"schema": schema}}}}}
