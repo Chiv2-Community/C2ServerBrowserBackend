@@ -19,7 +19,7 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 cargo = { level = "deny", priority = -1 }
-# Transitive TLS/Serde dependencies select multiple major versions.
+# Transitive HTTP/TLS dependencies select multiple major versions.
 multiple_crate_versions = "allow"
 
 [workspace.lints.rustdoc]
