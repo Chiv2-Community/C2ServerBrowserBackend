@@ -68,13 +68,13 @@ def test_templates_are_scoped_to_their_output_package(tmp_path):
     config = yaml.safe_load(config_path.read_text())
     templates = Path(config["templateDir"])
     assert config["inputSpec"] == str(root / "assets/chiv2-server-browser-api.yaml")
+    assert {path.name for path in templates.iterdir() if path.is_dir()} == set(generation.PACKAGES)
     for name, declaration in config["files"].items():
         owner = name.split("/", 1)[0]
         assert (templates / name).is_file()
-        if owner != "shared":
-            assert declaration["destinationFilename"].startswith(
-                f"src/server_browser_{owner}/"
-            )
+        assert declaration["destinationFilename"].startswith(
+            f"src/server_browser_{owner}/"
+        )
     for alias, source in generation.ENTRYPOINTS.items():
         assert (templates / alias).read_bytes() == (templates / source).read_bytes()
 

@@ -29,7 +29,6 @@ All templates live under `src/server_browser_codegen/templates/`:
 | `client/` | `server_browser_client` typed clients, exports, and HTTPX runtime |
 | `server/` | `server_browser_server` abstract interfaces, exports, and context/response types |
 | `fastapi/` | `server_browser_fastapi` routers, exports, and HTTP runtime |
-| `shared/` | Common packaging markers (`py.typed`) |
 | `rust/models/` | Rust model crate, manifest, and `anyOf` decoding |
 | `rust/client/` | Rust client crate manifest, external-model exports, and response decoding |
 | `rust/reqwest/` | Rust operation entry point, shared errors, and HTTP configuration |
@@ -39,6 +38,8 @@ OpenAPI Generator requires three entry-point filenames (`model.mustache`,
 `base_api.mustache`, `api.mustache`) at its template root. The CLI creates aliases
 only in a temporary staging directory; source templates stay with their owners.
 No top-level template forwarding files are needed in the repository.
+Each language stages only its own templates. Python package preparation creates
+`py.typed` markers directly; they do not need a template.
 
 Rust's model and operation templates are checked-in, repository-owned copies;
 generation does not extract or rewrite template source from the generator JAR.
