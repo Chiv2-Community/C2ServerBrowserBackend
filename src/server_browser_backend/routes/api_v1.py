@@ -15,7 +15,6 @@ from server_browser_models.models import (
     IpListRequest,
     JwksResponse,
     LoginRequest,
-    LoginResponse,
     RegistrationResponse,
     ServerListResponse,
     ServerRegistrationRequest,
@@ -36,8 +35,8 @@ from server_browser_backend.models.base_models import (
     server_response,
 )
 from server_browser_backend.routes.shared import RequestPolicy, get_ip, status
-from server_browser_backend.server_list import SecretKeyMissing, ServerList
-from server_browser_backend.token_reissuer import TokenReissuer
+from server_browser_backend.server_list import RegistryCapacity, SecretKeyMissing, ServerList
+from server_browser_backend.auth.signing import SigningKeys
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +55,14 @@ class BrowserApi(BaseApiV1Api):
         ban_list: IpList,
         verified_list: IpList,
         policy: RequestPolicy,
-        token_reissuer: TokenReissuer,
+        signing_keys: SigningKeys | None,
         show_registered_ips: Callable[[], bool],
     ):
         self.server_list = server_list
         self.ban_list = ban_list
         self.verified_list = verified_list
         self.policy = policy
-        self.token_reissuer = token_reissuer
+        self.signing_keys = signing_keys
         self.show_registered_ips = show_registered_ips
 
     def before_operation(self, request: RequestContext, operation_id: str) -> None:
@@ -71,15 +70,17 @@ class BrowserApi(BaseApiV1Api):
             self.policy.get_and_validate_ip(request)
 
     def jwks(self, request: RequestContext) -> ApiResponse[JwksResponse]:
-        return ApiResponse(self.token_reissuer.get_jwks_response())
+        keys = (
+            self.signing_keys.get_jwks_response()
+            if self.signing_keys
+            else JwksResponse(keys=[])
+        )
+        return ApiResponse(keys, headers={"Cache-Control": "no-store"})
 
     def login(
         self, request: RequestContext, login_request: LoginRequest
-    ) -> ApiResponse[LoginResponse]:
-        token = self.token_reissuer.validate_and_reissue(
-            login_request.token, get_ip(request)
-        )
-        return ApiResponse(LoginResponse(token=token))
+    ) -> ApiResponse[StatusResponse]:
+        return status("auth_retired", "EOS authentication has been retired", 410)
 
     def send_swagger(self, request: RequestContext) -> ApiResponse[str]:
         spec = files("server_browser_models").joinpath("openapi.yaml")
@@ -108,9 +109,12 @@ class BrowserApi(BaseApiV1Api):
                 get_ip(request),
             )
             return status("invalid_ip", "Invalid IP address", 400)
-        if self.policy.is_whitelisted(request):
-            server = server.verified()
-        key = self.server_list.register(server)
+        server = self.policy.with_current_verification(server)
+        try:
+            key = self.server_list.register(server)
+        except RegistryCapacity:
+            logger.warning("Server registration rejected: capacity exhausted requester_ip=%r", get_ip(request))
+            return status("registration_capacity", "Server registration capacity exhausted; retry after registrations expire", 429)
         logger.info(
             "Server registered server_id=%r name=%r ip=%s game_port=%s verified=%s",
             server.unique_id,
@@ -187,7 +191,11 @@ class BrowserApi(BaseApiV1Api):
     def get_servers(self, request: RequestContext) -> ApiResponse[ServerListResponse]:
         return ApiResponse(
             server_listing(
-                self.server_list.get_all(), include_ip=self.show_registered_ips()
+                [
+                    self.policy.with_current_verification(server)
+                    for server in self.server_list.get_all()
+                ],
+                include_ip=self.show_registered_ips(),
             )
         )
 
@@ -341,7 +349,10 @@ class BrowserApi(BaseApiV1Api):
                 get_ip(request),
             )
             return status("unauthorized", "Invalid IP address", 401)
-        server = self.server_list.update(server_id, key, transform)
+        server = self.server_list.update(
+            server_id, key,
+            lambda existing: self.policy.with_current_verification(transform(existing)),
+        )
         if server is None:
             logger.warning(
                 "Server %s rejected: registration disappeared server_id=%r requester_ip=%r",

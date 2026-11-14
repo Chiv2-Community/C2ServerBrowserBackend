@@ -11,7 +11,6 @@ from server_browser_models.models.ban_status_response import BanStatusResponse
 from server_browser_models.models.ip_list_request import IpListRequest
 from server_browser_models.models.jwks_response import JwksResponse
 from server_browser_models.models.login_request import LoginRequest
-from server_browser_models.models.login_response import LoginResponse
 from server_browser_models.models.registration_response import RegistrationResponse
 from server_browser_models.models.server_list_response import ServerListResponse
 from server_browser_models.models.server_registration_request import ServerRegistrationRequest
@@ -30,7 +29,7 @@ class BaseApiV1Api(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def login(self, request: RequestContext, *, login_request: LoginRequest) -> ApiResponse[LoginResponse] | ApiResponse[StatusResponse]:
+    def login(self, request: RequestContext, *, login_request: LoginRequest) -> ApiResponse[StatusResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
 
     @abstractmethod
@@ -42,7 +41,7 @@ class BaseApiV1Api(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def register(self, request: RequestContext, *, server_registration_request: ServerRegistrationRequest) -> ApiResponse[StatusResponse] | ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
+    def register(self, request: RequestContext, *, server_registration_request: ServerRegistrationRequest) -> ApiResponse[StatusResponse] | ApiResponse[StatusResponse] | ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
 
     @abstractmethod

@@ -1,10 +1,14 @@
 """Generated FastAPI transport support. DO NOT EDIT."""
 from functools import lru_cache
+import json
+from itertools import chain
 import re
 from typing import Any
 
+from anyio import fail_after
 from fastapi import Request, Response
 from starlette.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 from openapi_schema_validator import OAS30Validator
 from server_browser_models.runtime import (
     DictKeyError, DictTypeError, SchemaValidationError, contract, operation, parse_ip_address, to_wire,
@@ -14,6 +18,35 @@ from server_browser_server.runtime import ApiResponse
 
 class JsonMissing(Exception):
     pass
+
+
+class PayloadTooLarge(Exception):
+    pass
+
+
+class JsonBodyTimeout(Exception):
+    pass
+
+
+def validate_json_values(value: Any, max_depth: int) -> None:
+    # Bound traversal state by depth, not the number of fields/items.
+    pending = [iter((value,))]
+    while pending:
+        try:
+            item = next(pending[-1])
+        except StopIteration:
+            pending.pop()
+            continue
+        if isinstance(item, str):
+            try:
+                item.encode("utf-8")
+            except UnicodeEncodeError:
+                raise JsonMissing() from None
+        elif isinstance(item, (dict, list)):
+            if len(pending) > max_depth:
+                raise JsonMissing()
+            values = chain(item.keys(), item.values()) if isinstance(item, dict) else iter(item)
+            pending.append(iter(values))
 
 
 def automatic_options(path: str) -> Response | None:
@@ -34,10 +67,29 @@ async def read_body(request: Request) -> dict[str, Any]:
     media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if media_type != "application/json" and not (media_type.startswith("application/") and media_type.endswith("+json")):
         raise JsonMissing()
+    limit = contract()["x-max-json-body-bytes"]
     try:
-        value = await request.json()
-    except (ValueError, UnicodeDecodeError):
+        declared_size = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        declared_size = 0
+    if declared_size > limit:
+        raise PayloadTooLarge()
+    body = bytearray()
+    try:
+        with fail_after(contract()["x-json-body-timeout-seconds"]):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > limit:
+                    raise PayloadTooLarge()
+                body.extend(chunk)
+    except TimeoutError:
+        raise JsonBodyTimeout() from None
+    except ClientDisconnect:
         raise JsonMissing() from None
+    try:
+        value = json.loads(body)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        raise JsonMissing() from None
+    validate_json_values(value, contract()["x-max-json-depth"])
     if value is None:
         raise JsonMissing()
     if not isinstance(value, dict):
@@ -87,5 +139,5 @@ def read_parameter(operation_id: str, location: str, name: str, value: Any, appl
 
 def render_response(result: ApiResponse[Any]) -> Response:
     if result.content_type != "application/json":
-        return Response(result.body, status_code=result.status, media_type=result.content_type)
-    return JSONResponse(to_wire(result.body), status_code=result.status)
+        return Response(result.body, status_code=result.status, media_type=result.content_type, headers=result.headers)
+    return JSONResponse(to_wire(result.body), status_code=result.status, headers=result.headers)

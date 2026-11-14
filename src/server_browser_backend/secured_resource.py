@@ -14,8 +14,14 @@ class SecuredResource(Generic[A]):
     secret_key: str
     resource: A
 
+    def __post_init__(self) -> None:
+        if not self.secret_key or not self.secret_key.isascii():
+            raise ValueError("Secret keys must be nonempty ASCII strings")
+
     def validate(self, secret_key: str) -> bool:
-        return secrets.compare_digest(self.secret_key, secret_key)
+        return secret_key.isascii() and secrets.compare_digest(
+            self.secret_key, secret_key
+        )
 
     def with_resource(
         self, secret_key: str, new_resource: A

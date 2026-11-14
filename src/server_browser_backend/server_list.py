@@ -20,15 +20,32 @@ class SecretKeyMissing(Exception):
     pass
 
 
+class RegistryCapacity(Exception):
+    """Registration budget exhausted; existing servers remain registered."""
+
+
 class ServerList:
     """Maintains a map of servers keyed off their unique id.
     Servers are registered with a unique id and a secret key.
     Servers can update their information with the secret key.
     """
 
-    def __init__(self, heartbeat_timeout: float = 65):
+    def __init__(
+        self,
+        heartbeat_timeout: float = 65,
+        *,
+        max_servers: int = 1024,
+        max_servers_per_ip: int = 16,
+    ):
+        if any(
+            type(value) is not int or value <= 0
+            for value in (max_servers, max_servers_per_ip)
+        ):
+            raise ValueError("Registry limits must be positive integers")
         self.servers: Dict[str, SecuredResource[Server]] = {}
         self.heartbeat_timeout = heartbeat_timeout
+        self.max_servers = max_servers
+        self.max_servers_per_ip = max_servers_per_ip
         self.servers_mutex = threading.Lock()
 
     def exists(self, server_id: str) -> bool:
@@ -39,10 +56,23 @@ class ServerList:
     def register(self, server: Server) -> str:
         """Registers a server and returns a secret key."""
         with self.servers_mutex:
-            key = secrets.token_hex(128)
-            secured_resource = SecuredResource(key, server)
-            self.servers[server.unique_id] = secured_resource
-            return key
+            current_time = datetime.now().timestamp()
+            expired = self._process_heartbeat_timeouts(current_time)
+            full = (
+                len(self.servers) >= self.max_servers
+                or sum(
+                    value.resource.ip_address == server.ip_address
+                    for value in self.servers.values()
+                )
+                >= self.max_servers_per_ip
+            )
+            if not full:
+                key = secrets.token_hex(128)
+                self.servers[server.unique_id] = SecuredResource(key, server)
+        self._log_expired(expired, current_time)
+        if full:
+            raise RegistryCapacity("Server registration budget exhausted")
+        return key
 
     def update(
         self, server_id: str, key: str, func: Callable[[Server], Server]
@@ -91,6 +121,10 @@ class ServerList:
                 secured_server.resource for secured_server in self.servers.values()
             ]
         # Log outside the lock: a remote log sink must not block registry operations.
+        self._log_expired(expired, current_time)
+        return servers
+
+    def _log_expired(self, expired: List[Server], current_time: float) -> None:
         for server in expired:
             logger.info(
                 "Server registration expired server_id=%r name=%r ip=%s game_port=%s age_seconds=%.1f timeout_seconds=%s",
@@ -101,7 +135,6 @@ class ServerList:
                 current_time - server.last_heartbeat,
                 self.heartbeat_timeout,
             )
-        return servers
 
     def clear(self) -> None:
         """Clears all registered servers."""

@@ -72,6 +72,9 @@ typed response unions, including declared error responses.
   response. HTTPX transport errors propagate unchanged.
 - Set `timeout=` explicitly when needed; the default is ten seconds. No automatic
   retries are added.
+- Redirects are never followed, including with borrowed sessions configured to
+  follow them. This prevents credential forwarding and HTTPS downgrades. Inspect
+  the returned 3xx response and validate any new endpoint before reconfiguring.
 - Set `headers=` for client-scoped credentials, or supply generated header
   arguments per call. Per-call values override configured headers regardless of
   casing. Required credential headers can be omitted from a method call when

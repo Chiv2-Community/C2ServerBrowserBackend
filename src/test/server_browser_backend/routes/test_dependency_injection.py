@@ -9,11 +9,11 @@ from fastapi.testclient import TestClient
 
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
 from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
-from server_browser_models.models import LoginResponse, StatusResponse
+from server_browser_models.models import JwksResponse, StatusResponse
 from server_browser_server.runtime import ApiResponse
 from server_browser_backend.application import Application
 from server_browser_backend.server_list import ServerList
-from server_browser_backend.token_reissuer import TokenReissuer
+from server_browser_backend.auth.signing import SigningKeys, provision
 
 REGISTRATION = {
     "name": "injected server", "description": "", "current_map": "Test Map",
@@ -25,7 +25,8 @@ REGISTRATION = {
 def test_application_accepts_generated_interfaces_without_concrete_services():
     browser = Mock(spec=BaseApiV1Api)
     compatibility = Mock(spec=BaseChiv2CompatApi)
-    browser.login.return_value = ApiResponse(LoginResponse(token="injected-token"))
+    browser.login.return_value = ApiResponse(StatusResponse(status="injected", message="injected policy"), 410)
+    browser.send_swagger.return_value = ApiResponse("openapi: test", content_type="text/yaml", headers={"Cache-Control": "no-store"})
     compatibility.tbio_get_servers.return_value = ApiResponse(
         StatusResponse(status="forbidden", message="injected policy"), 403,
     )
@@ -33,10 +34,13 @@ def test_application_accepts_generated_interfaces_without_concrete_services():
     with TestClient(application) as client:
         login = client.post("/api/v1/auth/login", json={"token": "input-token"})
         listing = client.post("/api/tbio/GetCurrentGames")
-    assert login.status_code == 200
-    assert login.json() == {"token": "injected-token"}
+        specification = client.get("/api/v1/swagger.yaml")
+    assert login.status_code == 410
+    assert login.json()["status"] == "injected"
     assert listing.status_code == 403
     assert listing.json()["message"] == "injected policy"
+    assert specification.text == "openapi: test"
+    assert specification.headers["cache-control"] == "no-store"
     browser.login.assert_called_once()
     compatibility.tbio_get_servers.assert_called_once()
 
@@ -50,10 +54,12 @@ def test_api_implementations_share_the_injected_services(app):
     assert browser.policy.verified_list is browser.verified_list
 
 
-def test_applications_isolate_registrations_policy_keys_and_visibility(app_factory, admin_key):
-    first = app_factory(expose_ips=lambda: True)
-    second = app_factory(expose_ips=lambda: False)
-    assert first.browser_api.token_reissuer.get_jwks_response() != second.browser_api.token_reissuer.get_jwks_response()
+def test_applications_isolate_registrations_policy_keys_and_visibility(app_factory, admin_key, tmp_path):
+    provision(tmp_path / "first-signing.json")
+    provision(tmp_path / "second-signing.json")
+    first = app_factory(expose_ips=lambda: True, signing_keys=SigningKeys(tmp_path / "first-signing.json"))
+    second = app_factory(expose_ips=lambda: False, signing_keys=SigningKeys(tmp_path / "second-signing.json"))
+    assert first.browser_api.signing_keys.get_jwks_response() != second.browser_api.signing_keys.get_jwks_response()
     assert first.browser_api.ban_list.ip_list_path != second.browser_api.ban_list.ip_list_path
     assert first.browser_api.verified_list.ip_list_path != second.browser_api.verified_list.ip_list_path
 
@@ -74,21 +80,20 @@ def test_applications_isolate_registrations_policy_keys_and_visibility(app_facto
         assert not second.browser_api.verified_list.contains("192.0.2.1")
 
 
-def test_login_uses_the_constructed_token_service(app_factory):
-    first_tokens = Mock(spec=TokenReissuer)
-    second_tokens = Mock(spec=TokenReissuer)
-    first_tokens.validate_and_reissue.return_value = "first-token"
-    second_tokens.validate_and_reissue.return_value = "second-token"
-    first = app_factory(token_reissuer=first_tokens)
-    second = app_factory(token_reissuer=second_tokens)
+def test_jwks_uses_the_constructed_signing_service(app_factory):
+    first_tokens = Mock(spec=SigningKeys)
+    second_tokens = Mock(spec=SigningKeys)
+    first_tokens.get_jwks_response.return_value = JwksResponse(keys=[])
+    second_tokens.get_jwks_response.return_value = JwksResponse(keys=[])
+    first = app_factory(signing_keys=first_tokens)
+    second = app_factory(signing_keys=second_tokens)
     with TestClient(first, client=("192.0.2.1", 50000)) as one, TestClient(second, client=("192.0.2.2", 50000)) as two:
-        first_login = one.post("/api/v1/auth/login", json={"token": "one"})
-        second_login = two.post("/api/v1/auth/login", json={"token": "two"})
+        first_login = one.get("/api/v1/auth/jwks.json")
+        second_login = two.get("/api/v1/auth/jwks.json")
     assert first_login.status_code == second_login.status_code == 200
-    assert first_login.json() == {"token": "first-token"}
-    assert second_login.json() == {"token": "second-token"}
-    first_tokens.validate_and_reissue.assert_called_once_with("one", "192.0.2.1")
-    second_tokens.validate_and_reissue.assert_called_once_with("two", "192.0.2.2")
+    assert first_login.json() == second_login.json() == {"keys": []}
+    first_tokens.get_jwks_response.assert_called_once_with()
+    second_tokens.get_jwks_response.assert_called_once_with()
 
 
 def test_error_configuration_is_scoped_to_the_application(app_factory):

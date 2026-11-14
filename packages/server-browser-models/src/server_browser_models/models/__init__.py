@@ -2,14 +2,12 @@
 from server_browser_models.models.ban_list_response import BanListResponse as BanListResponse
 from server_browser_models.models.ban_status_response import BanStatusResponse as BanStatusResponse
 from server_browser_models.models.chivalry2_ports import Chivalry2Ports as Chivalry2Ports
-from server_browser_models.models.eos_id_token_payload import EosIdTokenPayload as EosIdTokenPayload
 from server_browser_models.models.error_response import ErrorResponse as ErrorResponse
-from server_browser_models.models.external_account import ExternalAccount as ExternalAccount
 from server_browser_models.models.ip_list_request import IpListRequest as IpListRequest
+from server_browser_models.models.join_ticket_claims import JoinTicketClaims as JoinTicketClaims
 from server_browser_models.models.jwk import Jwk as Jwk
 from server_browser_models.models.jwks_response import JwksResponse as JwksResponse
 from server_browser_models.models.login_request import LoginRequest as LoginRequest
-from server_browser_models.models.login_response import LoginResponse as LoginResponse
 from server_browser_models.models.matchmake_request import MatchmakeRequest as MatchmakeRequest
 from server_browser_models.models.mod import Mod as Mod
 from server_browser_models.models.motd_request import MotdRequest as MotdRequest

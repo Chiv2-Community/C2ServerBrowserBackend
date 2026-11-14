@@ -75,3 +75,30 @@ def test_invalid_key_does_not_consume_entries_or_write(tmp_path, remove):
     assert change("wrong-key", entries()) is None
     assert ip_list.get_all("key") == set()
     assert not path.exists()
+
+
+@pytest.mark.parametrize("network,address", [
+    ("192.0.2.0/24", "::ffff:192.0.2.20"),
+    ("::ffff:192.0.2.0/120", "192.0.2.20"),
+    ("::ffff:192.0.2.0/120", "::ffff:c000:214"),
+])
+def test_ipv4_mapped_ipv6_cannot_bypass_ip_policy(tmp_path, network, address):
+    listing = IpList("key", str(tmp_path / "ips.txt"))
+    listing.add("key", network)
+    assert listing.contains(address)
+
+
+def test_mapped_and_native_ipv4_entries_have_one_identity(tmp_path):
+    listing = IpList("key", str(tmp_path / "ips.txt"))
+    listing.add("key", "::ffff:192.0.2.20")
+    assert listing.get_all("key") == {ip_network("192.0.2.20")}
+    listing.remove("key", "192.0.2.20")
+    assert not listing.contains("::ffff:192.0.2.20")
+
+
+def test_ipv6_wildcard_does_not_grant_ipv4_verified_status(tmp_path):
+    listing = IpList("key", str(tmp_path / "ips.txt"))
+    listing.add("key", "::/0")
+    assert listing.contains("2001:db8::1")
+    assert not listing.contains("192.0.2.20")
+    assert not listing.contains("::ffff:192.0.2.20")

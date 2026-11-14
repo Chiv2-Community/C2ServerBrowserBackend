@@ -1,4 +1,7 @@
 openapi: 3.0.0
+x-max-json-body-bytes: 1048576
+x-max-json-depth: 64
+x-json-body-timeout-seconds: 10
 info:
   title: Server Browser API
   version: 1.0.0
@@ -7,16 +10,23 @@ paths:
     get:
       operationId: jwks
       tags: [ApiV1]
-      summary: Get the JWKS for validating our tokens
+      summary: Get public verification keys for Discord join tickets
+      description: Empty while Discord signing is unconfigured. Never contains private key material.
       responses:
         default: &ApiError
-          description: API error; debug deployments may include an additional stack trace.
+          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Uploads exceeding x-json-body-timeout-seconds return 408. Nesting beyond x-max-json-depth or invalid Unicode returns 400. Debug deployments may include an additional stack trace.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
+          headers:
+            Cache-Control:
+              description: Key publication must not be retained by intermediary caches.
+              schema:
+                type: string
+                enum: [no-store]
           content:
             application/json:
               schema:
@@ -25,7 +35,9 @@ paths:
     post:
       operationId: login
       tags: [ApiV1]
-      summary: Exchange an EOS ID token for our JWT
+      summary: Retired EOS token exchange
+      deprecated: true
+      description: EOS authentication has been removed. This endpoint returns 410 and never validates or exchanges credentials.
       requestBody:
         required: true
         content:
@@ -34,12 +46,12 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         default: *ApiError
-        '200':
-          description: Successful operation
+        '410':
+          description: EOS authentication has been retired
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponse'
+                $ref: '#/components/schemas/StatusResponse'
   /api/v1/swagger.yaml:
     get:
       operationId: send_swagger
@@ -70,6 +82,7 @@ paths:
       operationId: register
       tags: [ApiV1]
       summary: Register a game server
+      description: Bounded by global and source-IP registration quotas; capacity rejection does not evict existing registrations.
       requestBody:
         required: true
         content:
@@ -80,6 +93,12 @@ paths:
         default: *ApiError
         '400':
           description: Invalid registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '429':
+          description: Global or source-IP registration capacity exhausted. Retry after registrations expire or are deleted.
           content:
             application/json:
               schema:
@@ -390,6 +409,7 @@ paths:
       operationId: add_to_verified_list
       tags: [ApiV1]
       summary: Add IP addresses to the verified list
+      description: Listings and update responses reflect the current verified policy for existing registrations as well as new ones.
       parameters:
         - in: header
           name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
@@ -427,6 +447,7 @@ paths:
       operationId: remove_from_verified_list
       tags: [ApiV1]
       summary: Remove IP addresses from the verified list
+      description: Revokes verified/official status in subsequent listings and update responses without requiring re-registration.
       parameters:
         - in: header
           name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
@@ -674,16 +695,22 @@ components:
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players the server allows
         current_map:
           type: string
+          maxLength: 256
           description: The current map being played on the server
         mods:
           type: array
+          maxItems: 64
           items:
             $ref: '#/components/schemas/Mod'
     Mod:
@@ -695,12 +722,15 @@ components:
       properties:
         name:
           type: string
+          maxLength: 128
           description: The name of the mod
         organization:
           type: string
+          maxLength: 128
           description: The organization that provides the mod
         version:
           type: string
+          maxLength: 64
           description: The version of the mod
         active:
           type: boolean
@@ -758,10 +788,14 @@ components:
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players on the server
         mods:
           type: array
@@ -806,20 +840,27 @@ components:
           $ref: '#/components/schemas/Chivalry2Ports'
         name:
           type: string
+          maxLength: 256
           description: The name of the server
         description:
           type: string
+          maxLength: 4096
           description: A description of the server
         current_map:
           type: string
+          maxLength: 256
           description: The current map being played on the server
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players on the server
         password_protected:
           type: boolean
@@ -827,6 +868,7 @@ components:
           description: Whether the server is password protected
         mods:
           type: array
+          maxItems: 64
           default: []
           items:
             $ref: '#/components/schemas/Mod'
@@ -957,6 +999,7 @@ components:
       properties:
         Language:
           type: string
+          description: Alphanumeric locale selector; values longer than 32 characters or containing non-alphanumeric characters fall back to English.
           default: en
     MatchmakeRequest:
       type: object
@@ -972,14 +1015,6 @@ components:
         token:
           type: string
           description: The EOS ID token
-    LoginResponse:
-      type: object
-      required:
-        - token
-      properties:
-        token:
-          type: string
-          description: Our short-lived JWT
     Jwk:
       type: object
       required:
@@ -1011,53 +1046,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Jwk'
-    ExternalAccount:
+    JoinTicketClaims:
+      description: Signed Discord identity for one live server registration. Not an OAuth or refresh credential.
       type: object
-      required: [eat, eaid, pltfm, dty]
+      required: [iss, sub, aud, purpose, auth_time, iat, nbf, exp, jti]
       properties:
-        eat:
-          type: string
-        eaid:
-          type: string
-        pltfm:
-          type: string
-        dty:
-          type: string
-    EosIdTokenPayload:
-      description: External EOS token claims consumed by the existing exchange endpoint.
-      type: object
-      required: [sub, pfsid, iss, dn, nonce, pfpid, aud, pfdid, appid, exp, iat, jti]
-      properties:
-        sub:
-          type: string
-        pfsid:
-          type: string
         iss:
           type: string
-        dn:
+          description: Fixed configured HTTPS issuer, compared exactly by validators.
+        sub:
           type: string
-        nonce:
-          type: string
-        pfpid:
-          type: string
+          description: Verified Discord snowflake as a decimal string, not an engine/platform ID.
         aud:
           type: string
-        pfdid:
+          description: urn:unchained:server:<registration UUID>
+        purpose:
           type: string
-        appid:
-          type: string
-        exp:
+          enum: [unchained.join]
+        auth_time:
           type: integer
+          description: Original Discord authentication time; refresh never advances it.
         iat:
           type: integer
+        nbf:
+          type: integer
+        exp:
+          type: integer
+          description: At most 60 seconds after issuance.
         jti:
           type: string
-        act:
-          type: object
-          nullable: true
-          # In OAS 3.0, nullable does not relax the referenced schema.
-          anyOf:
-            - $ref: '#/components/schemas/ExternalAccount'
-            - type: object
-              nullable: true
-              enum: [null]
+          description: Single-use random UUID, consumed atomically by the game server.

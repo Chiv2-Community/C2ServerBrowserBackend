@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from server_browser_client import AsyncClient, Client, ClientDecodeError
 from server_browser_client.runtime import UNSET, request_arguments
 from server_browser_models.models import (
-    BanStatusResponse, Chivalry2Ports, IpListRequest, LoginRequest, LoginResponse,
+    BanStatusResponse, Chivalry2Ports, IpListRequest, LoginRequest,
     MatchmakeRequest, MotdRequest, PlayfabGame, RegistrationResponse,
     ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
 )
@@ -20,7 +20,6 @@ from server_browser_models.runtime import contract
 
 @pytest.mark.parametrize("asynchronous", [False, True])
 def test_all_generated_operations_round_trip(app, browser, admin_key, monkeypatch, asynchronous):
-    monkeypatch.setattr(browser.token_reissuer, "validate_and_reissue", lambda token, ip: "signed-token")
     with TestClient(app, client=("2001:db8::1", 50000)) as backend:
         def transport(request):
             response = backend.request(
@@ -43,10 +42,11 @@ def test_all_generated_operations_round_trip(app, browser, admin_key, monkeypatc
                 return await result if inspect.isawaitable(result) else result
 
             try:
-                assert (await call("jwks")).body.keys
+                assert (await call("jwks")).body.keys == []
                 login = await call("login", login_request=LoginRequest(token="eos-token"))
-                assert isinstance(login.body, LoginResponse)
-                assert login.body.token == "signed-token"
+                assert login.status == 410
+                assert isinstance(login.body, StatusResponse)
+                assert login.body.status == "auth_retired"
                 assert "openapi:" in (await call("send_swagger")).body
                 assert (await call("get_servers")).body.servers == []
                 registration = await call("register", server_registration_request=ServerRegistrationRequest(
@@ -210,3 +210,41 @@ def test_client_per_request_headers_do_not_leak_to_later_calls(asynchronous):
     assert [request.headers["x-chiv2-server-browser-admin-key"] for request in requests] == ["override", "configured"]
     assert all(str(request.url) == "http://example.test/prefix/api/v1/admin/ban-list" for request in requests)
     assert all(request.extensions["timeout"] == {"connect": 3.0, "read": 3.0, "write": 3.0, "pool": 3.0} for request in requests)
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("operation", ["get_ban_list", "delete_server"])
+@pytest.mark.parametrize("destination", ["https://attacker.test/collect", "http://example.test/collect", "https://example.test/other"])
+def test_client_never_forwards_credentials_on_redirect(asynchronous, operation, destination):
+    requests = []
+
+    def reply(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(307, headers={"Location": destination})
+        return httpx.Response(200, json={"status": "ok", "message": "ok", "banned_ips": []})
+
+    async def exercise():
+        transport = httpx.MockTransport(reply)
+        session = (httpx.AsyncClient if asynchronous else httpx.Client)(transport=transport, follow_redirects=True)
+        sdk = (AsyncClient if asynchronous else Client)("https://example.test", session=session)
+        parameters = (
+            {"x_chiv2_server_browser_admin_key": "admin-sentinel"}
+            if operation == "get_ban_list"
+            else {"server_id": "server", "x_chiv2_server_browser_key": "server-sentinel"}
+        )
+        try:
+            response = getattr(sdk, operation)(**parameters)
+            response = await response if inspect.isawaitable(response) else response
+            assert response.status == 307
+            assert response.headers["Location"] == destination
+        finally:
+            if asynchronous:
+                await session.aclose()
+            else:
+                session.close()
+
+    asyncio.run(exercise())
+    assert len(requests) == 1
+    credential_header = "x-chiv2-server-browser-admin-key" if operation == "get_ban_list" else "x-chiv2-server-browser-key"
+    assert credential_header in requests[0].headers

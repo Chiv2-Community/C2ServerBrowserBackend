@@ -1,9 +1,11 @@
 from datetime import datetime
+import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from server_browser_backend.routes.shared import ADMIN_KEY_HEADER, KEY_HEADER
+from server_browser_backend.server_list import ServerList
 from ipaddress import ip_network
 
 from . import prepare_test_state
@@ -34,6 +36,127 @@ test_server_json = {
     "current_map": "Test Map",
     "mods": test_mods
 }
+
+
+def test_registration_capacity_returns_429_without_evicting_existing_servers(app_factory):
+    app = app_factory(server_list=ServerList(max_servers=2, max_servers_per_ip=1))
+    with TestClient(app, client=("192.0.2.1", 1234)) as client:
+        first = client.post("/api/v1/servers", json=test_server_json)
+        assert first.status_code == 201
+        assert client.post("/api/v1/servers", json=test_server_json).status_code == 429
+        # An untrusted peer cannot evade its quota using a forged source header.
+        assert client.post("/api/v1/servers", json=test_server_json, headers={"X-Forwarded-For": "192.0.2.2"}).status_code == 429
+    with TestClient(app, client=("192.0.2.2", 1234)) as client:
+        assert client.post("/api/v1/servers", json=test_server_json).status_code == 201
+    with TestClient(app, client=("192.0.2.3", 1234)) as client:
+        response = client.post("/api/v1/servers", json=test_server_json)
+        assert response.status_code == 429
+        assert response.json()["status"] == "registration_capacity"
+    assert app.browser_api.server_list.exists(first.json()["server"]["unique_id"])
+
+
+@pytest.mark.parametrize("field,limit", [("name", 256), ("description", 4096), ("current_map", 256)])
+def test_registration_text_limits_are_enforced_by_contract(client, browser, field, limit):
+    body = {**test_server_json, field: "x" * limit}
+    assert client.post("/api/v1/servers", json=body).status_code == 201
+    body[field] += "x"
+    assert client.post("/api/v1/servers", json=body).status_code == 400
+    assert len(browser.server_list.get_all()) == 1
+
+
+@pytest.mark.parametrize("field,limit", [("name", 128), ("organization", 128), ("version", 64)])
+def test_mod_text_limits_are_enforced_on_registration_and_update(client, browser, field, limit):
+    mod = {**test_mods[0], field: "x" * limit}
+    body = {**test_server_json, "mods": [mod]}
+    registration = client.post("/api/v1/servers", json=body)
+    assert registration.status_code == 201
+    server_id = registration.json()["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    oversized = {**mod, field: "x" * (limit + 1)}
+    assert client.post("/api/v1/servers", json={**body, "mods": [oversized]}).status_code == 400
+    response = client.put(f"/api/v1/servers/{server_id}", json={**body, "mods": [oversized]}, headers={KEY_HEADER: registration.json()["key"]})
+    assert response.status_code == 400
+    assert browser.server_list.get(server_id) == original
+
+
+def test_registration_and_update_cannot_persist_oversized_mod_lists(client, browser):
+    body = {**test_server_json, "mods": [test_mods[0]] * 64}
+    registration = client.post("/api/v1/servers", json=body)
+    assert registration.status_code == 201
+    server_id = registration.json()["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    body["mods"].append(test_mods[0])
+    assert client.post("/api/v1/servers", json=body).status_code == 400
+    assert client.put(f"/api/v1/servers/{server_id}", json=body, headers={KEY_HEADER: registration.json()["key"]}).status_code == 400
+    assert browser.server_list.get(server_id) == original
+
+
+def test_update_cannot_persist_an_oversized_map(client, browser):
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
+    server_id = registration["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    response = client.put(f"/api/v1/servers/{server_id}", json={**test_server_json, "current_map": "x" * 257}, headers={KEY_HEADER: registration["key"]})
+    assert response.status_code == 400
+    assert browser.server_list.get(server_id) == original
+
+
+@pytest.mark.parametrize("field", ["player_count", "max_players"])
+@pytest.mark.parametrize("value", [-1, 1025, 2**31 - 1])
+def test_player_count_limits_reject_registration_and_update(client, browser, field, value):
+    rejected = client.post("/api/v1/servers", json={**test_server_json, field: value})
+    assert rejected.status_code == 400
+    assert browser.server_list.get_all() == []
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
+    server_id = registration["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    rejected = client.put(f"/api/v1/servers/{server_id}", json={**test_server_json, field: value}, headers={KEY_HEADER: registration["key"]})
+    assert rejected.status_code == 400
+    assert browser.server_list.get(server_id) == original
+
+
+@pytest.mark.parametrize("value", [0, 1024])
+def test_player_count_boundaries_preserve_tbio_listing(client, value):
+    registration = client.post("/api/v1/servers", json={**test_server_json, "player_count": value, "max_players": value})
+    assert registration.status_code == 201
+    listing = client.post("/api/tbio/GetCurrentGames")
+    assert listing.status_code == 200
+    game = listing.json()["Data"]["Games"][0]
+    assert len(game["PlayerUserIds"]) == value
+
+
+@pytest.mark.parametrize("invalid", [
+    {"name": "\ud800"},
+    {"description": "\udc00"},
+    {"current_map": "\ud800"},
+    {"mods": [{"name": "\ud800", "organization": "org", "version": "1"}]},
+])
+def test_invalid_unicode_cannot_poison_registered_listings(client, browser, invalid):
+    body = json.dumps({**test_server_json, **invalid})
+    response = client.post("/api/v1/servers", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 400
+    assert browser.server_list.get_all() == []
+    assert client.get("/api/v1/servers").status_code == 200
+
+
+def test_invalid_unicode_update_cannot_poison_existing_listings(client, browser):
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
+    server_id = registration["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    body = json.dumps({**test_server_json, "current_map": "\ud800"})
+    response = client.put(f"/api/v1/servers/{server_id}", content=body, headers={KEY_HEADER: registration["key"], "Content-Type": "application/json"})
+    assert response.status_code == 400
+    assert browser.server_list.get(server_id) == original
+    assert client.get("/api/v1/servers").status_code == 200
+
+
+@pytest.mark.parametrize("escaped", [False, True])
+def test_valid_unicode_metadata_round_trips(client, escaped):
+    name = "Server \u00e9 \U0001f680"
+    body = json.dumps({**test_server_json, "name": name}, ensure_ascii=escaped).encode("utf-8")
+    response = client.post("/api/v1/servers", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 201
+    assert response.json()["server"]["name"] == name
+    assert client.get("/api/v1/servers").json()["servers"][0]["name"] == name
 
 
 def test_register(client: TestClient, browser):
@@ -482,5 +605,5 @@ def test_jwks(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert "keys" in data
-    assert len(data["keys"]) == 1
-    assert data["keys"][0]["kid"] == "server-browser-backend-key-1"
+    assert data["keys"] == []
+    assert response.headers["cache-control"] == "no-store"

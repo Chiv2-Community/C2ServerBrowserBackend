@@ -42,7 +42,6 @@ if sys.argv[1] == "flask":
 else:
     from server_browser_backend.routes.shared import KEY_HEADER, ADMIN_KEY_HEADER
     server_list = app.browser_api.server_list
-    token_reissuer = app.browser_api.token_reissuer
     ban_list = app.browser_api.ban_list
     key_header, admin_header, admin_key = KEY_HEADER, ADMIN_KEY_HEADER, os.environ["ADMIN_KEY"]
 
@@ -55,8 +54,9 @@ api_v1.datetime = chiv2_compat.datetime = registry.datetime = Clock
 api_v1.uuid4 = lambda: "registration-id"
 chiv2_compat.uuid4 = lambda: "ticket-id"
 registry.secrets.token_hex = lambda n: "fixed-secret"
-token_reissuer.private_key = serialization.load_pem_private_key(Path(os.environ["PROBE_KEY"]).read_bytes(), password=None)
-token_reissuer.public_key = token_reissuer.private_key.public_key()
+if sys.argv[1] == "flask":
+    token_reissuer.private_key = serialization.load_pem_private_key(Path(os.environ["PROBE_KEY"]).read_bytes(), password=None)
+    token_reissuer.public_key = token_reissuer.private_key.public_key()
 
 if sys.argv[1] == "flask":
     client = app.test_client()
@@ -134,7 +134,10 @@ for field, value in (("name", 3), ("mods", [1]), ("local_ip_address", None), ("p
     record("invalid:" + field, "POST", "/api/v1/servers", json={**registration, field: value})
 record("missing-field", "POST", "/api/v1/servers", json={key: value for key, value in registration.items() if key != "current_map"})
 record("jwks", "GET", "/api/v1/auth/jwks.json")
-with patch.object(token_reissuer, "validate_and_reissue", return_value="fixed-token"):
+if sys.argv[1] == "flask":
+    with patch.object(token_reissuer, "validate_and_reissue", return_value="fixed-token"):
+        record("login", "POST", "/api/v1/auth/login", json={"token": "eos-token"})
+else:
     record("login", "POST", "/api/v1/auth/login", json={"token": "eos-token"})
 record("motd", "POST", "/api/tbio/GetMotd", json={})
 record("missing-lobby", "POST", "/api/playfab/Client/Matchmake", json={"LobbyId": "missing"})
@@ -181,6 +184,7 @@ def main() -> None:
             for name in ("ban_list", "verified_list"):
                 (config / f"{name}.txt").write_text("")
             environment = {**os.environ, "CONFIG_DIR": str(config), "ADMIN_KEY": "fixed-admin", "DEBUG_MODE": "false", "PROBE_KEY": str(key), "PYTHONPATH": str(checkout / "src")}
+            environment.pop("DISCORD_SIGNING_KEYRING", None)
             process = subprocess.run([str(interpreter), "-c", PROBE, mode], cwd=checkout, env=environment, capture_output=True, text=True)
             if process.returncode:
                 raise SystemExit(process.stderr)
@@ -191,6 +195,13 @@ def main() -> None:
         for name in sorted(old.keys() | new.keys()):
             expected = deepcopy(old.get(name))
             # Exact, narrow allowances. State/file/other response changes still fail.
+            if not strict and name == "jwks":
+                assert expected["status"] == 200 and len(expected["body"]["keys"]) == 1
+                expected["body"] = {"keys": []}
+            if not strict and name == "login":
+                assert expected["status"] == 200 and expected["body"] == {"token": "fixed-token"}
+                expected["status"] = 410
+                expected["body"] = {"status": "auth_retired", "message": "EOS authentication has been retired", "context": None}
             if not strict and name in {"ban-list:unauthorized", "verified-list:unauthorized"}:
                 assert expected["status"] == 500
                 assert expected["body"] == {"status": "error", "message": "An unexpected error occurred.", "context": None}

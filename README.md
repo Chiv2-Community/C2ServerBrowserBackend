@@ -22,8 +22,17 @@ docker run \
 
 The server can be configured using environment variables:
 - `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
+  Empty or non-ASCII keys fail startup. Use a long, randomly generated ASCII key.
+- `TRUSTED_PROXY_CIDRS`: Comma-separated proxy IPs/CIDRs allowed to supply
+  `X-Forwarded-*`. Defaults to `127.0.0.1/32,::1/128`; empty disables trust.
+  For a container proxy, configure its actual backend-facing address/network.
+  Do not include untrusted clients or public catch-all networks.
+- `MAX_REGISTERED_SERVERS`: Global registration cap; defaults to 1,024.
+- `MAX_REGISTERED_SERVERS_PER_IP`: Per-source-IP registration cap; defaults to 16.
+  Both caps must be positive integers. Hosts sharing a public IP share its cap.
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
-- `SERVER_BROWSER_FQDN`: The FQDN of the server, used as the issuer for reissued tokens (default: `chivalry2-server-browser-backend`).
+- `DISCORD_SIGNING_KEYRING`: Path to an explicitly provisioned persistent signing
+  keyring. Unset publishes an empty JWKS; an invalid configured path fails startup.
 - `UVICORN_HOST`: Listener address (default: `0.0.0.0`).
 - `UVICORN_PORT`: Listener port (default: `8080`).
 - `UVICORN_WORKERS`: Worker processes (default: `1`). Keep one worker while
@@ -37,6 +46,13 @@ The server can be configured using environment variables:
 Container arguments are passed directly to Uvicorn. Gunicorn and its
 `GUNICORN_*` settings are no longer used; migrate deployment settings above.
 There is no equivalent of Gunicorn's worker request timeout or thread setting.
+
+### Discord authentication (development)
+
+Discord signing/JWKS and internal session-storage foundations are available,
+but OAuth/session APIs and game admission are not yet implemented. See
+[Discord authentication](docs/discord-auth.md) for provisioning, rotation,
+storage limits, and rollout gates.
 
 ### Logs
 
@@ -85,10 +101,42 @@ The default listener is IPv4. To listen on IPv6:
 For Docker, set `UVICORN_HOST=::`. Do not assume an IPv6 listener accepts IPv4;
 use a dual-stack reverse proxy and verify both address families.
 
-As before, deploy behind one trusted proxy that overwrites `X-Forwarded-*`
-headers and blocks direct backend access. The application trusts the last
-forwarded client IP. Startup disables Uvicorn's separate proxy processing to
-avoid interpreting the headers twice.
+Deploy behind one trusted proxy that overwrites `X-Forwarded-*` headers and
+blocks direct backend access. Only peers in `TRUSTED_PROXY_CIDRS` may supply
+forwarded values; other peers cannot override their IP or scheme. The application
+uses the last forwarded IP when valid and accepts only `http`/`https` schemes. Startup
+disables Uvicorn's separate proxy processing to avoid interpreting headers twice.
+
+JSON bodies are limited to 1 MiB, including chunked requests. Larger bodies
+return HTTP 413. Invalid Unicode strings or more than 64 object/array levels
+(including the root) return HTTP 400 before model decoding or state changes.
+Uploads have a total ten-second deadline, regardless of chunk activity. Expiry
+returns HTTP 408 and closes HTTP/1.x connections; incomplete bodies change no state.
+Keep proxy request timeouts and connection/concurrency limits;
+the body cap does not bound slow clients or total concurrent memory use.
+
+Registration quotas return HTTP 429 without evicting live servers. Expired
+registrations are reclaimed on registration/listing; deletion also frees capacity.
+Registration and update metadata follows OAS limits: 256 characters for server
+names/maps, 4,096 for descriptions, and 64 mods with bounded name/organization/
+version strings. Player counts and capacities must be between 0 and 1,024;
+this also bounds the synthetic player-ID lists in TBIO responses.
+Keep proxy rate limits; quotas bound retained state, not request
+rate or CPU use. The registry remains process-local: use one backend worker.
+
+IPv4-mapped IPv6 addresses use their IPv4 identity for bans, verified status,
+proxy trust, and per-IP quotas. Mapped CIDRs within `::ffff:0:0/96` are stored as
+IPv4 CIDRs; equivalent forms can remove the same entry. Native IPv6 stays
+separate: `::/0` does not grant IPv4 verified status or proxy trust.
+
+Verified/official flags in listings and update responses reflect the current
+verified-IP policy, including changes to already registered servers.
+Policy-list mutations are serialized within one application instance and use
+private temporary files and atomic replacement. Failed writes before replacement
+leave the active policy unchanged. If the final directory flush fails after
+replacement, the change is already active but crash durability is uncertain;
+read back the list before retrying. Keep policy files in a private directory,
+and do not run independent writers or multiple backend workers against them.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.

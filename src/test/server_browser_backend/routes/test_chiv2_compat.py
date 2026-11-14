@@ -251,3 +251,12 @@ def test_matchmake_no_json(client: TestClient):
     response = client.post("/api/playfab/Client/Matchmake", headers={"Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.json()["status"] == "missing_json_body"
+
+
+@pytest.mark.parametrize("language", ["x" * 300, "\u00e9" * 128, "x" * 100000])
+def test_oversized_motd_language_falls_back_without_logging_or_filesystem_errors(client, caplog, language):
+    expected = client.post("/api/tbio/GetMotd", json={"Language": "en"})
+    response = client.post("/api/tbio/GetMotd", json={"Language": language})
+    assert response.status_code == 200
+    assert response.json()["Data"] == expected.json()["Data"]
+    assert language not in caplog.text

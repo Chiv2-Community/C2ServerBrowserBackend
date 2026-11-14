@@ -32,7 +32,11 @@ class CompatibilityApi(BaseChiv2CompatApi):
             client_ip = parse_ip_address(self.policy.get_and_validate_ip(request))
         except Banned:
             name = "This address is banned. Ensure your VPN is disabled."
-        data = server_list_data(self.server_list.get_all(), client_ip, name)
+        servers = [
+            self.policy.with_current_verification(server)
+            for server in self.server_list.get_all()
+        ]
+        data = server_list_data(servers, client_ip, name)
         return ApiResponse(TbioServerListResponse(success=True, data=data))
 
     def get_motd(self, request: RequestContext, motd_request: MotdRequest) -> ApiResponse[TbioMotdResponse]:
@@ -42,7 +46,8 @@ class CompatibilityApi(BaseChiv2CompatApi):
         except Banned:
             suffix = "_banned"
         language = motd_request.language
-        if not language.isalnum():
+        # Keep even multibyte filenames below filesystem component limits.
+        if len(language) > 32 or not language.isalnum():
             language = "en"
         location = self.motd_directory / f"{language}{suffix}.json"
         if not location.exists():
