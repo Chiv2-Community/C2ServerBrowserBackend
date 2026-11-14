@@ -1,12 +1,13 @@
 """Assemble an ASGI application from explicitly constructed API services."""
 from functools import partial
+from ipaddress import ip_address, ip_network
 
 from fastapi import FastAPI
 from server_browser_fastapi.apis.api_v1_api import \
     create_router as browser_router
 from server_browser_fastapi.apis.chiv2_compat_api import \
     create_router as compatibility_router
-from server_browser_fastapi.runtime import JsonMissing, automatic_options
+from server_browser_fastapi.runtime import JsonMissing, PayloadTooLarge, automatic_options
 from server_browser_models.runtime import (DictKeyError, DictTypeError,
                                            SchemaValidationError, contract)
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
@@ -21,9 +22,10 @@ from server_browser_backend.server_list import (InvalidSecretKey,
 
 
 class ForwardedHeaders:
-    """Trust the last forwarded value from one trusted, header-overwriting proxy."""
-    def __init__(self, app: ASGIApp):
+    """Trust forwarded headers only from configured, header-overwriting proxies."""
+    def __init__(self, app: ASGIApp, trusted_proxies: tuple[str, ...]):
         self.app = app
+        self.trusted_proxies = tuple(ip_network(value) for value in trusted_proxies)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
@@ -35,12 +37,26 @@ class ForwardedHeaders:
             # ASGI scopes are per request. Keep routing/proxy context visible to
             # the outer error handler and Uvicorn access logger as well.
             headers = dict(scope["headers"])
+            try:
+                peer = ip_address(scope["client"][0]) if scope.get("client") else None
+            except ValueError:
+                peer = None
+            if peer is None or not any(peer in network for network in self.trusted_proxies):
+                await self.app(scope, receive, send)
+                return
             forwarded = headers.get(b"x-forwarded-for")
             if forwarded:
-                scope["client"] = (forwarded.decode("latin-1").split(",")[-1].strip(), 0)
+                try:
+                    address = ip_address(forwarded.decode("latin-1").split(",")[-1].strip())
+                except ValueError:
+                    pass
+                else:
+                    scope["client"] = (str(address), 0)
             scheme = headers.get(b"x-forwarded-proto")
             if scheme:
-                scope["scheme"] = scheme.decode("latin-1").split(",")[-1].strip()
+                value = scheme.decode("latin-1").split(",")[-1].strip()
+                if value in {"http", "https"}:
+                    scope["scheme"] = value
         await self.app(scope, receive, send)
 
 
@@ -58,12 +74,13 @@ class Application(FastAPI):
         finally:
             request_scope.reset(token)
 
-    def __init__(self, browser_api: BaseApiV1Api, compatibility_api: BaseChiv2CompatApi, *, debug_mode: bool):
+    def __init__(self, browser_api: BaseApiV1Api, compatibility_api: BaseChiv2CompatApi, *, debug_mode: bool, trusted_proxies: tuple[str, ...] = ("127.0.0.1/32", "::1/128")):
         super().__init__(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
         self.browser_api = browser_api
         self.compatibility_api = compatibility_api
-        self.add_middleware(ForwardedHeaders)
+        self.add_middleware(ForwardedHeaders, trusted_proxies=trusted_proxies)
         self.exception_handler(JsonMissing)(error_handlers.handle_json_missing)
+        self.exception_handler(PayloadTooLarge)(error_handlers.handle_payload_too_large)
         self.exception_handler(DictKeyError)(error_handlers.handle_dict_key_error)
         self.exception_handler(DictTypeError)(error_handlers.handle_dict_type_error)
         self.exception_handler(SchemaValidationError)(error_handlers.handle_schema_validation)

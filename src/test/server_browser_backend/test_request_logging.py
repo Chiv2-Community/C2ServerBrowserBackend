@@ -68,7 +68,7 @@ def test_request_ip_context_is_isolated_and_reset(app):
         ("v4", "192.0.2.4"),
         ("v6", "2001:db8::6"),
         ("direct", "127.0.0.1"),
-        ("invalid", "-"),
+        ("invalid", "127.0.0.1"),
     ):
         for event in ("before", "thread", "after"):
             assert f"{ip} | {logger.name} - {label} {event}" in messages

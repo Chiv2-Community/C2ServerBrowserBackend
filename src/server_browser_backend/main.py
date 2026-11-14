@@ -58,6 +58,13 @@ def create_default_app() -> Application:
             server_list=server_list, policy=policy, motd_directory=motd_directory
         ),
         debug_mode=debug_mode,
+        trusted_proxies=tuple(
+            value.strip()
+            for value in environ.get(
+                "TRUSTED_PROXY_CIDRS", "127.0.0.1/32,::1/128"
+            ).split(",")
+            if value.strip()
+        ),
     )
     logger.info(
         "Backend services initialized config_dir=%r heartbeat_timeout_seconds=%s debug_mode=%s",

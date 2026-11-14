@@ -4,7 +4,7 @@ import logging
 import traceback
 
 from fastapi import Request, Response
-from server_browser_fastapi.runtime import JsonMissing, render_response
+from server_browser_fastapi.runtime import JsonMissing, PayloadTooLarge, render_response
 from server_browser_models.models import ErrorResponse, StatusResponse
 from server_browser_models.runtime import (
     DictKeyError,
@@ -34,6 +34,11 @@ def log_rejection(request: Request, reason: str) -> None:
 async def handle_json_missing(request: Request, error: JsonMissing) -> Response:
     log_rejection(request, "missing or malformed JSON body")
     return render_response(status("missing_json_body", "JSON body is required", 400))
+
+
+async def handle_payload_too_large(request: Request, error: PayloadTooLarge) -> Response:
+    log_rejection(request, "JSON body exceeds size limit")
+    return render_response(status("payload_too_large", "JSON body exceeds size limit", 413))
 
 
 async def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:

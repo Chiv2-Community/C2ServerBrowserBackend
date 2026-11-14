@@ -1,4 +1,5 @@
 openapi: 3.0.0
+x-max-json-body-bytes: 1048576
 info:
   title: Server Browser API
   version: 1.0.0
@@ -11,7 +12,7 @@ paths:
       description: Empty while Discord signing is unconfigured. Never contains private key material.
       responses:
         default: &ApiError
-          description: API error; debug deployments may include an additional stack trace.
+          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Debug deployments may include an additional stack trace.
           content:
             application/json:
               schema:

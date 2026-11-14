@@ -22,6 +22,11 @@ docker run \
 
 The server can be configured using environment variables:
 - `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
+  Empty or non-ASCII keys fail startup. Use a long, randomly generated ASCII key.
+- `TRUSTED_PROXY_CIDRS`: Comma-separated proxy IPs/CIDRs allowed to supply
+  `X-Forwarded-*`. Defaults to `127.0.0.1/32,::1/128`; empty disables trust.
+  For a container proxy, configure its actual backend-facing address/network.
+  Do not include untrusted clients or public catch-all networks.
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
 - `DISCORD_SIGNING_KEYRING`: Path to an explicitly provisioned persistent signing
   keyring. Unset publishes an empty JWKS; an invalid configured path fails startup.
@@ -93,10 +98,15 @@ The default listener is IPv4. To listen on IPv6:
 For Docker, set `UVICORN_HOST=::`. Do not assume an IPv6 listener accepts IPv4;
 use a dual-stack reverse proxy and verify both address families.
 
-As before, deploy behind one trusted proxy that overwrites `X-Forwarded-*`
-headers and blocks direct backend access. The application trusts the last
-forwarded client IP. Startup disables Uvicorn's separate proxy processing to
-avoid interpreting the headers twice.
+Deploy behind one trusted proxy that overwrites `X-Forwarded-*` headers and
+blocks direct backend access. Only peers in `TRUSTED_PROXY_CIDRS` may supply
+forwarded values; other peers cannot override their IP or scheme. The application
+uses the last forwarded IP when valid and accepts only `http`/`https` schemes. Startup
+disables Uvicorn's separate proxy processing to avoid interpreting headers twice.
+
+JSON bodies are limited to 1 MiB, including chunked requests. Larger bodies
+return HTTP 413. Keep proxy request timeouts and connection/concurrency limits;
+the body cap does not bound slow clients or total concurrent memory use.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.

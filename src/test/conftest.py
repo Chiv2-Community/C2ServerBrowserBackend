@@ -29,6 +29,7 @@ def app_factory(tmp_path, admin_key):
         debug_mode=True,
         expose_ips=show_registered_ips,
         motd_directory=None,
+        trusted_proxies=("127.0.0.1/32", "::1/128"),
     ):
         nonlocal count
         directory = tmp_path / str(count)
@@ -56,6 +57,7 @@ def app_factory(tmp_path, admin_key):
                 or Path(__file__).resolve().parents[2] / "assets/motd",
             ),
             debug_mode=debug_mode,
+            trusted_proxies=trusted_proxies,
         )
 
     return create

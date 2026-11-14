@@ -1,5 +1,6 @@
 """Generated FastAPI transport support. DO NOT EDIT."""
 from functools import lru_cache
+import json
 import re
 from typing import Any
 
@@ -13,6 +14,10 @@ from server_browser_server.runtime import ApiResponse
 
 
 class JsonMissing(Exception):
+    pass
+
+
+class PayloadTooLarge(Exception):
     pass
 
 
@@ -34,9 +39,21 @@ async def read_body(request: Request) -> dict[str, Any]:
     media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if media_type != "application/json" and not (media_type.startswith("application/") and media_type.endswith("+json")):
         raise JsonMissing()
+    limit = contract()["x-max-json-body-bytes"]
     try:
-        value = await request.json()
-    except (ValueError, UnicodeDecodeError):
+        declared_size = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        declared_size = 0
+    if declared_size > limit:
+        raise PayloadTooLarge()
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > limit:
+            raise PayloadTooLarge()
+        body.extend(chunk)
+    try:
+        value = json.loads(body)
+    except (ValueError, UnicodeDecodeError, RecursionError):
         raise JsonMissing() from None
     if value is None:
         raise JsonMissing()
