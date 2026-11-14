@@ -108,7 +108,9 @@ uses the last forwarded IP when valid and accepts only `http`/`https` schemes. S
 disables Uvicorn's separate proxy processing to avoid interpreting headers twice.
 
 JSON bodies are limited to 1 MiB, including chunked requests. Larger bodies
-return HTTP 413. Keep proxy request timeouts and connection/concurrency limits;
+return HTTP 413. Invalid Unicode strings or more than 64 object/array levels
+(including the root) return HTTP 400 before model decoding or state changes.
+Keep proxy request timeouts and connection/concurrency limits;
 the body cap does not bound slow clients or total concurrent memory use.
 
 Registration quotas return HTTP 429 without evicting live servers. Expired
@@ -124,6 +126,15 @@ IPv4-mapped IPv6 addresses use their IPv4 identity for bans, verified status,
 proxy trust, and per-IP quotas. Mapped CIDRs within `::ffff:0:0/96` are stored as
 IPv4 CIDRs; equivalent forms can remove the same entry. Native IPv6 stays
 separate: `::/0` does not grant IPv4 verified status or proxy trust.
+
+Verified/official flags in listings and update responses reflect the current
+verified-IP policy, including changes to already registered servers.
+Policy-list mutations are serialized within one application instance and use
+private temporary files and atomic replacement. Failed writes before replacement
+leave the active policy unchanged. If the final directory flush fails after
+replacement, the change is already active but crash durability is uncertain;
+read back the list before retrying. Keep policy files in a private directory,
+and do not run independent writers or multiple backend workers against them.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.

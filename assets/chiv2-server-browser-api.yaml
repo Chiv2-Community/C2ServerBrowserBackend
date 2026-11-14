@@ -1,5 +1,6 @@
 openapi: 3.0.0
 x-max-json-body-bytes: 1048576
+x-max-json-depth: 64
 info:
   title: Server Browser API
   version: 1.0.0
@@ -12,7 +13,7 @@ paths:
       description: Empty while Discord signing is unconfigured. Never contains private key material.
       responses:
         default: &ApiError
-          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Debug deployments may include an additional stack trace.
+          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Nesting beyond x-max-json-depth or invalid Unicode returns 400. Debug deployments may include an additional stack trace.
           content:
             application/json:
               schema:
@@ -407,6 +408,7 @@ paths:
       operationId: add_to_verified_list
       tags: [ApiV1]
       summary: Add IP addresses to the verified list
+      description: Listings and update responses reflect the current verified policy for existing registrations as well as new ones.
       parameters:
         - in: header
           name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY
@@ -444,6 +446,7 @@ paths:
       operationId: remove_from_verified_list
       tags: [ApiV1]
       summary: Remove IP addresses from the verified list
+      description: Revokes verified/official status in subsequent listings and update responses without requiring re-registration.
       parameters:
         - in: header
           name: X-CHIV2-SERVER-BROWSER-ADMIN-KEY

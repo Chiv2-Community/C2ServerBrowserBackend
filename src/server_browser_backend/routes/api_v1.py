@@ -109,8 +109,7 @@ class BrowserApi(BaseApiV1Api):
                 get_ip(request),
             )
             return status("invalid_ip", "Invalid IP address", 400)
-        if self.policy.is_whitelisted(request):
-            server = server.verified()
+        server = self.policy.with_current_verification(server)
         try:
             key = self.server_list.register(server)
         except RegistryCapacity:
@@ -192,7 +191,11 @@ class BrowserApi(BaseApiV1Api):
     def get_servers(self, request: RequestContext) -> ApiResponse[ServerListResponse]:
         return ApiResponse(
             server_listing(
-                self.server_list.get_all(), include_ip=self.show_registered_ips()
+                [
+                    self.policy.with_current_verification(server)
+                    for server in self.server_list.get_all()
+                ],
+                include_ip=self.show_registered_ips(),
             )
         )
 
@@ -346,7 +349,10 @@ class BrowserApi(BaseApiV1Api):
                 get_ip(request),
             )
             return status("unauthorized", "Invalid IP address", 401)
-        server = self.server_list.update(server_id, key, transform)
+        server = self.server_list.update(
+            server_id, key,
+            lambda existing: self.policy.with_current_verification(transform(existing)),
+        )
         if server is None:
             logger.warning(
                 "Server %s rejected: registration disappeared server_id=%r requester_ip=%r",

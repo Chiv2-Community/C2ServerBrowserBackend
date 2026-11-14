@@ -1,6 +1,7 @@
 """Generated FastAPI transport support. DO NOT EDIT."""
 from functools import lru_cache
 import json
+from itertools import chain
 import re
 from typing import Any
 
@@ -19,6 +20,27 @@ class JsonMissing(Exception):
 
 class PayloadTooLarge(Exception):
     pass
+
+
+def validate_json_values(value: Any, max_depth: int) -> None:
+    # Bound traversal state by depth, not the number of fields/items.
+    pending = [iter((value,))]
+    while pending:
+        try:
+            item = next(pending[-1])
+        except StopIteration:
+            pending.pop()
+            continue
+        if isinstance(item, str):
+            try:
+                item.encode("utf-8")
+            except UnicodeEncodeError:
+                raise JsonMissing() from None
+        elif isinstance(item, (dict, list)):
+            if len(pending) > max_depth:
+                raise JsonMissing()
+            values = chain(item.keys(), item.values()) if isinstance(item, dict) else iter(item)
+            pending.append(iter(values))
 
 
 def automatic_options(path: str) -> Response | None:
@@ -55,6 +77,7 @@ async def read_body(request: Request) -> dict[str, Any]:
         value = json.loads(body)
     except (ValueError, UnicodeDecodeError, RecursionError):
         raise JsonMissing() from None
+    validate_json_values(value, contract()["x-max-json-depth"])
     if value is None:
         raise JsonMissing()
     if not isinstance(value, dict):

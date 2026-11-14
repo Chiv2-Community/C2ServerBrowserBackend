@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -121,6 +122,41 @@ def test_player_count_boundaries_preserve_tbio_listing(client, value):
     assert listing.status_code == 200
     game = listing.json()["Data"]["Games"][0]
     assert len(game["PlayerUserIds"]) == value
+
+
+@pytest.mark.parametrize("invalid", [
+    {"name": "\ud800"},
+    {"description": "\udc00"},
+    {"current_map": "\ud800"},
+    {"mods": [{"name": "\ud800", "organization": "org", "version": "1"}]},
+])
+def test_invalid_unicode_cannot_poison_registered_listings(client, browser, invalid):
+    body = json.dumps({**test_server_json, **invalid})
+    response = client.post("/api/v1/servers", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 400
+    assert browser.server_list.get_all() == []
+    assert client.get("/api/v1/servers").status_code == 200
+
+
+def test_invalid_unicode_update_cannot_poison_existing_listings(client, browser):
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
+    server_id = registration["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    body = json.dumps({**test_server_json, "current_map": "\ud800"})
+    response = client.put(f"/api/v1/servers/{server_id}", content=body, headers={KEY_HEADER: registration["key"], "Content-Type": "application/json"})
+    assert response.status_code == 400
+    assert browser.server_list.get(server_id) == original
+    assert client.get("/api/v1/servers").status_code == 200
+
+
+@pytest.mark.parametrize("escaped", [False, True])
+def test_valid_unicode_metadata_round_trips(client, escaped):
+    name = "Server \u00e9 \U0001f680"
+    body = json.dumps({**test_server_json, "name": name}, ensure_ascii=escaped).encode("utf-8")
+    response = client.post("/api/v1/servers", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 201
+    assert response.json()["server"]["name"] == name
+    assert client.get("/api/v1/servers").json()["servers"][0]["name"] == name
 
 
 def test_register(client: TestClient, browser):

@@ -4,6 +4,7 @@ from server_browser_server.runtime import ApiResponse, RequestContext
 
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.ip_address import canonical_address
+from server_browser_backend.models.base_models import Server
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
 KEY_HEADER = "x-chiv2-server-browser-key"
@@ -29,8 +30,10 @@ class RequestPolicy:
         self.ban_list = ban_list
         self.verified_list = verified_list
 
-    def is_whitelisted(self, request: RequestContext) -> bool:
-        return self.verified_list.contains(get_ip(request))
+    def with_current_verification(self, server: Server) -> Server:
+        if self.verified_list.contains(str(server.ip_address)):
+            return server.verified()
+        return server.unverified()
 
     def get_and_validate_ip(self, request: RequestContext) -> str:
         ip = get_ip(request)
