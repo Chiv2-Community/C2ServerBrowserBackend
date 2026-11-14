@@ -14,6 +14,7 @@ from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from server_browser_backend import error_handlers
+from server_browser_backend.request_logging import request_scope, requestor_ip
 from server_browser_backend.routes.shared import Banned
 from server_browser_backend.server_list import (InvalidSecretKey,
                                                 SecretKeyMissing)
@@ -44,6 +45,19 @@ class ForwardedHeaders:
 
 
 class Application(FastAPI):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Keep context around the outer error handler too; proxy middleware
+        # updates this per-request scope before endpoints and access logging.
+        token = request_scope.set(scope if scope["type"] == "http" else None)
+        try:
+            await super().__call__(scope, receive, send)
+        except BaseException as exc:
+            # Uvicorn logs escaping errors after the request context is reset.
+            setattr(exc, "_request_log_ip", requestor_ip(request_scope.get()))
+            raise
+        finally:
+            request_scope.reset(token)
+
     def __init__(self, browser_api: BaseApiV1Api, compatibility_api: BaseChiv2CompatApi, *, debug_mode: bool):
         super().__init__(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
         self.browser_api = browser_api

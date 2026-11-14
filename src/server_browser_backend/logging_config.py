@@ -1,9 +1,11 @@
-"""Configure application logging without replacing the ASGI server's loggers."""
+"""Unify console formatting without replacing ASGI loggers or their levels."""
 
 import logging
 from logging.config import dictConfig
 
 from pygelf import GelfTcpHandler
+
+from server_browser_backend.request_logging import ConsoleFormatter
 
 
 def configure_logging(
@@ -15,7 +17,8 @@ def configure_logging(
             "disable_existing_loggers": False,
             "formatters": {
                 "default": {
-                    "format": "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
+                    "()": ConsoleFormatter,
+                    "format": "%(asctime)s | %(levelname)-5s | %(requestor_ip)-15s | %(name)s - %(message)s",
                 },
             },
             "handlers": {
@@ -28,6 +31,11 @@ def configure_logging(
             "root": {"level": "INFO", "handlers": ["stderr"]},
         }
     )
+    # Uvicorn owns these handlers and levels; only replace their formatters.
+    formatter = logging.getLogger().handlers[0].formatter
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        for handler in logging.getLogger(name).handlers:
+            handler.setFormatter(formatter)
     if graylog_host is not None:
         handler = GelfTcpHandler(
             host=graylog_host,
