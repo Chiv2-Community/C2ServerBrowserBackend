@@ -67,11 +67,12 @@ class Server:
             return self.local_ip_address
         return self.ip_address
 
-    def with_update(self, update_request: UpdateRegisteredServer) -> Server:
+    def with_update(self, update_request: UpdateRegisteredServer, heartbeat_time: float) -> Server:
         return replace(
             self, current_map=update_request.current_map,
             player_count=update_request.player_count, max_players=update_request.max_players,
             mods=update_request.mods if update_request.mods is not None else self.mods,
+            last_heartbeat=heartbeat_time,
         )
 
     def unverified(self) -> Server:

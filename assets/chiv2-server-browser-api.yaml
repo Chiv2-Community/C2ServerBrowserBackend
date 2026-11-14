@@ -113,7 +113,8 @@ paths:
     put:
       operationId: update
       tags: [ApiV1]
-      summary: Update the listing for a game server. This does not count as a heartbeat
+      summary: Update the listing for a game server and renew its registration lease
+      description: A successful authenticated update also counts as a heartbeat, advancing `last_heartbeat` and `refresh_before`. Rejected updates do not renew the lease.
       parameters:
         - in: header
           name: X-CHIV2-SERVER-BROWSER-KEY
@@ -805,7 +806,7 @@ components:
         last_heartbeat:
           type: number
           format: double
-          description: Unix timestamp of the last heartbeat
+          description: Unix timestamp of registration or the last successful heartbeat or metadata update
     ServerResponseWithIP:
       x-python-parent:
         name: ServerResponse

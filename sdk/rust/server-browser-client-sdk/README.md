@@ -42,6 +42,8 @@ threads. Use `run` on a dedicated thread or call `poll` and honor `next_delay`.
 - Renew before the server lease deadline, at most every 30 seconds by default.
   Scheduling uses the difference between server timestamps and monotonic local
   time, not the client's wall clock.
+- Metadata updates also renew the lease; no separate heartbeat is needed while
+  updates succeed before the deadline. Each poll makes at most one request.
 - Retry known-registration failures with bounded exponential backoff. Metadata
   changes do not bypass backoff. Defaults: 10–300 seconds, stop on the eighth
   consecutive failure; success resets the count. No jitter or Retry-After support

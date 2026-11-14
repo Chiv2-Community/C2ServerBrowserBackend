@@ -22,6 +22,7 @@ from server_browser_client import AsyncClient, Client
 from server_browser_models import models
 from server_browser_models.runtime import contract
 from server_browser_backend.auth.signing import SigningKeys, provision
+from server_browser_backend.server_list import ServerList
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -84,11 +85,12 @@ def host(request):
 
 
 @pytest.fixture(params=[False, True], ids=["ordinary", "diagnostic"])
-def live_server(request, host, app_factory, tmp_path):
+def live_server(request, host, app_factory, tmp_path, heartbeat_timeout):
     keyring = tmp_path / "signing.json"
     provision(keyring)
     app = app_factory(signing_keys=SigningKeys(keyring), expose_ips=lambda: request.param,
-                      debug_mode=False, trusted_proxies=())
+                      debug_mode=False, trusted_proxies=(),
+                      server_list=ServerList(heartbeat_timeout=heartbeat_timeout))
     recorded = RecordedServer(app, host, request.param)
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     with socket.socket(family) as listener:
@@ -114,6 +116,11 @@ def live_server(request, host, app_factory, tmp_path):
             server.should_exit = True
             worker.join(timeout=10)
             assert not worker.is_alive(), "Uvicorn failed to stop"
+
+
+@pytest.fixture
+def heartbeat_timeout():
+    return 65
 
 
 async def exercise_python(client, server, admin_key):
@@ -232,3 +239,12 @@ def test_rust_client_against_python_server(rust_e2e_executable, live_server, adm
                    check=True, timeout=30)
     if package == "server-browser-client":
         live_server.assert_contract_and_operation_coverage()
+
+
+@pytest.mark.parametrize("heartbeat_timeout", [1])
+def test_rust_sdk_updates_preserve_lease(rust_e2e_executable, live_server, heartbeat_timeout):
+    package, executable = rust_e2e_executable
+    if package != "server-browser-client-sdk":
+        pytest.skip("handwritten lifecycle SDK only")
+    subprocess.run([executable, "--ignored", "--exact", "metadata_updates_renew_lease_without_heartbeats"],
+                   env={**os.environ, "SDK_E2E_URL": live_server.url}, check=True, timeout=30)

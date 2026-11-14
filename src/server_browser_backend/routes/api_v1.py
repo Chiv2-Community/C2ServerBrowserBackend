@@ -158,7 +158,7 @@ class BrowserApi(BaseApiV1Api):
             request,
             server_id,
             x_chiv2_server_browser_key,
-            lambda server: server.with_update(update_registered_server),
+            lambda server: server.with_update(update_registered_server, datetime.now().timestamp()),
             operation="update",
         )
 

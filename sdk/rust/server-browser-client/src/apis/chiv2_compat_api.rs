@@ -75,7 +75,14 @@ pub fn get_motd(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TbioMotdResponse`")))),
         }
     } else {
-        let entity: Option<GetMotdError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(GetMotdError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(GetMotdError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -121,7 +128,25 @@ pub fn playfab_client_matchmake(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PlayfabMatchmakeResponse`")))),
         }
     } else {
-        let entity: Option<PlayfabClientMatchmakeError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(PlayfabClientMatchmakeError::Status400)
+            } else if status.as_u16() == 404 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(PlayfabClientMatchmakeError::Status404)
+            } else {
+                serde_json::from_str(&content)
+                    .map(PlayfabClientMatchmakeError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content)
+                            .map(PlayfabClientMatchmakeError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -162,7 +187,16 @@ pub fn tbio_get_servers(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TbioServerListResponse`")))),
         }
     } else {
-        let entity: Option<TbioGetServersError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(TbioGetServersError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(TbioGetServersError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,

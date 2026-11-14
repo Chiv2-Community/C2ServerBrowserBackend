@@ -197,7 +197,24 @@ pub fn add_to_ban_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BanListResponse`")))),
         }
     } else {
-        let entity: Option<AddToBanListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(AddToBanListError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(AddToBanListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(AddToBanListError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(AddToBanListError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -248,7 +265,24 @@ pub fn add_to_verified_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::VerifiedListResponse`")))),
         }
     } else {
-        let entity: Option<AddToVerifiedListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(AddToVerifiedListError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(AddToVerifiedListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(AddToVerifiedListError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(AddToVerifiedListError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -295,7 +329,14 @@ pub fn check_banned(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BanStatusResponse`")))),
         }
     } else {
-        let entity: Option<CheckBannedError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(CheckBannedError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(CheckBannedError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -350,7 +391,28 @@ pub fn delete_server(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StatusResponse`")))),
         }
     } else {
-        let entity: Option<DeleteServerError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(DeleteServerError::Status400)
+            } else if status.as_u16() == 404 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(DeleteServerError::Status404)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(DeleteServerError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(DeleteServerError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(DeleteServerError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -397,7 +459,18 @@ pub fn get_ban_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BanListResponse`")))),
         }
     } else {
-        let entity: Option<GetBanListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(GetBanListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(GetBanListError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(GetBanListError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -436,7 +509,14 @@ pub fn get_servers(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ServerListResponse`")))),
         }
     } else {
-        let entity: Option<GetServersError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(GetServersError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(GetServersError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -483,7 +563,20 @@ pub fn get_verified_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::VerifiedListResponse`")))),
         }
     } else {
-        let entity: Option<GetVerifiedListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(GetVerifiedListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(GetVerifiedListError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(GetVerifiedListError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -538,7 +631,30 @@ pub fn heartbeat(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UpdateResponse`")))),
         }
     } else {
-        let entity: Option<HeartbeatError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 401 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(HeartbeatError::Status401)
+            } else if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(HeartbeatError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(HeartbeatError::Status403)
+            } else if status.as_u16() == 404 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(HeartbeatError::Status404)
+            } else {
+                serde_json::from_str(&content)
+                    .map(HeartbeatError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(HeartbeatError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -578,7 +694,14 @@ pub fn jwks(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::JwksResponse`")))),
         }
     } else {
-        let entity: Option<JwksError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(JwksError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(JwksError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -626,7 +749,18 @@ pub fn login(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StatusResponse`")))),
         }
     } else {
-        let entity: Option<LoginError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 410 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(LoginError::Status410)
+            } else {
+                serde_json::from_str(&content)
+                    .map(LoginError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(LoginError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -673,7 +807,22 @@ pub fn register(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RegistrationResponse`")))),
         }
     } else {
-        let entity: Option<RegisterError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RegisterError::Status400)
+            } else if status.as_u16() == 429 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RegisterError::Status429)
+            } else {
+                serde_json::from_str(&content)
+                    .map(RegisterError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(RegisterError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -725,7 +874,24 @@ pub fn remove_from_ban_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BanListResponse`")))),
         }
     } else {
-        let entity: Option<RemoveFromBanListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RemoveFromBanListError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RemoveFromBanListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(RemoveFromBanListError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(RemoveFromBanListError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -778,7 +944,25 @@ pub fn remove_from_verified_list(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::VerifiedListResponse`")))),
         }
     } else {
-        let entity: Option<RemoveFromVerifiedListError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RemoveFromVerifiedListError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(RemoveFromVerifiedListError::Status403)
+            } else {
+                serde_json::from_str(&content)
+                    .map(RemoveFromVerifiedListError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content)
+                            .map(RemoveFromVerifiedListError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -827,7 +1011,14 @@ pub fn send_swagger(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `String`")))),
         }
     } else {
-        let entity: Option<SendSwaggerError> = serde_json::from_str(&content).ok();
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(SendSwaggerError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(SendSwaggerError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
@@ -836,6 +1027,7 @@ pub fn send_swagger(
     }
 }
 
+/// A successful authenticated update also counts as a heartbeat, advancing `last_heartbeat` and `refresh_before`. Rejected updates do not renew the lease.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub fn update(
@@ -883,7 +1075,30 @@ pub fn update(
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UpdateResponse`")))),
         }
     } else {
-        let entity: Option<UpdateError> = serde_json::from_str(&content).ok();
+        let entity = {
+            if status.as_u16() == 401 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(UpdateError::Status401)
+            } else if status.as_u16() == 400 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(UpdateError::Status400)
+            } else if status.as_u16() == 403 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(UpdateError::Status403)
+            } else if status.as_u16() == 404 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(UpdateError::Status404)
+            } else {
+                serde_json::from_str(&content)
+                    .map(UpdateError::DefaultResponse)
+                    .or_else(|_| serde_json::from_str(&content).map(UpdateError::UnknownValue))
+                    .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent {
             status,
             content,
