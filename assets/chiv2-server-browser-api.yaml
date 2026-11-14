@@ -80,6 +80,7 @@ paths:
       operationId: register
       tags: [ApiV1]
       summary: Register a game server
+      description: Bounded by global and source-IP registration quotas; capacity rejection does not evict existing registrations.
       requestBody:
         required: true
         content:
@@ -90,6 +91,12 @@ paths:
         default: *ApiError
         '400':
           description: Invalid registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '429':
+          description: Global or source-IP registration capacity exhausted. Retry after registrations expire or are deleted.
           content:
             application/json:
               schema:
@@ -691,9 +698,11 @@ components:
           description: The max number of players the server allows
         current_map:
           type: string
+          maxLength: 256
           description: The current map being played on the server
         mods:
           type: array
+          maxItems: 64
           items:
             $ref: '#/components/schemas/Mod'
     Mod:
@@ -705,12 +714,15 @@ components:
       properties:
         name:
           type: string
+          maxLength: 128
           description: The name of the mod
         organization:
           type: string
+          maxLength: 128
           description: The organization that provides the mod
         version:
           type: string
+          maxLength: 64
           description: The version of the mod
         active:
           type: boolean
@@ -816,12 +828,15 @@ components:
           $ref: '#/components/schemas/Chivalry2Ports'
         name:
           type: string
+          maxLength: 256
           description: The name of the server
         description:
           type: string
+          maxLength: 4096
           description: A description of the server
         current_map:
           type: string
+          maxLength: 256
           description: The current map being played on the server
         player_count:
           type: integer
@@ -837,6 +852,7 @@ components:
           description: Whether the server is password protected
         mods:
           type: array
+          maxItems: 64
           default: []
           items:
             $ref: '#/components/schemas/Mod'
@@ -967,6 +983,7 @@ components:
       properties:
         Language:
           type: string
+          description: Alphanumeric locale selector; values longer than 32 characters or containing non-alphanumeric characters fall back to English.
           default: en
     MatchmakeRequest:
       type: object

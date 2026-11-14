@@ -35,7 +35,7 @@ from server_browser_backend.models.base_models import (
     server_response,
 )
 from server_browser_backend.routes.shared import RequestPolicy, get_ip, status
-from server_browser_backend.server_list import SecretKeyMissing, ServerList
+from server_browser_backend.server_list import RegistryCapacity, SecretKeyMissing, ServerList
 from server_browser_backend.auth.signing import SigningKeys
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,11 @@ class BrowserApi(BaseApiV1Api):
             return status("invalid_ip", "Invalid IP address", 400)
         if self.policy.is_whitelisted(request):
             server = server.verified()
-        key = self.server_list.register(server)
+        try:
+            key = self.server_list.register(server)
+        except RegistryCapacity:
+            logger.warning("Server registration rejected: capacity exhausted requester_ip=%r", get_ip(request))
+            return status("registration_capacity", "Server registration capacity exhausted; retry after registrations expire", 429)
         logger.info(
             "Server registered server_id=%r name=%r ip=%s game_port=%s verified=%s",
             server.unique_id,

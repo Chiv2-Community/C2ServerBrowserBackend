@@ -22,7 +22,7 @@ class Client(ClientTransport):
     def get_servers(self) -> ClientResponse[ServerListResponse | StatusResponse]:
         return self._request("get_servers", parameters={ })
 
-    def register(self, *, server_registration_request: ServerRegistrationRequest) -> ClientResponse[StatusResponse | RegistrationResponse | StatusResponse]:
+    def register(self, *, server_registration_request: ServerRegistrationRequest) -> ClientResponse[StatusResponse | StatusResponse | RegistrationResponse | StatusResponse]:
         return self._request("register", parameters={ }, body=server_registration_request)
 
     def update(self, *, x_chiv2_server_browser_key: str | Unset = UNSET, server_id: str, update_registered_server: UpdateRegisteredServer) -> ClientResponse[StatusResponse | StatusResponse | StatusResponse | StatusResponse | UpdateResponse | StatusResponse]:
@@ -80,7 +80,7 @@ class AsyncClient(AsyncClientTransport):
     async def get_servers(self) -> ClientResponse[ServerListResponse | StatusResponse]:
         return await self._request("get_servers", parameters={ })
 
-    async def register(self, *, server_registration_request: ServerRegistrationRequest) -> ClientResponse[StatusResponse | RegistrationResponse | StatusResponse]:
+    async def register(self, *, server_registration_request: ServerRegistrationRequest) -> ClientResponse[StatusResponse | StatusResponse | RegistrationResponse | StatusResponse]:
         return await self._request("register", parameters={ }, body=server_registration_request)
 
     async def update(self, *, x_chiv2_server_browser_key: str | Unset = UNSET, server_id: str, update_registered_server: UpdateRegisteredServer) -> ClientResponse[StatusResponse | StatusResponse | StatusResponse | StatusResponse | UpdateResponse | StatusResponse]:

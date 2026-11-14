@@ -42,7 +42,8 @@ class CompatibilityApi(BaseChiv2CompatApi):
         except Banned:
             suffix = "_banned"
         language = motd_request.language
-        if not language.isalnum():
+        # Keep even multibyte filenames below filesystem component limits.
+        if len(language) > 32 or not language.isalnum():
             language = "en"
         location = self.motd_directory / f"{language}{suffix}.json"
         if not location.exists():

@@ -27,6 +27,9 @@ The server can be configured using environment variables:
   `X-Forwarded-*`. Defaults to `127.0.0.1/32,::1/128`; empty disables trust.
   For a container proxy, configure its actual backend-facing address/network.
   Do not include untrusted clients or public catch-all networks.
+- `MAX_REGISTERED_SERVERS`: Global registration cap; defaults to 1,024.
+- `MAX_REGISTERED_SERVERS_PER_IP`: Per-source-IP registration cap; defaults to 16.
+  Both caps must be positive integers. Hosts sharing a public IP share its cap.
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
 - `DISCORD_SIGNING_KEYRING`: Path to an explicitly provisioned persistent signing
   keyring. Unset publishes an empty JWKS; an invalid configured path fails startup.
@@ -107,6 +110,13 @@ disables Uvicorn's separate proxy processing to avoid interpreting headers twice
 JSON bodies are limited to 1 MiB, including chunked requests. Larger bodies
 return HTTP 413. Keep proxy request timeouts and connection/concurrency limits;
 the body cap does not bound slow clients or total concurrent memory use.
+
+Registration quotas return HTTP 429 without evicting live servers. Expired
+registrations are reclaimed on registration/listing; deletion also frees capacity.
+Registration and update metadata follows OAS limits: 256 characters for server
+names/maps, 4,096 for descriptions, and 64 mods with bounded name/organization/
+version strings. Keep proxy rate limits; quotas bound retained state, not request
+rate or CPU use. The registry remains process-local: use one backend worker.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.

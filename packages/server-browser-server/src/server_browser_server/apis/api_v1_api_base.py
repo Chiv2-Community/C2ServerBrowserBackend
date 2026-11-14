@@ -41,7 +41,7 @@ class BaseApiV1Api(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def register(self, request: RequestContext, *, server_registration_request: ServerRegistrationRequest) -> ApiResponse[StatusResponse] | ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
+    def register(self, request: RequestContext, *, server_registration_request: ServerRegistrationRequest) -> ApiResponse[StatusResponse] | ApiResponse[StatusResponse] | ApiResponse[RegistrationResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
 
     @abstractmethod

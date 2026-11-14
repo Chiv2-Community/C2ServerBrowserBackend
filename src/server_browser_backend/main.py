@@ -31,7 +31,11 @@ def create_default_app() -> Application:
             "ADMIN_KEY is not configured; using a generated process-local admin key"
         )
     config_dir = Path(environ.get("CONFIG_DIR", "config"))
-    server_list = ServerList(heartbeat_timeout=65)
+    server_list = ServerList(
+        heartbeat_timeout=65,
+        max_servers=int(environ.get("MAX_REGISTERED_SERVERS", "1024")),
+        max_servers_per_ip=int(environ.get("MAX_REGISTERED_SERVERS_PER_IP", "16")),
+    )
     ban_list = IpList(admin_key, str(config_dir / "ban_list.txt"))
     verified_list = IpList(admin_key, str(config_dir / "verified_list.txt"))
     policy = RequestPolicy(ban_list, verified_list)
