@@ -4,7 +4,12 @@ import logging
 import traceback
 
 from fastapi import Request, Response
-from server_browser_fastapi.runtime import JsonMissing, PayloadTooLarge, render_response
+from server_browser_fastapi.runtime import (
+    JsonBodyTimeout,
+    JsonMissing,
+    PayloadTooLarge,
+    render_response,
+)
 from server_browser_models.models import ErrorResponse, StatusResponse
 from server_browser_models.runtime import (
     DictKeyError,
@@ -39,6 +44,14 @@ async def handle_json_missing(request: Request, error: JsonMissing) -> Response:
 async def handle_payload_too_large(request: Request, error: PayloadTooLarge) -> Response:
     log_rejection(request, "JSON body exceeds size limit")
     return render_response(status("payload_too_large", "JSON body exceeds size limit", 413))
+
+
+async def handle_json_body_timeout(request: Request, error: JsonBodyTimeout) -> Response:
+    log_rejection(request, "JSON body read timed out")
+    response = render_response(status("request_timeout", "JSON body read timed out", 408))
+    if request.scope.get("http_version", "1.1") in {"1.0", "1.1"}:
+        response.headers["Connection"] = "close"
+    return response
 
 
 async def handle_dict_key_error(request: Request, error: DictKeyError) -> Response:

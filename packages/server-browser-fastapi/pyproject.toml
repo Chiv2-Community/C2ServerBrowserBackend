@@ -3,7 +3,7 @@ name = "server-browser-fastapi"
 version = "1.0.0"
 description = "Generated FastAPI adapter for server browser interfaces"
 requires-python = ">=3.10"
-dependencies = ["server-browser-server==1.0.0", "server-browser-models==1.0.0", "fastapi>=0.115,<1"]
+dependencies = ["server-browser-server==1.0.0", "server-browser-models==1.0.0", "fastapi>=0.115,<1", "anyio>=4,<5"]
 
 [build-system]
 requires = ["hatchling"]

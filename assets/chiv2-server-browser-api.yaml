@@ -1,6 +1,7 @@
 openapi: 3.0.0
 x-max-json-body-bytes: 1048576
 x-max-json-depth: 64
+x-json-body-timeout-seconds: 10
 info:
   title: Server Browser API
   version: 1.0.0
@@ -13,7 +14,7 @@ paths:
       description: Empty while Discord signing is unconfigured. Never contains private key material.
       responses:
         default: &ApiError
-          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Nesting beyond x-max-json-depth or invalid Unicode returns 400. Debug deployments may include an additional stack trace.
+          description: API error; JSON request bodies exceeding x-max-json-body-bytes return 413. Uploads exceeding x-json-body-timeout-seconds return 408. Nesting beyond x-max-json-depth or invalid Unicode returns 400. Debug deployments may include an additional stack trace.
           content:
             application/json:
               schema:

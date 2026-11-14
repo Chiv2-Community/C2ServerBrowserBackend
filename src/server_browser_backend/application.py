@@ -6,7 +6,7 @@ from server_browser_fastapi.apis.api_v1_api import \
     create_router as browser_router
 from server_browser_fastapi.apis.chiv2_compat_api import \
     create_router as compatibility_router
-from server_browser_fastapi.runtime import JsonMissing, PayloadTooLarge, automatic_options
+from server_browser_fastapi.runtime import JsonBodyTimeout, JsonMissing, PayloadTooLarge, automatic_options
 from server_browser_models.runtime import (DictKeyError, DictTypeError,
                                            SchemaValidationError, contract)
 from server_browser_server.apis.api_v1_api_base import BaseApiV1Api
@@ -83,6 +83,7 @@ class Application(FastAPI):
         self.add_middleware(ForwardedHeaders, trusted_proxies=trusted_proxies)
         self.exception_handler(JsonMissing)(error_handlers.handle_json_missing)
         self.exception_handler(PayloadTooLarge)(error_handlers.handle_payload_too_large)
+        self.exception_handler(JsonBodyTimeout)(error_handlers.handle_json_body_timeout)
         self.exception_handler(DictKeyError)(error_handlers.handle_dict_key_error)
         self.exception_handler(DictTypeError)(error_handlers.handle_dict_type_error)
         self.exception_handler(SchemaValidationError)(error_handlers.handle_schema_validation)

@@ -1647,6 +1647,7 @@ name = "server-browser-fastapi"
 version = "1.0.0"
 source = { editable = "packages/server-browser-fastapi" }
 dependencies = [
+    { name = "anyio" },
     { name = "fastapi" },
     { name = "server-browser-models" },
     { name = "server-browser-server" },
@@ -1654,6 +1655,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4,<5" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "server-browser-models", editable = "packages/server-browser-models" },
     { name = "server-browser-server", editable = "packages/server-browser-server" },

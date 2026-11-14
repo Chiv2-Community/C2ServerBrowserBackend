@@ -110,6 +110,8 @@ disables Uvicorn's separate proxy processing to avoid interpreting headers twice
 JSON bodies are limited to 1 MiB, including chunked requests. Larger bodies
 return HTTP 413. Invalid Unicode strings or more than 64 object/array levels
 (including the root) return HTTP 400 before model decoding or state changes.
+Uploads have a total ten-second deadline, regardless of chunk activity. Expiry
+returns HTTP 408 and closes HTTP/1.x connections; incomplete bodies change no state.
 Keep proxy request timeouts and connection/concurrency limits;
 the body cap does not bound slow clients or total concurrent memory use.
 

@@ -5,8 +5,10 @@ from itertools import chain
 import re
 from typing import Any
 
+from anyio import fail_after
 from fastapi import Request, Response
 from starlette.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 from openapi_schema_validator import OAS30Validator
 from server_browser_models.runtime import (
     DictKeyError, DictTypeError, SchemaValidationError, contract, operation, parse_ip_address, to_wire,
@@ -19,6 +21,10 @@ class JsonMissing(Exception):
 
 
 class PayloadTooLarge(Exception):
+    pass
+
+
+class JsonBodyTimeout(Exception):
     pass
 
 
@@ -69,10 +75,16 @@ async def read_body(request: Request) -> dict[str, Any]:
     if declared_size > limit:
         raise PayloadTooLarge()
     body = bytearray()
-    async for chunk in request.stream():
-        if len(body) + len(chunk) > limit:
-            raise PayloadTooLarge()
-        body.extend(chunk)
+    try:
+        with fail_after(contract()["x-json-body-timeout-seconds"]):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > limit:
+                    raise PayloadTooLarge()
+                body.extend(chunk)
+    except TimeoutError:
+        raise JsonBodyTimeout() from None
+    except ClientDisconnect:
+        raise JsonMissing() from None
     try:
         value = json.loads(body)
     except (ValueError, UnicodeDecodeError, RecursionError):
