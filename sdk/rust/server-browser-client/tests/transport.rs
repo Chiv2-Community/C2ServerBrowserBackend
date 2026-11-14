@@ -48,3 +48,18 @@ fn client_uses_injected_transport_and_encodes_path_parameter() {
     let request = worker.join().unwrap();
     assert!(request.starts_with("GET /api/v1/check-banned/2001%3Adb8%3A%3A1 "));
 }
+
+#[test]
+fn configuration_debug_redacts_urls_and_headers() {
+    let config = Configuration {
+        base_path: "https://user:password@example.invalid/?token=secret".into(),
+        user_agent: Some("private-agent".into()),
+        ..Configuration::default()
+    };
+    assert_eq!(format!("{config:?}"), "Configuration([REDACTED])");
+}
+
+#[test]
+fn protocol_errors_keep_response_bodies_off_the_stack() {
+    assert!(size_of::<server_browser_client::apis::Error<api_v1_api::RegisterError>>() <= 32);
+}

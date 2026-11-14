@@ -29,6 +29,8 @@ jobs:
           java-version: '21'
 
       - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: clippy, rustfmt
 
       - name: Validate and build all packages
         run: ./ci.sh

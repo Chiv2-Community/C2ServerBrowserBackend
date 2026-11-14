@@ -1,5 +1,6 @@
 //! Handwritten registration lifecycle on top of generated protocol bindings.
 #![doc = include_str!("../README.md")]
+#![deny(missing_docs, missing_debug_implementations)]
 pub mod transport;
 pub use server_browser_models as models;
 pub use transport::{HttpTransport, RegistrationTransport, RequestFailure};
@@ -10,10 +11,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Supplies monotonic time for lifecycle scheduling.
 pub trait Clock {
+    /// Return the current monotonic instant.
     fn now(&self) -> Instant;
 }
 
+/// Uses the host's monotonic clock.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SystemClock;
 impl Clock for SystemClock {
     fn now(&self) -> Instant {
@@ -21,12 +26,18 @@ impl Clock for SystemClock {
     }
 }
 
+/// Scheduling and bounded-retry configuration.
 #[derive(Clone, Debug)]
 pub struct Policy {
+    /// Maximum interval between successful lease renewals.
     pub heartbeat_interval: Duration,
+    /// Time reserved before the server's lease deadline.
     pub safety_margin: Duration,
+    /// Delay after the first retryable failure.
     pub initial_backoff: Duration,
+    /// Upper bound for exponential retry delays.
     pub maximum_backoff: Duration,
+    /// Number of consecutive failures that halts the lifecycle.
     pub maximum_failures: u32,
 }
 
@@ -42,14 +53,22 @@ impl Default for Policy {
     }
 }
 
+/// Credential-safe terminal lifecycle failures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SdkError {
+    /// Scheduling or retry bounds are invalid.
     InvalidPolicy,
+    /// A lease is invalid or identifies another registration.
     InvalidLease,
+    /// The backend rejected the request with this HTTP status.
     Rejected(u16),
+    /// Registration may have succeeded without returning a usable identity.
     RegistrationUncertain,
+    /// Consecutive failures reached the policy limit.
     RetriesExhausted,
+    /// The single best-effort deletion failed.
     CleanupFailed(RequestFailure),
+    /// The manager has been stopped.
     Stopped,
 }
 
@@ -60,13 +79,23 @@ impl std::fmt::Display for SdkError {
 }
 impl std::error::Error for SdkError {}
 
+/// Outcome of one lifecycle poll.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
-    Registered { server_id: String },
+    /// A new registration was established.
+    Registered {
+        /// Identifier assigned by the backend; never a credential.
+        server_id: String,
+    },
+    /// Changed metadata was published and the lease renewed.
     Updated,
+    /// Unchanged metadata's lease was renewed.
     Heartbeat,
+    /// The backend no longer knows the identity; a later poll may register again.
     RegistrationLost,
+    /// A retryable failure scheduled this delay.
     RetryScheduled(Duration),
+    /// No request is due until this delay elapses.
     Waiting(Duration),
 }
 
@@ -100,6 +129,10 @@ impl<T, C> std::fmt::Debug for Registration<T, C> {
 }
 
 impl<T: RegistrationTransport> Registration<T> {
+    /// Construct a lifecycle manager using the system monotonic clock.
+    ///
+    /// # Errors
+    /// Returns [`SdkError::InvalidPolicy`] for invalid scheduling or retry bounds.
     pub fn new(
         transport: T,
         request: ServerRegistrationRequest,
@@ -110,6 +143,10 @@ impl<T: RegistrationTransport> Registration<T> {
 }
 
 impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
+    /// Construct a lifecycle manager using an injected monotonic clock.
+    ///
+    /// # Errors
+    /// Returns [`SdkError::InvalidPolicy`] for invalid scheduling or retry bounds.
     pub fn with_clock(
         transport: T,
         request: ServerRegistrationRequest,
@@ -138,10 +175,12 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         })
     }
 
+    /// Return the current backend identity, if one is known.
     pub fn server_id(&self) -> Option<&str> {
         self.identity.as_ref().map(|identity| identity.id.as_str())
     }
 
+    /// Return the delay until another poll, or none after a terminal outcome.
     pub fn next_delay(&self) -> Option<Duration> {
         if self.stopped || self.failure.is_some() {
             None
@@ -163,6 +202,9 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     /// Coalesce metadata changes without bypassing an active retry backoff.
+    ///
+    /// # Errors
+    /// Returns the terminal lifecycle error if halted or stopped.
     pub fn set_update(&mut self, update: UpdateRegisteredServer) -> Result<(), SdkError> {
         self.check_running()?;
         self.request.player_count = update.player_count;
@@ -180,7 +222,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         Ok(())
     }
 
-    fn check_running(&self) -> Result<(), SdkError> {
+    const fn check_running(&self) -> Result<(), SdkError> {
         if self.stopped {
             Err(SdkError::Stopped)
         } else if let Some(error) = self.failure {
@@ -190,7 +232,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         }
     }
 
-    fn halt(&mut self, error: SdkError) -> SdkError {
+    const fn halt(&mut self, error: SdkError) -> SdkError {
         self.failure = Some(error);
         error
     }
@@ -245,6 +287,10 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     /// Make at most one request. Waiting never sleeps or performs network I/O.
+    ///
+    /// # Errors
+    /// Returns a terminal lifecycle error for rejection, uncertain registration,
+    /// invalid leases, exhausted retries, or polling after shutdown.
     pub fn poll(&mut self) -> Result<Event, SdkError> {
         self.check_running()?;
         let started = self.clock.now();
@@ -325,6 +371,9 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     /// Exactly one best-effort deletion; no network I/O is hidden in Drop.
+    ///
+    /// # Errors
+    /// Returns [`SdkError::CleanupFailed`] if deletion fails, except HTTP 404.
     pub fn stop(&mut self) -> Result<(), SdkError> {
         self.stopped = true;
         match self.identity.take() {
@@ -339,13 +388,19 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// Drive the lifecycle on the calling thread; callers may spawn that thread.
     /// Cancellation wakes waits but cannot interrupt an in-flight HTTP request.
     /// On error, call `stop` explicitly to attempt cleanup of a known registration.
+    ///
+    /// # Errors
+    /// Returns lifecycle or cleanup failures from polling, updates, or shutdown.
+    ///
+    /// # Panics
+    /// Panics if the control mutex was poisoned or the observer panics.
     pub fn run(
         &mut self,
         control: &RegistrationControl,
         mut observe: impl FnMut(&Event),
     ) -> Result<(), SdkError> {
         loop {
-            let mut pending = control.inner.0.lock().unwrap();
+            let mut pending = control.inner.pending.lock().unwrap();
             if pending.cancelled {
                 drop(pending);
                 return self.stop();
@@ -360,11 +415,11 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                 observe(&event);
             }
             let delay = self.next_delay().ok_or(SdkError::Stopped)?;
-            let pending = control.inner.0.lock().unwrap();
+            let pending = control.inner.pending.lock().unwrap();
             drop(
                 control
                     .inner
-                    .1
+                    .wake
                     .wait_timeout_while(pending, delay, |pending| {
                         !pending.cancelled && pending.update.is_none()
                     })
@@ -386,12 +441,29 @@ struct Pending {
 /// Cloneable, single-run cancellation/update handle. Only the latest update waits.
 #[derive(Clone, Default)]
 pub struct RegistrationControl {
-    inner: Arc<(Mutex<Pending>, Condvar)>,
+    inner: Arc<ControlState>,
+}
+
+impl std::fmt::Debug for RegistrationControl {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("RegistrationControl([REDACTED])")
+    }
+}
+
+#[derive(Default)]
+struct ControlState {
+    pending: Mutex<Pending>,
+    wake: Condvar,
 }
 
 impl RegistrationControl {
+    /// Queue the latest update; return false after cancellation.
+    ///
+    /// # Panics
+    /// Panics if the control mutex was poisoned.
+    #[must_use]
     pub fn publish(&self, mut update: UpdateRegisteredServer) -> bool {
-        let mut pending = self.inner.0.lock().unwrap();
+        let mut pending = self.inner.pending.lock().unwrap();
         if pending.cancelled {
             return false;
         }
@@ -402,12 +474,17 @@ impl RegistrationControl {
                 .and_then(|update| update.mods.clone());
         }
         pending.update = Some(update);
-        self.inner.1.notify_all();
+        drop(pending);
+        self.inner.wake.notify_all();
         true
     }
 
+    /// Wake the driver and request one cleanup attempt.
+    ///
+    /// # Panics
+    /// Panics if the control mutex was poisoned.
     pub fn cancel(&self) {
-        self.inner.0.lock().unwrap().cancelled = true;
-        self.inner.1.notify_all();
+        self.inner.pending.lock().unwrap().cancelled = true;
+        self.inner.wake.notify_all();
     }
 }

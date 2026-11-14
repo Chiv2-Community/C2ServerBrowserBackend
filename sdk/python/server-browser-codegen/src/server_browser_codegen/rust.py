@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from importlib.resources import files
@@ -101,17 +102,32 @@ def generate(root: Path, check: bool = False) -> None:
             )
         jar = Path(openapi_generator_cli.__file__).parent / "openapi-generator.jar"
         with zipfile.ZipFile(jar) as archive:
-            (templates / "model-default.mustache").write_bytes(
-                archive.read("rust/model.mustache")
+            (templates / "model-default.mustache").write_text(
+                archive.read("rust/model.mustache").decode()
+                .replace(
+                    "    pub fn new(",
+                    "    #[must_use]\n    #[allow(clippy::too_many_arguments)]\n    pub const fn new(",
+                )
+                .replace("use crate::models;", "#[allow(unused_imports)]\nuse crate::models;")
+                .replace("/// {{{classname}}} :", "/// `{{{classname}}}` :")
+                .replace("-> {{{classname}}}", "-> Self")
+                .replace("-> {{{enumName}}}", "-> Self")
+                .replace("        {{{classname}}} {", "        Self {")
             )
-            # Stage the pinned upstream API template with a module-owned text hook.
+            # Retain upstream request generation; own response decoding and errors.
             api = archive.read("rust/reqwest/api.mustache").decode()
-            marker = "    let content_type = super::ContentType::from(content_type);"
+            marker = "    let req = req_builder.build()?;"
             if api.count(marker) != 1:
-                raise ValueError("Pinned Rust API template text-response hook changed")
-            (templates / "reqwest").mkdir()
+                raise ValueError("Pinned Rust API template response boundary changed")
+            requests, _, _ = api.partition(marker)
             (templates / "reqwest/api.mustache").write_text(
-                api.replace(marker, "{{>client/text_response}}\n" + marker)
+                requests
+                .replace("use reqwest;\n", "")
+                .replace(
+                    "{{#isDeprecated}}",
+                    "/// # Errors\n/// Returns a transport, decoding, or declared HTTP error.\n{{#isDeprecated}}",
+                )
+                + "{{>client/response}}\n}\n\n{{/operation}}\n{{/operations}}\n"
             )
         schema = directory / "schema.yaml"
         schema.write_text(yaml.safe_dump(spec, sort_keys=False))
@@ -154,9 +170,17 @@ def generate(root: Path, check: bool = False) -> None:
             for path in generated_files(source):
                 text = (source / path).read_text()
                 (source / path).write_text(
-                    "\n".join(line.rstrip() for line in text.splitlines()).strip()
+                    "\n".join(
+                        line.rstrip() for line in text.splitlines()
+                        if line.strip() != "///"
+                    ).strip()
                     + "\n"
                 )
+            subprocess.run(
+                ["rustfmt", "--edition", "2021", str(source / "src/lib.rs")],
+                cwd=root,
+                check=True,
+            )
             sync_package(source, root / f"sdk/rust/server-browser-{name}", check)
     print(
         "Generated Rust models and client are current."

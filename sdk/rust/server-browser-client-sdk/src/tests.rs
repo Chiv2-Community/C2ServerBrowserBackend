@@ -7,15 +7,17 @@ use std::{
 };
 
 #[derive(Clone)]
-struct TestClock(Rc<Cell<Instant>>);
+struct TestClock {
+    now: Rc<Cell<Instant>>,
+}
 impl Clock for TestClock {
     fn now(&self) -> Instant {
-        self.0.get()
+        self.now.get()
     }
 }
 impl TestClock {
     fn advance(&self, seconds: u64) {
-        self.0.set(self.now() + Duration::from_secs(seconds));
+        self.now.set(self.now() + Duration::from_secs(seconds));
     }
 }
 
@@ -77,10 +79,18 @@ impl RegistrationTransport for Rc<Fake> {
     }
 }
 
-fn fixture() -> (Registration<Rc<Fake>, TestClock>, Rc<Fake>, TestClock) {
+struct Fixture {
+    registration: Registration<Rc<Fake>, TestClock>,
+    transport: Rc<Fake>,
+    clock: TestClock,
+}
+
+fn fixture() -> Fixture {
     let transport = Rc::new(Fake::default());
     transport.lifetime.set(65.0);
-    let clock = TestClock(Rc::new(Cell::new(Instant::now())));
+    let clock = TestClock {
+        now: Rc::new(Cell::new(Instant::now())),
+    };
     let registration = Registration::with_clock(
         transport.clone(),
         ServerRegistrationRequest::default(),
@@ -88,12 +98,20 @@ fn fixture() -> (Registration<Rc<Fake>, TestClock>, Rc<Fake>, TestClock) {
         clock.clone(),
     )
     .unwrap();
-    (registration, transport, clock)
+    Fixture {
+        registration,
+        transport,
+        clock,
+    }
 }
 
 #[test]
 fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
-    let (mut registration, transport, clock) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
     assert_eq!(
         registration.poll(),
         Ok(Event::Registered {
@@ -126,7 +144,11 @@ fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
 
 #[test]
 fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
-    let (mut registration, transport, clock) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
     registration.poll().unwrap();
     clock.advance(30);
     transport
@@ -154,7 +176,11 @@ fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
 
 #[test]
 fn expired_registration_recovers_but_rejected_credentials_halt() {
-    let (mut registration, transport, clock) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
     registration.poll().unwrap();
     clock.advance(30);
     transport
@@ -187,7 +213,11 @@ fn ambiguous_registration_is_never_retried() {
         RequestFailure::InvalidResponse,
         RequestFailure::Http(500),
     ] {
-        let (mut registration, transport, _) = fixture();
+        let Fixture {
+            mut registration,
+            transport,
+            ..
+        } = fixture();
         transport.failures.borrow_mut().push_back(failure);
         assert_eq!(registration.poll(), Err(SdkError::RegistrationUncertain));
         assert_eq!(registration.poll(), Err(SdkError::RegistrationUncertain));
@@ -198,7 +228,11 @@ fn ambiguous_registration_is_never_retried() {
 
 #[test]
 fn throttled_registration_retries_with_a_bound() {
-    let (mut registration, transport, clock) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
     registration.policy.maximum_failures = 3;
     registration.policy.maximum_backoff = Duration::from_secs(15);
     transport
@@ -221,12 +255,20 @@ fn throttled_registration_retries_with_a_bound() {
 
 #[test]
 fn short_leases_use_server_time_and_invalid_leases_halt() {
-    let (mut registration, transport, _) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
     transport.lifetime.set(4.0);
     registration.poll().unwrap();
     assert_eq!(registration.next_delay(), Some(Duration::from_secs(2)));
     for lifetime in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        let (mut registration, transport, _) = fixture();
+        let Fixture {
+            mut registration,
+            transport,
+            ..
+        } = fixture();
         transport.lifetime.set(lifetime);
         assert_eq!(registration.poll(), Err(SdkError::InvalidLease));
         registration.stop().unwrap();
@@ -236,12 +278,20 @@ fn short_leases_use_server_time_and_invalid_leases_halt() {
 
 #[test]
 fn cancellation_cleans_up_and_control_is_single_run() {
-    let (mut registration, transport, _) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
     let control = RegistrationControl::default();
     registration.run(&control, |_| control.cancel()).unwrap();
     assert_eq!(*transport.calls.borrow(), ["register", "delete"]);
     assert!(!control.publish(UpdateRegisteredServer::default()));
-    let (mut registration, transport, _) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
     registration
         .run(&control, |_| panic!("cancelled before start"))
         .unwrap();
@@ -250,7 +300,11 @@ fn cancellation_cleans_up_and_control_is_single_run() {
 
 #[test]
 fn cleanup_reports_failure_without_logging_secrets_or_retrying() {
-    let (mut registration, transport, _) = fixture();
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
     registration.poll().unwrap();
     transport
         .failures
@@ -275,10 +329,11 @@ fn control_coalescing_preserves_omitted_mod_updates() {
     )]);
     assert!(control.publish(update));
     assert!(control.publish(UpdateRegisteredServer::new(2, 32, "next".into())));
-    let pending = control.inner.0.lock().unwrap();
+    let pending = control.inner.pending.lock().unwrap();
     let update = pending.update.as_ref().unwrap();
     assert_eq!(update.player_count, 2);
     assert_eq!(update.mods.as_ref().unwrap()[0].name, "mod");
+    drop(pending);
 }
 
 #[test]

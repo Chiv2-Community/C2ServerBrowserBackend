@@ -39,8 +39,8 @@ fn listings_preserve_plain_and_diagnostic_variants() {
     ));
     match &listing.servers[1] {
         ServerListingItem::ServerResponseWithIp(server) => {
-            assert_eq!(server.ip_address, "2001:db8::1")
+            assert_eq!(server.ip_address, "2001:db8::1");
         }
-        _ => panic!("diagnostic IP fields lost"),
+        ServerListingItem::ServerResponse(_) => panic!("diagnostic IP fields lost"),
     }
 }

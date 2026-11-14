@@ -1,6 +1,6 @@
 // Generated from OpenAPI anyOf. Do not edit; regenerate this module.
-use serde::{Deserialize, Serialize};
 use crate::models;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -11,8 +11,6 @@ pub enum ServerListingItem {
 
 impl Default for ServerListingItem {
     fn default() -> Self {
-
-        Self::ServerResponseWithIp(Default::default())
-
+        Self::ServerResponseWithIp(models::ServerResponseWithIp::default())
     }
 }

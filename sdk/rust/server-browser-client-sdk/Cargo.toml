@@ -6,6 +6,11 @@ description = "Registration lifecycle SDK for the Chivalry 2 community server br
 license = "GPL-3.0-only"
 repository = "https://github.com/Chiv2-Community/C2ServerBrowserBackend"
 readme = "README.md"
+keywords = ["chivalry", "server-browser", "sdk"]
+categories = ["api-bindings", "network-programming"]
+
+[lints]
+workspace = true
 
 [dependencies]
 server-browser-client = { version = "=1.0.0", path = "../server-browser-client", default-features = false }

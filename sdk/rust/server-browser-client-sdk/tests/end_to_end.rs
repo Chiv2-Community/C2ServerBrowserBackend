@@ -9,10 +9,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-struct TestClock(Cell<Instant>);
+struct TestClock {
+    now: Cell<Instant>,
+}
 impl Clock for &TestClock {
     fn now(&self) -> Instant {
-        self.0.get()
+        self.now.get()
     }
 }
 
@@ -39,7 +41,9 @@ fn registration_sdk_against_python_backend() {
         32,
     );
     let transport = HttpTransport::from_configuration(configuration.clone());
-    let clock = TestClock(Cell::new(Instant::now()));
+    let clock = TestClock {
+        now: Cell::new(Instant::now()),
+    };
     let mut registration = Registration::with_clock(
         transport.clone(),
         request.clone(),
@@ -61,7 +65,7 @@ fn registration_sdk_against_python_backend() {
     assert_eq!(value["unique_id"], id);
     assert_eq!(value["player_count"], 2);
     assert_eq!(value["current_map"], "next");
-    clock.0.set(clock.0.get() + Duration::from_secs(31));
+    clock.now.set(clock.now.get() + Duration::from_secs(31));
     assert_eq!(registration.poll(), Ok(Event::Heartbeat));
 
     registration.stop().unwrap();
@@ -76,7 +80,7 @@ fn registration_sdk_against_python_backend() {
             events.push(event.clone());
             match event {
                 Event::Registered { .. } => {
-                    control.publish(UpdateRegisteredServer::new(3, 32, "driver".into()));
+                    assert!(control.publish(UpdateRegisteredServer::new(3, 32, "driver".into())));
                 }
                 Event::Updated => control.cancel(),
                 _ => panic!("unexpected lifecycle event"),
