@@ -12,7 +12,7 @@ use super::{configuration, ContentType, Error};
 use crate::{apis::ResponseContent, models};
 use serde::{de::Error as _, Deserialize, Serialize};
 
-/// struct for typed errors of method [`get_motd`]
+/// Typed HTTP errors from [`get_motd`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetMotdError {
@@ -20,45 +20,23 @@ pub enum GetMotdError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`playfab_client_matchmake`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum PlayfabClientMatchmakeError {
-    Status400(models::StatusResponse),
-    Status404(models::PlayfabErrorResponse),
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`tbio_get_servers`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum TbioGetServersError {
-    DefaultResponse(models::StatusResponse),
-    UnknownValue(serde_json::Value),
-}
-
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn get_motd(
+pub async fn get_motd(
     configuration: &configuration::Configuration,
     motd_request: models::MotdRequest,
 ) -> Result<models::TbioMotdResponse, Error<GetMotdError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_body_motd_request = motd_request;
-
     let uri_str = format!("{}/api/tbio/GetMotd", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
     req_builder = req_builder.json(&p_body_motd_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -66,7 +44,7 @@ pub fn get_motd(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -91,27 +69,33 @@ pub fn get_motd(
     }
 }
 
+/// Typed HTTP errors from [`playfab_client_matchmake`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PlayfabClientMatchmakeError {
+    Status400(models::StatusResponse),
+    Status404(models::PlayfabErrorResponse),
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn playfab_client_matchmake(
+pub async fn playfab_client_matchmake(
     configuration: &configuration::Configuration,
     matchmake_request: models::MatchmakeRequest,
 ) -> Result<models::PlayfabMatchmakeResponse, Error<PlayfabClientMatchmakeError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
     let p_body_matchmake_request = matchmake_request;
-
     let uri_str = format!("{}/api/playfab/Client/Matchmake", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
     req_builder = req_builder.json(&p_body_matchmake_request);
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -119,7 +103,7 @@ pub fn playfab_client_matchmake(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {
@@ -155,22 +139,28 @@ pub fn playfab_client_matchmake(
     }
 }
 
+/// Typed HTTP errors from [`tbio_get_servers`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TbioGetServersError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
-pub fn tbio_get_servers(
+pub async fn tbio_get_servers(
     configuration: &configuration::Configuration,
 ) -> Result<models::TbioServerListResponse, Error<TbioGetServersError>> {
     let uri_str = format!("{}/api/tbio/GetCurrentGames", configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
-
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
-
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req)?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
     let content_type = resp
         .headers()
@@ -178,7 +168,7 @@ pub fn tbio_get_servers(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("application/octet-stream");
     let content_type = ContentType::from(content_type);
-    let content = resp.text()?;
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
         match content_type {

@@ -2,7 +2,7 @@
 name = "server-browser-client"
 version = "1.0.0"
 edition = "2021"
-description = "Generated blocking client for the Chivalry 2 community server browser API"
+description = "Generated async client for the Chivalry 2 community server browser API"
 license = "GPL-3.0-only"
 repository = "https://github.com/Chiv2-Community/C2ServerBrowserBackend"
 readme = "README.md"
@@ -17,7 +17,10 @@ server-browser-models = { version = "=1.0.0", path = "../server-browser-models" 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2.5"
-reqwest = { version = "0.12", default-features = false, features = ["json", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "sync", "time"] }
 
 [features]
 default = ["native-tls"]

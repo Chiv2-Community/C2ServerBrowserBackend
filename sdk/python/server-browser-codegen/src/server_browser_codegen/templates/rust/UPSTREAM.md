@@ -18,8 +18,12 @@ The local copies contain intentional changes:
 
 - Models: const/must-use constructors, `Self` return types, scoped import/argument
   lint allowances, Markdown type names, and conditional documentation comments.
-- Operations: unused import removal, error documentation, and an explicit
-  `client/response` partial instead of upstream response handling.
+- Operations: async-only JSON bodies and scalar parameters, error documentation,
+  and an explicit `client/response` partial with status-directed error decoding.
+  AWS signing, auth providers, multipart/forms and file streams are deliberately
+  removed. `rust.py` rejects unsupported media, binary schemas, security schemes
+  and parameter shapes before generation. Restore these capabilities explicitly
+  when needed, including configuration, dependencies and tests.
 
 Other files in this directory are project-owned templates. The generator still
 provides unoverridden supporting templates; this is not a complete upstream fork.
@@ -32,4 +36,4 @@ update these provenance records. Do not reintroduce Python string replacements,
 marker slicing, or generated-source fixes.
 
 Run generation drift checks, generator tests, and the full repository CI. Template
-ownership changes alone should preserve generated SDK output byte-for-byte.
+ownership-only changes should preserve generated SDK output byte-for-byte.

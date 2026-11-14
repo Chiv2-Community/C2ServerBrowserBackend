@@ -15,10 +15,12 @@ workspace = true
 [dependencies]
 server-browser-client = { version = "=1.0.0", path = "../server-browser-client", default-features = false }
 server-browser-models = { version = "=1.0.0", path = "../server-browser-models" }
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tokio = { version = "1", features = ["sync", "time", "macros"] }
 
 [dev-dependencies]
 serde_json = "1"
+tokio = { version = "1", features = ["rt"] }
 
 [features]
 default = ["native-tls"]

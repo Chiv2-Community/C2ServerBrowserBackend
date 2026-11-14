@@ -9,7 +9,7 @@ use server_browser_client_sdk::{
     HttpTransport, Policy, Registration, RegistrationControl,
 };
 
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
 let request = ServerRegistrationRequest::new(
     Chivalry2Ports::new(7777, 7778, 7779),
     "My server".into(), "Community server".into(), "map".into(), 0, 32,
@@ -18,24 +18,27 @@ let transport = HttpTransport::new("https://browser.example", None)?;
 let mut registration = Registration::new(transport, request, Policy::default())?;
 let control = RegistrationControl::default();
 let worker_control = control.clone();
-let worker = std::thread::spawn(move || {
-    let result = registration.run(&worker_control, |event| println!("{event:?}"));
+let worker = tokio::spawn(async move {
+    let result = registration.run(&worker_control, |event| println!("{event:?}")).await;
     // run cleans up on cancellation; explicitly clean up after an error.
-    let cleanup = registration.stop();
+    let cleanup = registration.stop().await;
     result.and(cleanup)
 });
 // Publish live metadata with control.publish(UpdateRegisteredServer { ... }).
 // On application shutdown:
 control.cancel();
-worker.join().expect("registration worker panicked")?;
+worker.await??;
 # Ok(())
 # }
 ```
 
 Applications collect game state and choose addresses/ports. The SDK serializes
 registration, coalesced updates, heartbeats and deletion. It starts no hidden
-threads. Use `run` on a dedicated thread or call `poll` and honor `next_delay`.
-`RegistrationTransport` and monotonic `Clock` are injectable.
+threads or runtimes. Call this example from an application-owned Tokio runtime
+with time and I/O enabled. Use `run` in a caller-owned task or await `poll` and
+honor `next_delay`. `RegistrationTransport` returns `Send` futures; the monotonic
+`Clock` remains injectable. A manager is spawnable when its transport and clock
+are `Send`. Synchronous control methods only hold brief metadata mutexes.
 
 ## Lifecycle policy
 
@@ -59,6 +62,10 @@ threads. Use `run` on a dedicated thread or call `poll` and honor `next_delay`.
 - `cancel` wakes waits; an in-flight request must finish or time out first.
   `stop` attempts deletion once. No network work occurs in `Drop`; failed cleanup
   leaves expiry to the server. `run` errors require explicit `stop`.
+- Dropping an in-flight registration future also leaves `RegistrationUncertain`;
+  no blind retry is allowed. Dropping an update/heartbeat retains the known ID,
+  last confirmed metadata and deadline. Dropping cleanup after it starts still
+  consumes its one attempt. Dropping a never-polled future has no effect.
 
 The default transport disables redirects and bounds requests to ten seconds.
 It honors reqwest proxy settings; an optional source IP binds outgoing requests.

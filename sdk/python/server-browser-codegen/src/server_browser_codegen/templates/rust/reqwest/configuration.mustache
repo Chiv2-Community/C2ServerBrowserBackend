@@ -4,7 +4,7 @@
 pub struct Configuration {
     pub base_path: String,
     pub user_agent: Option<String>,
-    pub client: reqwest::blocking::Client,
+    pub client: reqwest::Client,
 }
 
 impl std::fmt::Debug for Configuration {
@@ -21,7 +21,7 @@ impl Configuration {
 
     /// Use an existing transport without constructing a default HTTP client.
     #[must_use]
-    pub fn with_client(client: reqwest::blocking::Client) -> Self {
+    pub fn with_client(client: reqwest::Client) -> Self {
         Self {
             base_path: "{{{basePath}}}".to_owned(),
             user_agent: Some("server-browser-client/{{{packageVersion}}}".to_owned()),
@@ -33,7 +33,7 @@ impl Configuration {
 impl Default for Configuration {
     fn default() -> Self {
         Self::with_client(
-            reqwest::blocking::Client::builder()
+            reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .expect("HTTP client initialization failed"),

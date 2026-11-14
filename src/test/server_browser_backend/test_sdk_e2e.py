@@ -1,4 +1,4 @@
-"""Generated clients against real Python handlers, persistence and HTTP sockets."""
+"""Sync/async Python and async Rust clients/SDK against actual backend sockets."""
 
 import asyncio
 import errno

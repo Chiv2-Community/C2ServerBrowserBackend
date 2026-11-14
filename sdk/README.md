@@ -42,7 +42,7 @@ Runtime consumers need neither Java nor generation tools.
 
 All three Rust crates start at `1.0.0`; dependencies pin exact sibling versions.
 Models depend only on serialization libraries, not an HTTP client or backend. The
-blocking client uses reqwest and reexports the shared model module. Use the
+async client uses reqwest and reexports the shared model module. Use the
 model crate directly when no HTTP transport is needed.
 
 Until registry name ownership and publication are configured, depend on the

@@ -1,8 +1,6 @@
     let req = req_builder.build()?;
-    let resp = configuration.client.execute(req){{#supportAsync}}.await{{/supportAsync}}?;
+    let resp = configuration.client.execute(req).await?;
     let status = resp.status();
-    {{^isResponseFile}}
-    {{^supportMultipleResponses}}
     {{#returnType}}
     let content_type = resp.headers()
         .get("content-type")
@@ -11,20 +9,9 @@
     {{>client/text_response}}
     let content_type = ContentType::from(content_type);
     {{/returnType}}
-    {{/supportMultipleResponses}}
-    let content = resp.text(){{#supportAsync}}.await{{/supportAsync}}?;
-    {{/isResponseFile}}
+    let content = resp.text().await?;
 
     if !status.is_client_error() && !status.is_server_error() {
-        {{#isResponseFile}}
-        Ok(resp)
-        {{/isResponseFile}}
-        {{^isResponseFile}}
-        {{#supportMultipleResponses}}
-        let entity: Option<{{{operationIdCamelCase}}}Success> = serde_json::from_str(&content).ok();
-        Ok(ResponseContent { status, content, entity })
-        {{/supportMultipleResponses}}
-        {{^supportMultipleResponses}}
         {{^returnType}}
         Ok(())
         {{/returnType}}
@@ -40,12 +27,7 @@
             ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `{{returnType}}`")))),
         }
         {{/returnType}}
-        {{/supportMultipleResponses}}
-        {{/isResponseFile}}
     } else {
-        {{#isResponseFile}}
-        let content = resp.text(){{#supportAsync}}.await{{/supportAsync}}?;
-        {{/isResponseFile}}
         let entity = {
             {{#responses}}
             {{#is4xx}}

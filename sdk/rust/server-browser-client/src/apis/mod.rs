@@ -12,7 +12,6 @@ pub struct ResponseContent<T> {
 pub enum Error<T> {
     Reqwest(reqwest::Error),
     Serde(serde_json::Error),
-    Io(std::io::Error),
     ResponseError(Box<ResponseContent<T>>),
 }
 
@@ -21,7 +20,6 @@ impl<T> fmt::Display for Error<T> {
         match self {
             Self::Reqwest(error) => write!(formatter, "HTTP error: {error}"),
             Self::Serde(error) => write!(formatter, "JSON error: {error}"),
-            Self::Io(error) => write!(formatter, "I/O error: {error}"),
             Self::ResponseError(response) => write!(formatter, "HTTP status {}", response.status),
         }
     }
@@ -32,7 +30,6 @@ impl<T: fmt::Debug> std::error::Error for Error<T> {
         match self {
             Self::Reqwest(error) => Some(error),
             Self::Serde(error) => Some(error),
-            Self::Io(error) => Some(error),
             Self::ResponseError(_) => None,
         }
     }
@@ -47,12 +44,6 @@ impl<T> From<reqwest::Error> for Error<T> {
 impl<T> From<serde_json::Error> for Error<T> {
     fn from(error: serde_json::Error) -> Self {
         Self::Serde(error)
-    }
-}
-
-impl<T> From<std::io::Error> for Error<T> {
-    fn from(error: std::io::Error) -> Self {
-        Self::Io(error)
     }
 }
 

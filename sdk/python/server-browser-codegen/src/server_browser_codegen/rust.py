@@ -14,16 +14,80 @@ import yaml
 from server_browser_codegen.generation import copy_resources, load_contract, run_generator
 
 
+def resolve_component(spec: dict, value: dict) -> dict:
+    if "$ref" in value:
+        section, name = value["$ref"].split("/")[-2:]
+        return spec["components"][section][name]
+    return value
+
+
+def validate_capabilities(spec: dict) -> None:
+    """Reject capabilities deliberately absent from the async Rust templates."""
+    if spec.get("components", {}).get("securitySchemes") or spec.get("security"):
+        raise ValueError("Rust client supports explicit credential headers, not security schemes")
+
+    def check_schema(schema: dict) -> None:
+        if schema.get("type") == "file" or schema.get("format") in {"binary", "byte"}:
+            raise ValueError("Rust client does not support binary/file schemas")
+        for value in schema.values():
+            if isinstance(value, dict):
+                check_schema(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        check_schema(item)
+
+    check_schema(spec.get("components", {}).get("schemas", {}))
+    for path in spec["paths"].values():
+        for method, operation in path.items():
+            if method not in {"get", "post", "put", "delete", "patch", "head", "options"}:
+                continue
+            if operation.get("security"):
+                raise ValueError("Rust client does not support security schemes")
+            if any(key in {
+                "x-group-parameters", "x-rust-group-parameters", "x-use-async-file-stream",
+            } for key in operation):
+                raise ValueError("Unsupported Rust generator option")
+            for parameter in [*path.get("parameters", []), *operation.get("parameters", [])]:
+                parameter = resolve_component(spec, parameter)
+                schema = resolve_component(spec, parameter.get("schema", {}))
+                check_schema(schema)
+                if parameter.get("in") not in {"query", "path", "header"} or schema.get("type") not in {"string", "integer", "number", "boolean"}:
+                    raise ValueError("Rust client supports scalar query/path/header parameters only")
+                if parameter["in"] == "path" and (not parameter.get("required") or schema.get("nullable")):
+                    raise ValueError("Rust path parameters must be required and nonnullable")
+            for media, content in resolve_component(spec, operation.get("requestBody", {})).get("content", {}).items():
+                if media != "application/json":
+                    raise ValueError(f"Unsupported Rust request media type: {media}")
+                check_schema(content.get("schema", {}))
+            success_schemas = []
+            for status, response in operation["responses"].items():
+                for media, content in resolve_component(spec, response).get("content", {}).items():
+                    schema = resolve_component(spec, content.get("schema", {}))
+                    if str(status).startswith("2"):
+                        success_schemas.append(schema)
+                    check_schema(schema)
+                    if media != "application/json" and not media.endswith("+json") and not (
+                        media in {"text/plain", "text/yaml", "application/yaml", "application/x-yaml"}
+                        and schema.get("type") == "string"
+                    ):
+                        raise ValueError(f"Unsupported Rust response media type: {media}")
+                    if not str(status).startswith("2") and media != "application/json" and not media.endswith("+json"):
+                        raise ValueError("Rust error responses must be JSON")
+            if success_schemas and any(schema != success_schemas[0] for schema in success_schemas):
+                raise ValueError("Rust client requires one successful response schema per operation")
+
+
 def normalize_text_responses(spec: dict) -> None:
     for path in spec["paths"].values():
         for method, operation in path.items():
             if method not in {"get", "post", "put", "delete", "patch", "head", "options"}:
                 continue
             contents = [
-                (media, content["schema"])
+                (media, resolve_component(spec, content["schema"]))
                 for status, response in operation["responses"].items()
                 if str(status).startswith("2")
-                for media, content in response.get("content", {}).items()
+                for media, content in resolve_component(spec, response).get("content", {}).items()
             ]
             # Returning raw text is safe only when every success has a string type.
             if contents and all(schema.get("type") == "string" for _, schema in contents):
@@ -82,6 +146,7 @@ def sync_package(source: Path, target: Path, check: bool) -> None:
 
 def generate(root: Path, check: bool = False) -> None:
     _, spec = load_contract(root)
+    validate_capabilities(spec)
     normalize_anyof(spec["components"]["schemas"])
     normalize_text_responses(spec)
     with tempfile.TemporaryDirectory(prefix="server-browser-rust-") as temporary:
@@ -128,7 +193,7 @@ def generate(root: Path, check: bool = False) -> None:
                 str(templates),
                 "-c",
                 str(config),
-                "--additional-properties=packageName=server-browser-client,packageVersion=1.0.0,supportAsync=false,avoidBoxedModels=true",
+                "--additional-properties=packageName=server-browser-client,packageVersion=1.0.0,supportAsync=true,avoidBoxedModels=true",
                 "--global-property=apiDocs=false,modelDocs=false,apiTests=false,modelTests=false",
             ],
             root,

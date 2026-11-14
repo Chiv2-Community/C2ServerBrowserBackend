@@ -3,7 +3,7 @@ use server_browser_client::apis::{api_v1_api as api, configuration::Configuratio
 use server_browser_models::{
     RegistrationResponse, ServerRegistrationRequest, UpdateRegisteredServer, UpdateResponse,
 };
-use std::{net::IpAddr, time::Duration};
+use std::{future::Future, net::IpAddr, time::Duration};
 
 /// Credential-safe failure reported by a registration transport.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub enum RequestFailure {
 }
 
 /// Injected protocol operations; implementations must keep credentials out of errors.
-pub trait RegistrationTransport {
+pub trait RegistrationTransport: Sync {
     /// Submit one non-idempotent registration attempt.
     ///
     /// # Errors
@@ -25,7 +25,7 @@ pub trait RegistrationTransport {
     fn register(
         &self,
         request: ServerRegistrationRequest,
-    ) -> Result<RegistrationResponse, RequestFailure>;
+    ) -> impl Future<Output = Result<RegistrationResponse, RequestFailure>> + Send;
     /// Publish metadata for a known identity.
     ///
     /// # Errors
@@ -35,20 +35,28 @@ pub trait RegistrationTransport {
         id: &str,
         key: &str,
         update: UpdateRegisteredServer,
-    ) -> Result<UpdateResponse, RequestFailure>;
+    ) -> impl Future<Output = Result<UpdateResponse, RequestFailure>> + Send;
     /// Renew the lease of a known identity.
     ///
     /// # Errors
     /// Returns a transport, HTTP, or decoding failure without credential details.
-    fn heartbeat(&self, id: &str, key: &str) -> Result<UpdateResponse, RequestFailure>;
+    fn heartbeat(
+        &self,
+        id: &str,
+        key: &str,
+    ) -> impl Future<Output = Result<UpdateResponse, RequestFailure>> + Send;
     /// Delete a known identity once.
     ///
     /// # Errors
     /// Returns a transport, HTTP, or decoding failure without credential details.
-    fn delete(&self, id: &str, key: &str) -> Result<(), RequestFailure>;
+    fn delete(
+        &self,
+        id: &str,
+        key: &str,
+    ) -> impl Future<Output = Result<(), RequestFailure>> + Send;
 }
 
-/// Bounded blocking HTTP transport with redacted diagnostic output.
+/// Bounded async HTTP transport with redacted diagnostic output.
 #[derive(Clone)]
 pub struct HttpTransport {
     configuration: Configuration,
@@ -66,7 +74,7 @@ impl HttpTransport {
     /// # Errors
     /// Returns the HTTP client initialization error.
     pub fn new(base_url: &str, source_ip: Option<IpAddr>) -> Result<Self, reqwest::Error> {
-        let mut builder = reqwest::blocking::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .redirect(reqwest::redirect::Policy::none());
@@ -96,33 +104,40 @@ fn safe_failure<E>(error: Error<E>) -> RequestFailure {
     match error {
         Error::ResponseError(response) => RequestFailure::Http(response.status.as_u16()),
         Error::Serde(_) => RequestFailure::InvalidResponse,
-        _ => RequestFailure::Transport,
+        Error::Reqwest(_) => RequestFailure::Transport,
     }
 }
 
 impl RegistrationTransport for HttpTransport {
-    fn register(
+    async fn register(
         &self,
         request: ServerRegistrationRequest,
     ) -> Result<RegistrationResponse, RequestFailure> {
-        api::register(&self.configuration, request).map_err(safe_failure)
+        api::register(&self.configuration, request)
+            .await
+            .map_err(safe_failure)
     }
 
-    fn update(
+    async fn update(
         &self,
         id: &str,
         key: &str,
         update: UpdateRegisteredServer,
     ) -> Result<UpdateResponse, RequestFailure> {
-        api::update(&self.configuration, key, id, update).map_err(safe_failure)
+        api::update(&self.configuration, key, id, update)
+            .await
+            .map_err(safe_failure)
     }
 
-    fn heartbeat(&self, id: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
-        api::heartbeat(&self.configuration, key, id).map_err(safe_failure)
+    async fn heartbeat(&self, id: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
+        api::heartbeat(&self.configuration, key, id)
+            .await
+            .map_err(safe_failure)
     }
 
-    fn delete(&self, id: &str, key: &str) -> Result<(), RequestFailure> {
+    async fn delete(&self, id: &str, key: &str) -> Result<(), RequestFailure> {
         api::delete_server(&self.configuration, key, id)
+            .await
             .map(|_| ())
             .map_err(safe_failure)
     }
