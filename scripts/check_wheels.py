@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -130,6 +132,74 @@ def venv_executable(environment: Path, name: str) -> Path:
     return environment / (f"Scripts/{name}.exe" if os.name == "nt" else f"bin/{name}")
 
 
+def check_workspace_contract(directory: Path, expected: dict) -> None:
+    """Exercise uv's build cache without changing checkout resources."""
+    workspace = directory / "workspace"
+    package = "sdk/python/server-browser-models"
+    shutil.copytree(
+        ROOT / package,
+        workspace / package,
+        ignore=shutil.ignore_patterns("__pycache__", "contract.json", "openapi.yaml"),
+    )
+    source = workspace / "assets/chiv2-server-browser-api.yaml"
+    source.parent.mkdir()
+    source.write_text(yaml.safe_dump(expected))
+    (workspace / "pyproject.toml").write_text(
+        '[project]\nname = "contract-cache-smoke"\nversion = "0.0.0"\n'
+        'requires-python = ">=3.10"\ndependencies = ["server-browser-models"]\n'
+        f'[tool.uv.workspace]\nmembers = ["{package}"]\n'
+        "[tool.uv.sources]\nserver-browser-models = { workspace = true }\n"
+    )
+    command = [
+        "uv",
+        "sync",
+        "--directory",
+        str(workspace),
+        "--python",
+        sys.executable,
+        "--cache-dir",
+        str(directory / "uv-cache"),
+        "--no-python-downloads",
+    ]
+    probe = """
+import json
+from importlib.resources import files
+resources = files("server_browser_models")
+print(json.dumps({name: resources.joinpath(name).read_text() for name in ("contract.json", "openapi.yaml")}))
+"""
+    updated = {
+        **expected,
+        "x-max-json-body-bytes": expected["x-max-json-body-bytes"] + 1,
+    }
+    for contract in (expected, updated):
+        timestamp = source.stat().st_mtime_ns
+        source.write_text(yaml.safe_dump(contract))
+        # Cache keys use mtimes; also work on coarse-resolution filesystems.
+        os.utime(source, ns=(timestamp + 2_000_000_000, timestamp + 2_000_000_000))
+        subprocess.run(command, check=True)
+        resources = json.loads(
+            subprocess.check_output(
+                [
+                    str(venv_executable(workspace / ".venv", "python")),
+                    "-I",
+                    "-c",
+                    probe,
+                ],
+                cwd=workspace,
+                text=True,
+            )
+        )
+        stale = [
+            name
+            for name, actual in (
+                ("contract.json", json.loads(resources["contract.json"])),
+                ("openapi.yaml", yaml.safe_load(resources["openapi.yaml"])),
+            )
+            if actual != contract
+        ]
+        assert not stale, f"uv sync left bundled resources stale: {stale}"
+
+
 def main() -> None:
     names = [f"server_browser_{name}" for name in ISOLATED_PACKAGES] + [BACKEND]
     wheels = {}
@@ -149,6 +219,7 @@ def main() -> None:
     check_contract(wheels["server_browser_models"], expected)
     with tempfile.TemporaryDirectory(prefix="server-browser-wheel-smoke-") as temporary:
         directory = Path(temporary)
+        check_workspace_contract(directory, expected)
         api_sdist = sdists["server_browser_models"]
         with tarfile.open(api_sdist) as archive:
             members = archive.getnames()
