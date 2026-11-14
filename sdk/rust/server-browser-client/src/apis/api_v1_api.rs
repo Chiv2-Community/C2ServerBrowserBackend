@@ -668,6 +668,9 @@ pub fn send_swagger(configuration: &configuration::Configuration, ) -> Result<St
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream");
+    if status.is_success() && content_type.split(';').next().unwrap_or("").trim().eq_ignore_ascii_case("text/yaml") {
+        return resp.text().map_err(Error::from);
+    }
     let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {

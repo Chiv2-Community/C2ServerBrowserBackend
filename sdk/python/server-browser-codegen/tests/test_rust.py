@@ -5,6 +5,32 @@ import pytest
 from server_browser_codegen import generation, rust
 
 
+def test_text_decoding_comes_from_declared_success_media_types():
+    def operation(schema):
+        return {"responses": {"200": {"content": {"text/yaml": {"schema": schema}}}}}
+
+    spec = {"paths": {"/text": {"get": operation({"type": "string"})},
+                      "/model": {"get": operation({"$ref": "#/components/schemas/Model"})}}}
+    rust.normalize_text_responses(spec)
+    assert spec["paths"]["/text"]["get"]["x-rust-text-media-types"] == ["text/yaml"]
+    assert "x-rust-text-media-types" not in spec["paths"]["/model"]["get"]
+
+
+def test_text_decoding_does_not_bypass_json_or_mixed_success_types():
+    json_string = {"responses": {"200": {"content": {
+        "application/json": {"schema": {"type": "string"}},
+        "application/custom+json": {"schema": {"type": "string"}},
+    }}}}
+    mixed = {"responses": {"200": {"content": {
+        "text/plain": {"schema": {"type": "string"}},
+        "application/json": {"schema": {"type": "object"}},
+    }}}}
+    spec = {"paths": {"/json": {"get": json_string}, "/mixed": {"get": mixed}}}
+    rust.normalize_text_responses(spec)
+    assert json_string["x-rust-text-media-types"] == []
+    assert "x-rust-text-media-types" not in mixed
+
+
 def test_anyof_orders_by_inherited_required_fields():
     schemas = {
         "Base": {"required": ["name"]},

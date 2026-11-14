@@ -1,3 +1,3 @@
 [workspace]
-members = ["server-browser-models", "server-browser-client"]
+members = ["server-browser-models", "server-browser-client", "server-browser-client-sdk"]
 resolver = "2"
