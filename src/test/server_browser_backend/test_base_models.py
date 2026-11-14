@@ -46,9 +46,26 @@ def test_server_stores_parsed_addresses(public_ip, local_ip, address_type):
 
     for updated in (
         server.with_heartbeat(2.0),
-        server.with_update(UpdateRegisteredServer(current_map="New Map", player_count=1, max_players=100, mods=None)),
+        server.with_update(UpdateRegisteredServer(current_map="New Map", player_count=1, max_players=100, mods=None), 2.0),
         server.verified(),
         server.unverified(),
     ):
         assert updated.ip_address is server.ip_address
         assert updated.local_ip_address is server.local_ip_address
+    update = UpdateRegisteredServer(current_map="New Map", player_count=1, max_players=32)
+    renewed = server.with_update(update, 123.5)
+    assert renewed.last_heartbeat == 123.5
+    assert renewed.current_map == "New Map"
+    assert renewed.player_count == 1
+    assert renewed.max_players == 32
+    assert renewed.mods is server.mods
+    assert renewed.unique_id == server.unique_id
+    assert renewed.ports is server.ports
+    assert renewed.ip_address is server.ip_address
+    assert renewed.local_ip_address is server.local_ip_address
+    assert renewed.name == server.name
+    assert renewed.description == server.description
+    assert renewed.password_protected == server.password_protected
+    assert renewed.is_verified == server.is_verified
+    assert server.last_heartbeat == 1.0
+    assert server.current_map != renewed.current_map

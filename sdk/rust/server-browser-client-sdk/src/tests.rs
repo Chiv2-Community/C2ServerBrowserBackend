@@ -27,6 +27,7 @@ struct Fake {
     failures: RefCell<VecDeque<RequestFailure>>,
     sequence: Cell<u32>,
     lifetime: Cell<f64>,
+    heartbeat: Cell<f64>,
 }
 impl Fake {
     fn call(&self, name: &'static str) -> Result<(), RequestFailure> {
@@ -36,7 +37,7 @@ impl Fake {
     fn server(&self) -> ServerResponse {
         ServerResponse {
             unique_id: self.sequence.get().to_string(),
-            last_heartbeat: 2_000_000_000.0,
+            last_heartbeat: self.heartbeat.get(),
             ..Default::default()
         }
     }
@@ -48,6 +49,7 @@ impl RegistrationTransport for Rc<Fake> {
     ) -> Result<RegistrationResponse, RequestFailure> {
         self.call("register")?;
         self.sequence.set(self.sequence.get() + 1);
+        self.heartbeat.set(2_000_000_000.0);
         Ok(RegistrationResponse::new(
             "secret-test-key".into(),
             self.server().last_heartbeat + self.lifetime.get(),
@@ -57,6 +59,7 @@ impl RegistrationTransport for Rc<Fake> {
     fn heartbeat(&self, _: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
         assert_eq!(key, "secret-test-key");
         self.call("heartbeat")?;
+        self.heartbeat.set(self.heartbeat.get() + 30.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
             self.server(),
@@ -69,6 +72,7 @@ impl RegistrationTransport for Rc<Fake> {
         _: UpdateRegisteredServer,
     ) -> Result<UpdateResponse, RequestFailure> {
         self.call("update")?;
+        self.heartbeat.set(self.heartbeat.get() + 1.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
             self.server(),
@@ -172,6 +176,76 @@ fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
     assert_eq!(registration.poll(), Ok(Event::Updated));
     assert_eq!(registration.server_id(), Some("1"));
     assert_eq!(transport.sequence.get(), 1);
+}
+
+#[test]
+fn continuous_metadata_updates_renew_without_separate_heartbeats() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    registration.poll().unwrap();
+    let original_heartbeat = transport.server().last_heartbeat;
+    for second in 1..=60 {
+        clock.advance(1);
+        registration
+            .set_update(UpdateRegisteredServer::new(second, 64, "next".into()))
+            .unwrap();
+        let before = transport.calls.borrow().len();
+        assert_eq!(registration.poll(), Ok(Event::Updated));
+        assert_eq!(transport.calls.borrow().len(), before + 1);
+        assert_eq!(registration.next_delay(), Some(Duration::from_secs(30)));
+        assert!(transport.server().last_heartbeat > original_heartbeat);
+    }
+    assert_eq!(
+        transport
+            .calls
+            .borrow()
+            .iter()
+            .filter(|call| **call == "heartbeat")
+            .count(),
+        0
+    );
+    assert_eq!(registration.server_id(), Some("1"));
+}
+
+#[test]
+fn metadata_renewal_respects_backoff() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    registration.poll().unwrap();
+    clock.advance(25);
+    registration
+        .set_update(UpdateRegisteredServer::new(1, 32, "first".into()))
+        .unwrap();
+    transport
+        .failures
+        .borrow_mut()
+        .push_back(RequestFailure::Http(503));
+    assert_eq!(
+        registration.poll(),
+        Ok(Event::RetryScheduled(Duration::from_secs(10)))
+    );
+    clock.advance(5);
+    registration
+        .set_update(UpdateRegisteredServer::new(2, 32, "latest".into()))
+        .unwrap();
+    assert_eq!(
+        registration.poll(),
+        Ok(Event::Waiting(Duration::from_secs(5)))
+    );
+    assert_eq!(*transport.calls.borrow(), ["register", "update"]);
+    clock.advance(5);
+    assert_eq!(registration.poll(), Ok(Event::Updated));
+    assert_eq!(
+        registration.poll(),
+        Ok(Event::Waiting(Duration::from_secs(30)))
+    );
+    assert_eq!(*transport.calls.borrow(), ["register", "update", "update"]);
 }
 
 #[test]

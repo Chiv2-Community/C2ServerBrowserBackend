@@ -1027,6 +1027,7 @@ pub fn send_swagger(
     }
 }
 
+/// A successful authenticated update also counts as a heartbeat, advancing `last_heartbeat` and `refresh_before`. Rejected updates do not renew the lease.
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub fn update(

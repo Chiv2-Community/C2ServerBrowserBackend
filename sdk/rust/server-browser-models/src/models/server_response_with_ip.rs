@@ -43,7 +43,7 @@ pub struct ServerResponseWithIp {
     /// A list of mods running on the server
     #[serde(rename = "mods")]
     pub mods: Vec<models::Mod>,
-    /// Unix timestamp of the last heartbeat
+    /// Unix timestamp of registration or the last successful heartbeat or metadata update
     #[serde(rename = "last_heartbeat")]
     pub last_heartbeat: f64,
     /// Observed registration source; included when diagnostics are enabled

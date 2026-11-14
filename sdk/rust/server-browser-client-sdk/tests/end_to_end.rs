@@ -18,11 +18,9 @@ impl Clock for &TestClock {
     }
 }
 
-#[test]
-#[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
-fn registration_sdk_against_python_backend() {
+fn configuration() -> Configuration {
     let url = std::env::var("SDK_E2E_URL").expect("Python harness URL required");
-    let configuration = Configuration {
+    Configuration {
         base_path: url,
         ..Configuration::with_client(
             reqwest::blocking::Client::builder()
@@ -32,15 +30,25 @@ fn registration_sdk_against_python_backend() {
                 .build()
                 .unwrap(),
         )
-    };
-    let request = ServerRegistrationRequest::new(
+    }
+}
+
+fn request() -> ServerRegistrationRequest {
+    ServerRegistrationRequest::new(
         Chivalry2Ports::new(7777, 7778, 7779),
         "SDK lifecycle".into(),
         "test".into(),
         "map".into(),
         0,
         32,
-    );
+    )
+}
+
+#[test]
+#[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
+fn registration_sdk_against_python_backend() {
+    let configuration = configuration();
+    let request = request();
     let transport = HttpTransport::from_configuration(configuration.clone());
     let clock = TestClock {
         now: Cell::new(Instant::now()),
@@ -89,5 +97,55 @@ fn registration_sdk_against_python_backend() {
         })
         .unwrap();
     assert_eq!(events.len(), 2);
+    assert!(api::get_servers(&configuration).unwrap().servers.is_empty());
+}
+
+#[test]
+#[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
+fn metadata_updates_renew_lease_without_heartbeats() {
+    let configuration = configuration();
+    let mut registration = Registration::new(
+        HttpTransport::from_configuration(configuration.clone()),
+        request(),
+        Policy {
+            heartbeat_interval: Duration::from_millis(100),
+            safety_margin: Duration::from_millis(100),
+            ..Policy::default()
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        registration.poll().unwrap(),
+        Event::Registered { .. }
+    ));
+    let id = registration.server_id().unwrap().to_owned();
+    let started = Instant::now();
+    let mut updates = 0;
+    // The harness gives this registration a one-second lease. Metadata changes
+    // arrive faster than heartbeats for longer than that original lease.
+    while started.elapsed() < Duration::from_millis(1300) {
+        registration
+            .set_update(UpdateRegisteredServer::new(
+                updates + 1,
+                64,
+                "changing".into(),
+            ))
+            .unwrap();
+        match registration.poll().unwrap() {
+            Event::Updated => updates += 1,
+            event => panic!("unexpected event: {event:?}"),
+        }
+        assert_eq!(registration.server_id(), Some(id.as_str()));
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    assert!(updates >= 5);
+    let listing = api::get_servers(&configuration).unwrap();
+    assert_eq!(listing.servers.len(), 1);
+    let server = serde_json::to_value(&listing.servers[0]).unwrap();
+    assert_eq!(server["unique_id"], id);
+    assert_eq!(server["player_count"], updates);
+    assert_eq!(server["max_players"], 64);
+    assert_eq!(server["current_map"], "changing");
+    registration.stop().unwrap();
     assert!(api::get_servers(&configuration).unwrap().servers.is_empty());
 }
