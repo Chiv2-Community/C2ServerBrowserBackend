@@ -314,8 +314,61 @@ fn cleanup_reports_failure_without_logging_secrets_or_retrying() {
         registration.stop(),
         Err(SdkError::CleanupFailed(RequestFailure::Transport))
     );
+    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(registration.next_delay(), None);
     registration.stop().unwrap();
     assert_eq!(*transport.calls.borrow(), ["register", "delete"]);
+}
+
+#[test]
+fn stopping_overrides_terminal_failure_and_blocks_future_work() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    registration.poll().unwrap();
+    clock.advance(30);
+    transport
+        .failures
+        .borrow_mut()
+        .push_back(RequestFailure::Http(403));
+    assert_eq!(registration.poll(), Err(SdkError::Rejected(403)));
+    assert_eq!(registration.next_delay(), None);
+    assert_eq!(
+        registration.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Rejected(403))
+    );
+    registration.stop().unwrap();
+    assert_eq!(registration.server_id(), None);
+    assert_eq!(registration.next_delay(), None);
+    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(
+        registration.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
+    registration.stop().unwrap();
+    assert_eq!(
+        *transport.calls.borrow(),
+        ["register", "heartbeat", "delete"]
+    );
+}
+
+#[test]
+fn stopping_before_registration_never_performs_network_io() {
+    let Fixture {
+        mut registration,
+        transport,
+        ..
+    } = fixture();
+    registration.stop().unwrap();
+    assert_eq!(registration.next_delay(), None);
+    assert_eq!(registration.poll(), Err(SdkError::Stopped));
+    assert_eq!(
+        registration.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
+    assert!(transport.calls.borrow().is_empty());
 }
 
 #[test]

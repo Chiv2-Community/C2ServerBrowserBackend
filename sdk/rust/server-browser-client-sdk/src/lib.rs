@@ -114,16 +114,14 @@ pub struct Registration<T, C = SystemClock> {
     published: Option<UpdateRegisteredServer>,
     next_attempt: Instant,
     failures: u32,
-    failure: Option<SdkError>,
-    stopped: bool,
+    terminal_error: Option<SdkError>,
 }
 
 impl<T, C> std::fmt::Debug for Registration<T, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Registration")
             .field("registered", &self.identity.is_some())
-            .field("failure", &self.failure)
-            .field("stopped", &self.stopped)
+            .field("terminal_error", &self.terminal_error)
             .finish_non_exhaustive()
     }
 }
@@ -170,8 +168,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             published: None,
             next_attempt,
             failures: 0,
-            failure: None,
-            stopped: false,
+            terminal_error: None,
         })
     }
 
@@ -182,7 +179,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
 
     /// Return the delay until another poll, or none after a terminal outcome.
     pub fn next_delay(&self) -> Option<Duration> {
-        if self.stopped || self.failure.is_some() {
+        if self.terminal_error.is_some() {
             None
         } else {
             Some(
@@ -223,17 +220,14 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     const fn check_running(&self) -> Result<(), SdkError> {
-        if self.stopped {
-            Err(SdkError::Stopped)
-        } else if let Some(error) = self.failure {
-            Err(error)
-        } else {
-            Ok(())
+        match self.terminal_error {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
     }
 
     const fn halt(&mut self, error: SdkError) -> SdkError {
-        self.failure = Some(error);
+        self.terminal_error = Some(error);
         error
     }
 
@@ -375,7 +369,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// # Errors
     /// Returns [`SdkError::CleanupFailed`] if deletion fails, except HTTP 404.
     pub fn stop(&mut self) -> Result<(), SdkError> {
-        self.stopped = true;
+        self.terminal_error = Some(SdkError::Stopped);
         match self.identity.take() {
             Some(identity) => match self.transport.delete(&identity.id, &identity.key) {
                 Ok(()) | Err(RequestFailure::Http(404)) => Ok(()),
