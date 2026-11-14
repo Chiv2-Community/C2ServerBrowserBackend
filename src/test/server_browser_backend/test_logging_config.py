@@ -62,6 +62,7 @@ logging.getLogger("uvicorn.access").info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:1
 application_logger.warning("APPLICATION-PROBE")
 application_logger.info("INFO-PROBE")
 application_logger.error("ERROR-PROBE")
+application_logger.critical("CRITICAL-PROBE")
 logging.getLogger("uvicorn.error").info("UVICORN-INFO-PROBE")
 """
     output = run_python(code, **environment)
@@ -79,11 +80,12 @@ logging.getLogger("uvicorn.error").info("UVICORN-INFO-PROBE")
         f" | ERROR | {'-':<15} | server_browser_backend.routes.api_v1 - ERROR-PROBE"
         in output
     )
-    assert f" | WARNING | {'-':<15} | uvicorn.error - STARTUP-PROBE" in output
+    assert f" | WARNI | {'-':<15} | uvicorn.error - STARTUP-PROBE" in output
+    assert f" | CRITI | {'-':<15} | server_browser_backend.routes.api_v1 - CRITICAL-PROBE" in output
     for line in output.splitlines():
         ip = "127.0.0.1" if " | uvicorn.access - " in line else "-"
         assert re.fullmatch(
-            rf"\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}:\d{{2}}:\d{{2}},\d{{3}} \| (?:INFO |WARNING|ERROR) \| {re.escape(f'{ip:<15}')} \| [\w.]+ - .*",
+            rf"\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}:\d{{2}}:\d{{2}},\d{{3}} \| (?:INFO |WARNI|ERROR|CRITI) \| {re.escape(f'{ip:<15}')} \| [\w.]+ - .*",
             line,
         ), line
     assert "Backend services initialized" in output
@@ -248,7 +250,7 @@ asyncio.run(main())
     for marker, count in (("AFTER-ASGI-PROBE", 2), ("OUTSIDE-PROBE", 1)):
         assert (
             sum(
-                f" | WARNING | {'-':<15} | uvicorn.error - {marker}" in line
+                f" | WARNI | {'-':<15} | uvicorn.error - {marker}" in line
                 for line in lines
             )
             == count

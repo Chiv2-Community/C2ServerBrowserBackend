@@ -18,7 +18,7 @@ def configure_logging(
             "formatters": {
                 "default": {
                     "()": ConsoleFormatter,
-                    "format": "%(asctime)s | %(levelname)-5s | %(requestor_ip)-15s | %(name)s - %(message)s",
+                    "format": "%(asctime)s | %(levelname)-5.5s | %(requestor_ip)-15s | %(name)s - %(message)s",
                 },
             },
             "handlers": {
