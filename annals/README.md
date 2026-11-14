@@ -2,6 +2,7 @@
 
 | Date | Record | Status | Scope | Git provenance |
 | --- | --- | --- | --- | --- |
+| 2026-11-13 | [Total JSON upload deadline](2026-11-13-json-upload-deadline.md) | implemented locally; uncommitted | JSON uploads, HTTP timeout | `866990d`, `v1.2.3` |
 | 2026-11-13 | [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md) | implemented on branch; release unverified | IP policy, verification, persistence | `51ea012`, `v1.2.3` |
 | 2026-11-13 | [JSON depth and Unicode guard](2026-11-13-json-depth-and-unicode-guard.md) | implemented on branch; release unverified | JSON ingestion, registry safety | `51ea012`, `v1.2.3` |
 | 2026-11-13 | [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md) | implemented on branch; release unverified | Player counts, IP identity | `4895a9a`, `v1.2.3` |
