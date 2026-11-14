@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from contextlib import contextmanager
 
 import httpx
 import pytest
@@ -10,7 +11,8 @@ from anyio import to_thread
 from server_browser_backend.request_logging import ConsoleFormatter, request_scope
 
 
-def test_request_ip_context_is_isolated_and_reset(app):
+@contextmanager
+def capture_logs(logger):
     messages = []
 
     class Capture(logging.Handler):
@@ -19,10 +21,19 @@ def test_request_ip_context_is_isolated_and_reset(app):
 
     handler = Capture()
     handler.setFormatter(ConsoleFormatter("%(requestor_ip)s | %(name)s - %(message)s"))
-    logger = logging.getLogger("server_browser_backend.request_logging_probe")
     logger.addHandler(handler)
     previous_level = logger.level
     logger.setLevel(logging.INFO)
+    try:
+        yield messages
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
+        handler.close()
+
+
+def test_request_ip_context_is_isolated_and_reset(app):
+    logger = logging.getLogger("server_browser_backend.request_logging_probe")
 
     @app.get("/logging-probe/{label}")
     async def probe(label: str):
@@ -33,60 +44,38 @@ def test_request_ip_context_is_isolated_and_reset(app):
         return {}
 
     async def exercise():
-        async def request(label, forwarded=None):
-            async def send(scope_message):
-                # Uvicorn emits access logs while handling response.start.
-                if scope_message["type"] == "http.response.start":
-                    logger.info("%s access", label)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
 
-            async def receive():
-                return {"type": "http.request", "body": b"", "more_body": False}
+            async def request(label, forwarded=None):
+                headers = {} if forwarded is None else {"X-Forwarded-For": forwarded}
+                response = await client.get(f"/logging-probe/{label}", headers=headers)
+                assert response.status_code == 200
+                assert request_scope.get() is None
 
-            scope = {
-                "type": "http",
-                "asgi": {"version": "3.0"},
-                "http_version": "1.1",
-                "method": "GET",
-                "scheme": "http",
-                "path": f"/logging-probe/{label}",
-                "raw_path": f"/logging-probe/{label}".encode(),
-                "query_string": b"",
-                "headers": (
-                    []
-                    if forwarded is None
-                    else [(b"x-forwarded-for", forwarded.encode())]
-                ),
-                "client": ("127.0.0.1", 1234),
-                "server": ("test", 80),
-            }
-            await app(scope, receive, send)
-            assert request_scope.get() is None
+            await asyncio.gather(
+                request("v4", "192.0.2.4"),
+                request("v6", "2001:db8::6"),
+                request("direct"),
+                request("invalid", "not-an-ip"),
+            )
 
-        await asyncio.gather(
-            request("v4", "192.0.2.4"),
-            request("v6", "2001:db8::6"),
-            request("direct"),
-            request("invalid", "not-an-ip"),
-        )
-
-    try:
+    with capture_logs(logger) as messages:
         asyncio.run(exercise())
         logger.info("outside")
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(previous_level)
     for label, ip in (
         ("v4", "192.0.2.4"),
         ("v6", "2001:db8::6"),
         ("direct", "127.0.0.1"),
         ("invalid", "-"),
     ):
-        for event in ("before", "thread", "after", "access"):
+        for event in ("before", "thread", "after"):
             assert f"{ip} | {logger.name} - {label} {event}" in messages
     assert messages[-1] == f"- | {logger.name} - outside"
 
 
-def test_unhandled_error_retains_forwarded_ip(app, browser, monkeypatch, caplog):
+def test_unhandled_error_retains_forwarded_ip(app, browser, monkeypatch):
     def fail():
         raise RuntimeError("logging probe failure")
 
@@ -104,21 +93,11 @@ def test_unhandled_error_retains_forwarded_ip(app, browser, monkeypatch, caplog)
             ).status_code == 500
         assert request_scope.get() is None
 
-    class Capture(logging.Handler):
-        def emit(self, record):
-            messages.append(self.format(record))
-
-    messages = []
-    handler = Capture()
-    handler.setFormatter(ConsoleFormatter("%(requestor_ip)s | %(message)s"))
     logger = logging.getLogger("server_browser_backend.error_handlers")
-    logger.addHandler(handler)
-    try:
+    with capture_logs(logger) as messages:
         asyncio.run(exercise())
-    finally:
-        logger.removeHandler(handler)
     assert len(messages) == 1
-    assert messages[0].startswith("192.0.2.8 | Unhandled exception")
+    assert messages[0].startswith(f"192.0.2.8 | {logger.name} - Unhandled exception")
 
 
 def test_cancellation_preserves_exception_identity_and_resets_context(app):

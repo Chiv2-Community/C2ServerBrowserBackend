@@ -8,6 +8,24 @@ import sys
 import pytest
 
 
+def run_python(code, **environment):
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"GRAYLOG_HOST", "GRAYLOG_PORT", "ADMIN_KEY", "DEBUG_MODE"}
+    }
+    env.update(environment)
+    process = subprocess.run(
+        [sys.executable, "-c", code],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=20,
+    )
+    return process.stdout + process.stderr
+
+
 @pytest.mark.parametrize("admin_configured", [False, True])
 @pytest.mark.parametrize("uvicorn_level", ["info", "warning"])
 @pytest.mark.parametrize("access_log", [False, True])
@@ -15,13 +33,10 @@ def test_app_import_preserves_uvicorn_and_preexisting_loggers(
     tmp_path, admin_configured, uvicorn_level, access_log
 ):
     environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"GRAYLOG_HOST", "GRAYLOG_PORT", "ADMIN_KEY", "DEBUG_MODE"}
+        "CONFIG_DIR": str(tmp_path),
+        "TEST_UVICORN_LOG_LEVEL": uvicorn_level,
+        "TEST_ACCESS_LOG": str(access_log),
     }
-    environment["CONFIG_DIR"] = str(tmp_path)
-    environment["TEST_UVICORN_LOG_LEVEL"] = uvicorn_level
-    environment["TEST_ACCESS_LOG"] = str(access_log)
     if admin_configured:
         environment["ADMIN_KEY"] = "private-admin-key-do-not-log"
     code = """
@@ -49,15 +64,7 @@ application_logger.info("INFO-PROBE")
 application_logger.error("ERROR-PROBE")
 logging.getLogger("uvicorn.error").info("UVICORN-INFO-PROBE")
 """
-    process = subprocess.run(
-        [sys.executable, "-c", code],
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=20,
-    )
-    output = process.stdout + process.stderr
+    output = run_python(code, **environment)
     assert output.count("STARTUP-PROBE") == 1
     assert output.count("APPLICATION-PROBE") == 1
     assert output.count("GET /api/v1/servers HTTP/1.1") == int(
@@ -108,14 +115,7 @@ assert len(logging.getLogger().handlers) == 2
 assert instances[-1].settings == {"host": "graylog.internal", "port": 12202, "include_extra_fields": True}
 assert events.count("GRAYLOG-PROBE") == 1
 """
-    process = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=20,
-    )
-    assert process.stderr.count("GRAYLOG-PROBE") == 1
+    assert run_python(code).count("GRAYLOG-PROBE") == 1
 
 
 def test_console_ip_padding_preserves_long_ipv6_addresses():
@@ -131,14 +131,7 @@ for ip in ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
     finally:
         request_scope.reset(token)
 """
-    process = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=20,
-    )
-    lines = process.stderr.splitlines()
+    lines = run_python(code).splitlines()
     assert len(lines) == 2
     for line, ip in zip(lines, ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd")):
         assert f" | INFO  | {ip:<15} | uvicorn.access - IP-PROBE" in line
@@ -148,13 +141,6 @@ for ip in ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
 def test_real_uvicorn_unhandled_errors_keep_ip_without_leaking_context(
     tmp_path, cancel_on_shutdown
 ):
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"GRAYLOG_HOST", "GRAYLOG_PORT", "ADMIN_KEY", "DEBUG_MODE"}
-    }
-    environment["CONFIG_DIR"] = str(tmp_path)
-    environment["CANCEL_ON_SHUTDOWN"] = str(cancel_on_shutdown)
     code = """
 import asyncio
 import logging
@@ -223,15 +209,9 @@ async def main():
 
 asyncio.run(main())
 """
-    process = subprocess.run(
-        [sys.executable, "-c", code],
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=20,
+    output = run_python(
+        code, CONFIG_DIR=str(tmp_path), CANCEL_ON_SHUTDOWN=str(cancel_on_shutdown)
     )
-    output = process.stdout + process.stderr
     lines = output.splitlines()
     for ip in ("192.0.2.8", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
         expected = [
@@ -241,22 +221,35 @@ asyncio.run(main())
         ]
         if not cancel_on_shutdown:
             expected.append(
-                ("ERROR", "server_browser_backend.error_handlers", "Unhandled exception")
+                (
+                    "ERROR",
+                    "server_browser_backend.error_handlers",
+                    "Unhandled exception",
+                )
             )
         for level, namespace, message in expected:
             matching = [
-                line for line in lines
+                line
+                for line in lines
                 if f" | {level:<5} | {ip:<15} | {namespace} - {message}" in line
             ]
             assert len(matching) == 1, output
-            assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \| ", matching[0])
+            assert re.match(
+                r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \| ", matching[0]
+            )
     if cancel_on_shutdown:
-        assert output.count(
-            "asyncio.exceptions.CancelledError: Task cancelled, timeout graceful shutdown exceeded"
-        ) == 2
+        assert (
+            output.count(
+                "asyncio.exceptions.CancelledError: Task cancelled, timeout graceful shutdown exceeded"
+            )
+            == 2
+        )
         assert "Unhandled exception" not in output
     for marker, count in (("AFTER-ASGI-PROBE", 2), ("OUTSIDE-PROBE", 1)):
-        assert sum(
-            f" | WARNING | {'-':<15} | uvicorn.error - {marker}" in line
-            for line in lines
-        ) == count, output
+        assert (
+            sum(
+                f" | WARNING | {'-':<15} | uvicorn.error - {marker}" in line
+                for line in lines
+            )
+            == count
+        ), output
