@@ -1,5 +1,8 @@
 """Rust output boundaries and nonmutating generation drift checks."""
 
+from importlib.resources import files
+from pathlib import Path
+
 import pytest
 
 from server_browser_codegen import generation, rust
@@ -100,3 +103,38 @@ def test_rust_only_rejects_external_references_before_generation(tmp_path):
     )
     with pytest.raises(ValueError, match="local component"):
         rust.generate(tmp_path)
+
+
+def test_rust_stages_owned_templates_without_rewriting(tmp_path, monkeypatch):
+    resources = files("server_browser_codegen").joinpath("templates/rust")
+    aliases = {"Cargo": "client", "lib": "client", "model": "models"}
+    checked = []
+
+    class Staged(Exception):
+        pass
+
+    def inspect_templates(arguments, root):
+        assert root == tmp_path
+        templates = Path(arguments[arguments.index("-t") + 1])
+        expected = tmp_path / "expected"
+        generation.copy_resources(resources, expected)
+        for source in expected.rglob("*"):
+            if source.is_file():
+                relative = source.relative_to(expected)
+                assert (templates / relative).read_bytes() == source.read_bytes()
+                checked.append(relative.as_posix())
+        for alias, owner in aliases.items():
+            assert (templates / f"{alias}.mustache").read_bytes() == (
+                expected / owner / f"{alias}.mustache"
+            ).read_bytes()
+        assert not (templates / "model-default.mustache").exists()
+        raise Staged
+
+    monkeypatch.setattr(rust, "load_contract", lambda root: (
+        "", {"paths": {}, "components": {"schemas": {}}},
+    ))
+    monkeypatch.setattr(rust, "run_generator", inspect_templates)
+    with pytest.raises(Staged):
+        rust.generate(tmp_path, check=True)
+    assert {"models/model-default.mustache", "reqwest/api.mustache",
+            "UPSTREAM.md", "LICENSE.apache-2.0"} <= set(checked)
