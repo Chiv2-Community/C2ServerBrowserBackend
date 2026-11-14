@@ -3,14 +3,15 @@ set -euo pipefail
 
 number='(0|[1-9][0-9]*)'
 metadata='[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*'
+release_tag="${RELEASE_TAG:-${GITHUB_REF_NAME:-}}"
 identifier="($number|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
 prerelease="$identifier(\.$identifier)*"
-if [[ ! "$GITHUB_REF_NAME" =~ ^v$number\.$number\.$number(-$prerelease)?(\+$metadata)?$ ]]; then
+if [[ ! "$release_tag" =~ ^v$number\.$number\.$number(-$prerelease)?(\+$metadata)?$ ]]; then
     echo "Expected vMAJOR.MINOR.PATCH with optional -prerelease and +build.metadata" >&2
     exit 1
 fi
 
-version=${GITHUB_REF_NAME#v}
+version=${release_tag#v}
 image="ghcr.io/${GITHUB_REPOSITORY,,}"
 docker_tag=${version/+/_}
 if (( ${#docker_tag} > 128 )); then
