@@ -40,6 +40,15 @@ There is no equivalent of Gunicorn's worker request timeout or thread setting.
 
 ### Logs
 
+Application and Uvicorn console logs share
+`DATE | LEVEL | REQUESTOR IP | NS - message`, with
+the level right-padded to at least five characters (longer names such as
+`WARNING` are not truncated). `NS` is the logger name, for example
+`uvicorn.access` or `server_browser_backend.routes.api_v1`.
+The IP follows the existing forwarded-header policy; outside HTTP requests it
+is `-`. Invalid IP values also render as `-`. The IP field is right-padded to
+at least 15 characters; longer IPv6 addresses are not truncated.
+
 Follow the service's startup, HTTP access, and application logs with:
 
 ```bash
