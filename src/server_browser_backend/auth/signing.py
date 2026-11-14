@@ -159,48 +159,55 @@ class SigningKeys:
         validate_discord_id(discord_id)
         if str(UUID(server_id)) != server_id:
             raise ValueError("Invalid server registration ID")
-        now = int(time.time())
-        if type(auth_time) is not int or not 0 < auth_time <= now:
-            raise ValueError("Invalid authentication time")
-        key, kid, _ = self._load()
-        claims = JoinTicketClaims(
-            iss=issuer,
-            sub=discord_id,
-            aud=f"urn:unchained:server:{server_id}",
-            purpose="unchained.join",
-            auth_time=auth_time,
-            iat=now,
-            nbf=now,
-            exp=now + TICKET_SECONDS,
-            jti=str(uuid4()),
-        )
-        return jwt.encode(
-            claims.model_dump(by_alias=True),
-            key,
-            algorithm="RS256",
-            headers={"kid": kid, "typ": "unchained-join+jwt"},
-        )
+        with provisioning_lock(self.path, shared=True):
+            now = int(time.time())
+            if type(auth_time) is not int or not 0 < auth_time <= now:
+                raise ValueError("Invalid authentication time")
+            # Refresh only after the cutover lock; a cached key may be retired.
+            key, kid, _ = self._load()
+            claims = JoinTicketClaims(
+                iss=issuer,
+                sub=discord_id,
+                aud=f"urn:unchained:server:{server_id}",
+                purpose="unchained.join",
+                auth_time=auth_time,
+                iat=now,
+                nbf=now,
+                exp=now + TICKET_SECONDS,
+                jti=str(uuid4()),
+            )
+            return jwt.encode(
+                claims.model_dump(by_alias=True),
+                key,
+                algorithm="RS256",
+                headers={"kid": kid, "typ": "unchained-join+jwt"},
+            )
 
 
 @contextmanager
-def provisioning_lock(path: Path):
-    # Provisioning runs on the Linux backend host, not in an HTTP request.
+def provisioning_lock(path: Path, *, shared: bool = False):
+    # JWKS readers need no lock. Issuers only read the provisioned lock file.
     import fcntl
 
-    descriptor = os.open(str(path) + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(descriptor, "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    flags = os.O_RDONLY if shared else os.O_CREAT | os.O_RDWR
+    descriptor = os.open(str(path) + ".lock", flags, 0o600)
+    with os.fdopen(descriptor, "r" if shared else "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_SH if shared else fcntl.LOCK_EX)
         yield
 
 
 def provision(path: Path, *, rotate: bool = False) -> None:
     """Create or rotate a keyring without dropping still-valid verification keys."""
+    # Generation does not block issuance. Writers reread under the cutover lock
+    # so overlapping rotations retain each other's verification keys.
+    if not rotate and path.exists():
+        raise FileExistsError("Signing keyring already exists")
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     with provisioning_lock(path):
         if rotate:
             old, kid, previous = SigningKeys(path)._load()
         elif path.exists():
             raise FileExistsError("Signing keyring already exists")
-        private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         active = {
             "kid": str(uuid4()),
             "private_key": private.private_bytes(
@@ -211,7 +218,7 @@ def provision(path: Path, *, rotate: bool = False) -> None:
         }
         entries = []
         if rotate:
-            # Readers can issue with the old key throughout key generation.
+            # No old-key issuance can start after this retention clock sample.
             now = int(time.time())
             entries = [
                 entry

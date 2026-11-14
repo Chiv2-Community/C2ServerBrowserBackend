@@ -1,12 +1,14 @@
 """Persistent key/JWKS contracts; no OAuth/session service is exposed yet."""
 
 import json
+import fcntl
 import os
 import subprocess
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 from uuid import UUID
 
 import jwt
@@ -184,6 +186,113 @@ def test_failed_key_generation_preserves_old_keyring(keys, monkeypatch):
     assert keys.path.read_bytes() == before
     assert not list(keys.path.parent.glob(".signing-*"))
     verify(keys, token)
+
+
+def test_delayed_publication_blocks_issuance_and_refreshes_cached_key(keys, monkeypatch):
+    clock = [1_800_000_000]
+    monkeypatch.setattr(signing.time, "time", lambda: clock[0])
+    old_token = issue(keys)  # Populate the worker snapshot before rotation.
+    old_kid = jwt.get_unverified_header(old_token)["kid"]
+    attempted = Event()
+    flock = fcntl.flock
+    fsync = signing.os.fsync
+    futures = []
+
+    def tracked_flock(descriptor, operation):
+        if operation == fcntl.LOCK_SH:
+            attempted.set()
+        return flock(descriptor, operation)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        def delayed_fsync(descriptor):
+            if not futures:
+                futures.append(executor.submit(issue, keys))
+                assert attempted.wait(5)
+                assert not futures[0].done()
+                # Longer than the full old-key retention window.
+                clock[0] += 140
+                # JWKS remains readable while publication holds the writer lock.
+                assert keys.get_jwks_response().keys[0].kid == old_kid
+            return fsync(descriptor)
+
+        monkeypatch.setattr(fcntl, "flock", tracked_flock)
+        monkeypatch.setattr(signing.os, "fsync", delayed_fsync)
+        provision(keys.path, rotate=True)
+        token = futures[0].result(timeout=5)
+    assert jwt.get_unverified_header(token)["kid"] != old_kid
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["iat"] == clock[0]
+    assert claims["exp"] == clock[0] + signing.TICKET_SECONDS
+    document = json.loads(keys.path.read_text())
+    retirement = next(e["retire_after"] for e in document["keys"] if e["kid"] == old_kid)
+    old_claims = jwt.decode(old_token, options={"verify_signature": False})
+    assert retirement >= old_claims["exp"] + signing.CLOCK_SKEW_SECONDS
+
+
+def test_jwks_reads_do_not_require_a_writable_or_present_lock(keys, monkeypatch):
+    expected = keys.get_jwks_response()
+    Path(str(keys.path) + ".lock").unlink()
+
+    def unexpected_lock(*args, **kwargs):
+        raise AssertionError("public JWKS must not acquire a provisioning lock")
+
+    monkeypatch.setattr(signing, "provisioning_lock", unexpected_lock)
+    assert SigningKeys(keys.path).get_jwks_response() == expected
+
+
+def test_rotation_waits_for_in_flight_old_key_issuance(keys, monkeypatch):
+    clock = [1_800_000_000]
+    monkeypatch.setattr(signing.time, "time", lambda: clock[0])
+    encoding = Event()
+    release = Event()
+    rotating = Event()
+    encode = jwt.encode
+    flock = fcntl.flock
+
+    def delayed_encode(*args, **kwargs):
+        encoding.set()
+        assert release.wait(5)
+        return encode(*args, **kwargs)
+
+    def tracked_flock(descriptor, operation):
+        if operation == fcntl.LOCK_EX:
+            rotating.set()
+        return flock(descriptor, operation)
+
+    monkeypatch.setattr(jwt, "encode", delayed_encode)
+    monkeypatch.setattr(fcntl, "flock", tracked_flock)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        issued = executor.submit(issue, keys)
+        try:
+            assert encoding.wait(5)
+            rotation = executor.submit(provision, keys.path, rotate=True)
+            assert rotating.wait(5)
+            assert not rotation.done()
+            clock[0] += 40
+        finally:
+            release.set()
+        token = issued.result(timeout=5)
+        rotation.result(timeout=5)
+    kid = jwt.get_unverified_header(token)["kid"]
+    document = json.loads(keys.path.read_text())
+    retired = next(e for e in document["keys"] if e["kid"] == kid)
+    assert retired["retire_after"] == (
+        clock[0] + signing.TICKET_SECONDS + signing.CLOCK_SKEW_SECONDS
+    )
+
+
+def test_failed_publication_fsync_preserves_old_keyring(keys, monkeypatch):
+    before = keys.path.read_bytes()
+
+    def fail(descriptor):
+        raise OSError("fsync failure")
+
+    monkeypatch.setattr(signing.os, "fsync", fail)
+    with pytest.raises(OSError, match="fsync failure"):
+        provision(keys.path, rotate=True)
+    assert keys.path.read_bytes() == before
+    assert not list(keys.path.parent.glob(".signing-*"))
+    verify(keys, issue(keys))
 
 
 def test_jwks_reuses_one_snapshot_and_revalidates_changed_configuration(

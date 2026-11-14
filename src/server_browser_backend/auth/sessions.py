@@ -202,16 +202,34 @@ class SessionStore:
         with self._transaction() as connection:
             return self._cleanup(connection, int(time.time()))
 
+    @contextmanager
+    def _maintained_transaction(self):
+        rejection = None
+        with self._transaction() as connection:
+            now = int(time.time())
+            self._cleanup(connection, now)
+            connection.execute("SAVEPOINT request")
+            try:
+                yield connection, now
+            except (SessionCapacity, RefreshTooSoon) as error:
+                # Keep bounded cleanup progress, but never partial request changes.
+                connection.execute("ROLLBACK TO request")
+                rejection = error
+            connection.execute("RELEASE request")
+        if rejection is not None:
+            raise rejection
+
     def create(self, discord_id: str, auth_time: int) -> SessionCredentials:
         validate_discord_id(discord_id)
         if type(auth_time) is not int or not 0 < auth_time <= int(time.time()):
             raise ValueError("Invalid authentication time")
-        with self._transaction() as connection:
-            now = int(time.time())
-            self._cleanup(connection, now)
-            total = connection.execute("SELECT count(*) FROM sessions").fetchone()[0]
+        with self._maintained_transaction() as (connection, now):
+            total = connection.execute(
+                "SELECT count(*) FROM sessions WHERE expires_at > ?", (now,)
+            ).fetchone()[0]
             account = connection.execute(
-                "SELECT count(*) FROM sessions WHERE discord_id=?", (discord_id,)
+                "SELECT count(*) FROM sessions WHERE discord_id=? AND expires_at > ?",
+                (discord_id, now),
             ).fetchone()[0]
             if total >= self.limits.sessions or account >= self.limits.per_account:
                 raise SessionCapacity("Session count budget exhausted")
@@ -259,9 +277,7 @@ class SessionStore:
         digest = credential_hash(credential)  # Invalid shapes allocate no DB state.
         replay = False
         result: SessionCredentials | SessionIdentity | None = None
-        with self._transaction() as connection:
-            now = int(time.time())
-            self._cleanup(connection, now)
+        with self._maintained_transaction() as (connection, now):
             row = connection.execute(
                 "SELECT s.*, c.issued_at, c.spent_at FROM credentials c JOIN sessions s ON s.id=c.session_id WHERE c.digest=? AND s.expires_at > ?",
                 (digest, now),

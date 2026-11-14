@@ -49,8 +49,10 @@ These settings enable key publication only, not login or admission.
 python -m server_browser_backend.auth.signing rotate /srv/server-browser/auth/signing.json
 ```
 
-- Cooperating writers serialize with a filesystem lock. Readers use atomic
-  snapshots, reloading when file identity or metadata changes.
+- Issuers share the provisioned `signing.json.lock` file; rotation locks it
+  exclusively during publication. Keep that file alongside the keyring, readable
+  by the backend. JWKS readers use atomic snapshots without locking, reloading
+  when file identity or metadata changes.
 - Rotation creates a fresh RSA-2048 key and random key ID. The previous key's
   **public** part remains published for 90 seconds: ticket lifetime 60 seconds
   plus validator clock tolerance 30 seconds. Its private part is removed.

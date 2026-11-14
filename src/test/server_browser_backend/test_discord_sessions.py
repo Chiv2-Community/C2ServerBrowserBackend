@@ -175,6 +175,56 @@ def test_cleanup_is_bounded_and_cascades_hashes(store, clock):
     assert counts(store) == (0, 0)
 
 
+def test_expired_account_rows_outside_cleanup_batch_do_not_consume_quota(store, clock):
+    for account in (OTHER, OTHER, ACCOUNT, ACCOUNT):
+        store.create(account, clock[0])
+        clock[0] += 1
+    clock[0] += store.limits.idle_seconds
+    created = store.create(ACCOUNT, clock[0])
+    assert counts(store) == (4, 4)  # Only one expired family was removed.
+    assert store.authenticate(created.credential).discord_id == ACCOUNT
+
+
+def test_expired_rows_do_not_consume_global_live_quota(tmp_path, limits, clock):
+    store = SessionStore(tmp_path / "quota.sqlite3", replace(limits, sessions=2))
+    store.create(OTHER, clock[0])
+    store.create(ACCOUNT, clock[0])
+    clock[0] += limits.idle_seconds
+    store.create(OTHER, clock[0])
+    store.create(ACCOUNT, clock[0])
+    with pytest.raises(SessionCapacity, match="count budget"):
+        store.create("323456789012345678", clock[0])
+    assert counts(store) == (2, 2)
+
+
+@pytest.mark.parametrize("operation", ["create", "refresh"])
+def test_quota_rejection_preserves_bounded_cleanup_progress(
+    tmp_path, limits, clock, operation
+):
+    limits = replace(limits, per_account=1, per_session_credentials=1)
+    store = SessionStore(tmp_path / "history.sqlite3", limits)
+    old = store.create(OTHER, clock[0])
+    store.create("323456789012345678", clock[0])
+    live = store.create(ACCOUNT, clock[0])
+    # Keep one family live until the others have expired.
+    clock[0] = old.identity.expires_at - 1
+    store.authenticate(live.credential)
+    clock[0] = old.identity.expires_at
+
+    def request():
+        if operation == "create":
+            return store.create(ACCOUNT, clock[0])
+        return store.refresh(live.credential)
+
+    for remaining in (2, 1):
+        with pytest.raises(SessionCapacity):
+            request()
+        assert counts(store) == (remaining, remaining)
+    store.authenticate(live.credential)
+    store.logout(live.credential)
+    assert store.create(ACCOUNT, clock[0]).identity.discord_id == ACCOUNT
+
+
 def test_cleanup_failure_rolls_back_and_preserves_valid_sessions(
     store, clock, monkeypatch
 ):
