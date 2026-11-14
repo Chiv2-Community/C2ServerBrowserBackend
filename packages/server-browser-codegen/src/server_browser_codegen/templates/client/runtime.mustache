@@ -108,7 +108,8 @@ class ClientTransport:
 
     def _request(self, operation_id: str, *, parameters: Mapping[str, Any], body: Any = UNSET) -> ClientResponse[Any]:
         arguments = request_arguments(operation_id, parameters, body, base_url=self._base_url, default_headers=self._headers)
-        return decode_response(operation_id, self._session.request(**arguments, timeout=self._timeout))
+        # Custom credential headers must never follow redirects, including HTTP downgrades.
+        return decode_response(operation_id, self._session.request(**arguments, timeout=self._timeout, follow_redirects=False))
 
     def close(self) -> None:
         if self._owned:
@@ -131,7 +132,8 @@ class AsyncClientTransport:
 
     async def _request(self, operation_id: str, *, parameters: Mapping[str, Any], body: Any = UNSET) -> ClientResponse[Any]:
         arguments = request_arguments(operation_id, parameters, body, base_url=self._base_url, default_headers=self._headers)
-        return decode_response(operation_id, await self._session.request(**arguments, timeout=self._timeout))
+        # Keep injected sessions from forwarding credentials to a redirected target.
+        return decode_response(operation_id, await self._session.request(**arguments, timeout=self._timeout, follow_redirects=False))
 
     async def aclose(self) -> None:
         if self._owned:
