@@ -2,6 +2,7 @@
 
 - **Administrator keys**: [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md)
 - **Atomic IP policy persistence**: [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md)
+- **Backend-owned SDKs**: [Backend-owned language SDKs](2026-11-14-backend-owned-language-sdks.md)
 - **Ban and verified IP lists**: [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md); [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md)
 - **Cancellation**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md); [Total JSON upload deadline](2026-11-13-json-upload-deadline.md)
 - **Dependency security and Dependabot**: [SDK redirect policy and dependency security updates](2026-11-13-sdk-redirects-dependency-security.md)
@@ -18,8 +19,10 @@
 - **Log formats**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md) (level width superseded); [Fixed-width console log levels](2026-11-13-fixed-width-log-levels.md)
 - **Log level width**: [Fixed-width console log levels](2026-11-13-fixed-width-log-levels.md); [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md) (earlier policy)
 - **MOTD and locale selectors**: [Bound registry state and metadata](2026-11-13-registry-resource-bounds.md)
+- **OpenAPI SDK generation**: [Backend-owned language SDKs](2026-11-14-backend-owned-language-sdks.md)
 - **Player counts**: [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md)
 - **Proxy trust and forwarded headers**: [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md); [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md); [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md) (earlier policy)
+- **Python and Rust SDK packages**: [Backend-owned language SDKs](2026-11-14-backend-owned-language-sdks.md)
 - **Refresh credentials and sessions**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
 - **Registry quotas and metadata**: [Bound registry state and metadata](2026-11-13-registry-resource-bounds.md); [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md)
 - **Requestor IP**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
