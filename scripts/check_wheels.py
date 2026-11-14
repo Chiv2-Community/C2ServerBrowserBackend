@@ -220,6 +220,8 @@ assert resources.joinpath("config.yaml").is_file()
 assert find_spec("server_browser_models") is None
 for owner in ("models", "server", "client", "fastapi", "shared"):
     assert resources.joinpath("templates", owner).is_dir()
+for owner in ("models", "client"):
+    assert resources.joinpath("templates", "rust", owner, "Cargo.mustache").is_file()
 """
             if package == "server":
                 probe += """
