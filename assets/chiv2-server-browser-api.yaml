@@ -1059,7 +1059,7 @@ components:
           description: Verified Discord snowflake as a decimal string, not an engine/platform ID.
         aud:
           type: string
-          description: urn:unchained:server:<registration UUID>
+          description: '`urn:unchained:server:<registration UUID>`'
         purpose:
           type: string
           enum: [unchained.join]

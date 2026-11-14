@@ -32,7 +32,8 @@ uv run server-browser-codegen --check
 ./ci.sh
 ```
 
-Generation uses OpenAPI Generator 7.17.0 and Java 11+. Tooling and module-owned
+Generation uses OpenAPI Generator 7.17.0, Java 11+, and the pinned Rust toolchain
+(including rustfmt) for Rust output. Tooling and module-owned
 templates are bundled in `sdk/python/server-browser-codegen`, including Rust
 templates. Use `--language python` or `--language rust` for one language.
 Runtime consumers need neither Java nor generation tools.
@@ -53,10 +54,30 @@ Commit the consuming application's lockfile. Never depend on a moving branch.
 
 Inject a configured reqwest client through `apis::configuration::Configuration`.
 Callers own timeouts, redirects, proxy policy and source-IP binding. Generated
-errors/configuration may contain credentials or response bodies; do not log them.
+configuration diagnostics are redacted. Generated errors may contain credentials
+or response bodies; do not log them.
 `server-browser-client` contains protocol bindings only. Registration, heartbeat,
 retry and cleanup policy belongs in `server-browser-client-sdk`. Game hooks and
 Discord verification remain consumer code.
+
+## Rust build policy
+
+- Every crate inherits workspace lints: warnings are errors, unsafe code is
+  forbidden, and Clippy `all`, `pedantic`, `nursery`, and `cargo` are denied.
+- Handwritten lifecycle APIs also require documentation and `Debug` implementations.
+- CI checks formatting, all targets/features, rustls without native TLS, rustdoc,
+  debug/release tests, and verified packages. Windows runs the Rust-only checks;
+  Linux also runs the real-backend E2E suite.
+- Release builds retain overflow checks and debug assertions. Dependencies and
+  toolchain versions are locked; public API breaks are currently permitted.
+- Generated model modules allow only named upstream-template style lints;
+  handwritten code and tests retain the strict defaults. Multiple transitive
+  dependency versions are allowed because TLS/Serde dependencies select them.
+- Use named fields instead of tuple-based state, fixtures, or interfaces. Standard
+  library tuple-returning APIs and unit `()` remain usable.
+
+Generated output is rustfmt-normalized during generation. Change templates or
+the contract, then regenerate; do not hand-edit generated sources to satisfy lints.
 
 ## Artifacts
 

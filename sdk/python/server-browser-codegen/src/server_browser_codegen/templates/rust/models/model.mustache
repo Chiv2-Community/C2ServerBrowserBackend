@@ -14,7 +14,7 @@ pub enum {{{classname}}} {
 impl Default for {{{classname}}} {
     fn default() -> Self {
 {{#vendorExtensions.x-rust-anyof-variants}}{{#-first}}
-        Self::{{{name}}}(Default::default())
+        Self::{{{name}}}(models::{{{name}}}::default())
 {{/-first}}{{/vendorExtensions.x-rust-anyof-variants}}
     }
 }

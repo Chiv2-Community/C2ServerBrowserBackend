@@ -96,109 +96,9 @@ fn generated_client_against_python_backend() {
         assert!(value.get("ip_address").is_none());
     }
 
-    status_error(api::get_ban_list(&config, ""), 403);
-    status_error(api::get_verified_list(&config, "wrong"), 403);
-    assert!(success(api::get_ban_list(&config, &admin))
-        .banned_ips
-        .is_empty());
-    let bans = IpListRequest {
-        banned_ips: Some(vec!["203.0.113.0/24".into(), "2001:db8::/32".into()]),
-        ..IpListRequest::default()
-    };
-    assert_eq!(
-        success(api::add_to_ban_list(&config, &admin, bans.clone()))
-            .banned_ips
-            .len(),
-        2
-    );
-    for ip in ["203.0.113.4", "2001:db8::4"] {
-        assert!(success(api::check_banned(&config, ip)).banned);
-    }
-    assert!(success(api::remove_from_ban_list(&config, &admin, bans))
-        .banned_ips
-        .is_empty());
-    assert!(!success(api::check_banned(&config, "2001:db8::4")).banned);
-    let verified = IpListRequest {
-        verified_ips: Some(vec![host.clone()]),
-        ..IpListRequest::default()
-    };
-    success(api::get_verified_list(&config, &admin));
-    success(api::add_to_verified_list(&config, &admin, verified.clone()));
-    assert_eq!(
-        serde_json::to_value(&success(api::get_servers(&config)).servers[0]).unwrap()
-            ["is_verified"],
-        true
-    );
-    success(api::remove_from_verified_list(&config, &admin, verified));
-    assert_eq!(
-        serde_json::to_value(&success(api::get_servers(&config)).servers[0]).unwrap()
-            ["is_verified"],
-        false
-    );
-
-    let games = success(compat::tbio_get_servers(&config));
-    assert!(games.success);
-    assert_eq!(&games.data.games[0].lobby_id, id);
-    let address = if host.contains(':') {
-        format!("[{host}]")
-    } else {
-        host.clone()
-    };
-    assert_eq!(games.data.games[0].server_hostname, address);
-    assert!(
-        success(compat::get_motd(
-            &config,
-            MotdRequest {
-                language: Some("en".into())
-            }
-        ))
-        .success
-    );
-    let matched = success(compat::playfab_client_matchmake(
-        &config,
-        MatchmakeRequest::new(id.clone()),
-    ));
-    assert_eq!(matched.data.server_hostname, host);
-    let mut advertised_request = request;
-    advertised_request.local_ip_address = Some("[fd00::5]".into());
-    advertised_request.password_protected = Some(true);
-    advertised_request.mods = Some(vec![Mod {
-        name: "mod".into(),
-        organization: "org".into(),
-        version: "1".into(),
-        active: Some(true),
-    }]);
-    let advertised = success(api::register(&config, advertised_request));
-    assert!(advertised.server.password_protected);
-    assert_eq!(advertised.server.mods[0].active, Some(true));
-    let games = success(compat::tbio_get_servers(&config));
-    let game = games
-        .data
-        .games
-        .iter()
-        .find(|game| game.lobby_id == advertised.server.unique_id)
-        .unwrap();
-    assert_eq!(game.server_hostname, "[fd00::5]");
-    let matched = success(compat::playfab_client_matchmake(
-        &config,
-        MatchmakeRequest::new(advertised.server.unique_id.clone()),
-    ));
-    assert_eq!(matched.data.server_hostname, "fd00::5");
-    if diagnostic {
-        let listing = success(api::get_servers(&config));
-        let entry = listing
-            .servers
-            .iter()
-            .map(|server| serde_json::to_value(server).unwrap())
-            .find(|server| server["unique_id"] == advertised.server.unique_id)
-            .unwrap();
-        assert_eq!(entry["local_ip_address"], "fd00::5");
-    }
-    success(api::delete_server(
-        &config,
-        &advertised.key,
-        &advertised.server.unique_id,
-    ));
+    check_ip_policy(&config, &admin, &host);
+    check_compatibility(&config, &host, id);
+    check_advertised_registration(&config, request, diagnostic);
     success(api::delete_server(&config, key, id));
     assert!(success(api::get_servers(&config)).servers.is_empty());
     status_error(api::heartbeat(&config, key, id), 404);
@@ -216,4 +116,117 @@ fn generated_client_against_python_backend() {
         }
         _ => panic!("expected missing lobby"),
     }
+}
+
+fn check_ip_policy(config: &Configuration, admin: &str, host: &str) {
+    status_error(api::get_ban_list(config, ""), 403);
+    status_error(api::get_verified_list(config, "wrong"), 403);
+    assert!(success(api::get_ban_list(config, admin))
+        .banned_ips
+        .is_empty());
+    let bans = IpListRequest {
+        banned_ips: Some(vec!["203.0.113.0/24".into(), "2001:db8::/32".into()]),
+        ..IpListRequest::default()
+    };
+    assert_eq!(
+        success(api::add_to_ban_list(config, admin, bans.clone()))
+            .banned_ips
+            .len(),
+        2
+    );
+    for ip in ["203.0.113.4", "2001:db8::4"] {
+        assert!(success(api::check_banned(config, ip)).banned);
+    }
+    assert!(success(api::remove_from_ban_list(config, admin, bans))
+        .banned_ips
+        .is_empty());
+    assert!(!success(api::check_banned(config, "2001:db8::4")).banned);
+    let verified = IpListRequest {
+        verified_ips: Some(vec![host.to_owned()]),
+        ..IpListRequest::default()
+    };
+    success(api::get_verified_list(config, admin));
+    success(api::add_to_verified_list(config, admin, verified.clone()));
+    assert_eq!(
+        serde_json::to_value(&success(api::get_servers(config)).servers[0]).unwrap()["is_verified"],
+        true
+    );
+    success(api::remove_from_verified_list(config, admin, verified));
+    assert_eq!(
+        serde_json::to_value(&success(api::get_servers(config)).servers[0]).unwrap()["is_verified"],
+        false
+    );
+}
+
+fn check_compatibility(config: &Configuration, host: &str, id: &str) {
+    let games = success(compat::tbio_get_servers(config));
+    assert!(games.success);
+    assert_eq!(games.data.games[0].lobby_id, id);
+    let address = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    assert_eq!(games.data.games[0].server_hostname, address);
+    assert!(
+        success(compat::get_motd(
+            config,
+            MotdRequest {
+                language: Some("en".into())
+            }
+        ))
+        .success
+    );
+    let matched = success(compat::playfab_client_matchmake(
+        config,
+        MatchmakeRequest::new(id.to_owned()),
+    ));
+    assert_eq!(matched.data.server_hostname, host);
+}
+
+fn check_advertised_registration(
+    config: &Configuration,
+    request: ServerRegistrationRequest,
+    diagnostic: bool,
+) {
+    let mut advertised_request = request;
+    advertised_request.local_ip_address = Some("[fd00::5]".into());
+    advertised_request.password_protected = Some(true);
+    advertised_request.mods = Some(vec![Mod {
+        name: "mod".into(),
+        organization: "org".into(),
+        version: "1".into(),
+        active: Some(true),
+    }]);
+    let advertised = success(api::register(config, advertised_request));
+    assert!(advertised.server.password_protected);
+    assert_eq!(advertised.server.mods[0].active, Some(true));
+    let games = success(compat::tbio_get_servers(config));
+    let game = games
+        .data
+        .games
+        .iter()
+        .find(|game| game.lobby_id == advertised.server.unique_id)
+        .unwrap();
+    assert_eq!(game.server_hostname, "[fd00::5]");
+    let matched = success(compat::playfab_client_matchmake(
+        config,
+        MatchmakeRequest::new(advertised.server.unique_id.clone()),
+    ));
+    assert_eq!(matched.data.server_hostname, "fd00::5");
+    if diagnostic {
+        let listing = success(api::get_servers(config));
+        let entry = listing
+            .servers
+            .iter()
+            .map(|server| serde_json::to_value(server).unwrap())
+            .find(|server| server["unique_id"] == advertised.server.unique_id)
+            .unwrap();
+        assert_eq!(entry["local_ip_address"], "fd00::5");
+    }
+    success(api::delete_server(
+        config,
+        &advertised.key,
+        &advertised.server.unique_id,
+    ));
 }
