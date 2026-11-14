@@ -32,6 +32,11 @@ impl Configuration {
 
 impl Default for Configuration {
     fn default() -> Self {
-        Self::with_client(reqwest::blocking::Client::new())
+        Self::with_client(
+            reqwest::blocking::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("HTTP client initialization failed"),
+        )
     }
 }

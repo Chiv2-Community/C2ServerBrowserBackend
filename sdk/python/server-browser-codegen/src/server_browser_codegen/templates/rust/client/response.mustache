@@ -46,6 +46,33 @@
         {{#isResponseFile}}
         let content = resp.text(){{#supportAsync}}.await{{/supportAsync}}?;
         {{/isResponseFile}}
-        let entity: Option<{{{operationIdCamelCase}}}Error> = serde_json::from_str(&content).ok();
+        let entity = {
+            {{#responses}}
+            {{#is4xx}}
+            if status.as_u16() == {{code}} {
+                serde_json::from_str(&content).ok().map({{{operationIdCamelCase}}}Error::Status{{code}})
+            } else
+            {{/is4xx}}
+            {{#is5xx}}
+            if status.as_u16() == {{code}} {
+                serde_json::from_str(&content).ok().map({{{operationIdCamelCase}}}Error::Status{{code}})
+            } else
+            {{/is5xx}}
+            {{/responses}}
+            {
+                {{#responses}}
+                {{#isDefault}}
+                serde_json::from_str(&content).map({{{operationIdCamelCase}}}Error::DefaultResponse).or_else(|_|
+                {{/isDefault}}
+                {{/responses}}
+                serde_json::from_str(&content).map({{{operationIdCamelCase}}}Error::UnknownValue)
+                {{#responses}}
+                {{#isDefault}}
+                )
+                {{/isDefault}}
+                {{/responses}}
+                .ok()
+            }
+        };
         Err(Error::ResponseError(Box::new(ResponseContent { status, content, entity })))
     }
