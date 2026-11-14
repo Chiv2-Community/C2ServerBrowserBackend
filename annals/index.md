@@ -1,6 +1,8 @@
 # Annals keyword index
 
 - **Administrator keys**: [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md)
+- **Atomic IP policy persistence**: [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md)
+- **Ban and verified IP lists**: [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md); [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md)
 - **Cancellation**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
 - **Dependency security and Dependabot**: [SDK redirect policy and dependency security updates](2026-11-13-sdk-redirects-dependency-security.md)
 - **Discord authentication**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
@@ -26,3 +28,4 @@
 - **TRUSTED_PROXY_CIDRS**: [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md)
 - **Unpaired surrogates**: [JSON depth and Unicode guard](2026-11-13-json-depth-and-unicode-guard.md)
 - **Uvicorn**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
+- **Verified and official server flags**: [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md)
