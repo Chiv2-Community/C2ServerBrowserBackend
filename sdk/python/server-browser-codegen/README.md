@@ -46,3 +46,5 @@ all Python and Rust output packages without modifying them. Use `--language pyth
 or `--language rust` to select one language; the default is `all`. Python outputs
 live in `sdk/python/`; Rust outputs live in `sdk/rust/` and contain only models
 and clients. Handwritten tests/examples are outside generated `src/` directories.
+The separate Rust `server-browser-client-sdk` crate is handwritten and is never
+an output of generation.

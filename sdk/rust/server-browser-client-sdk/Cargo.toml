@@ -1,0 +1,21 @@
+[package]
+name = "server-browser-client-sdk"
+version = "1.0.0"
+edition = "2021"
+description = "Registration lifecycle SDK for the Chivalry 2 community server browser"
+license = "GPL-3.0-only"
+repository = "https://github.com/Chiv2-Community/C2ServerBrowserBackend"
+readme = "README.md"
+
+[dependencies]
+server-browser-client = { version = "=1.0.0", path = "../server-browser-client", default-features = false }
+server-browser-models = { version = "=1.0.0", path = "../server-browser-models" }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+default = ["native-tls"]
+native-tls = ["server-browser-client/native-tls", "reqwest/native-tls"]
+rustls-tls = ["server-browser-client/rustls-tls", "reqwest/rustls-tls"]

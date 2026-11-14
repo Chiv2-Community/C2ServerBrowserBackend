@@ -1,0 +1,5 @@
+    {{#vendorExtensions.x-rust-text-media-types}}
+    if status.is_success() && content_type.split(';').next().unwrap_or("").trim().eq_ignore_ascii_case("{{{.}}}") {
+        return resp.text(){{#supportAsync}}.await{{/supportAsync}}.map_err(Error::from);
+    }
+    {{/vendorExtensions.x-rust-text-media-types}}

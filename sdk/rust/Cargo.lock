@@ -1293,6 +1293,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "server-browser-client-sdk"
+version = "1.0.0"
+dependencies = [
+ "reqwest",
+ "serde_json",
+ "server-browser-client",
+ "server-browser-models",
+]
+
+[[package]]
 name = "server-browser-models"
 version = "1.0.0"
 dependencies = [

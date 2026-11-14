@@ -19,7 +19,8 @@ The uv workspace contains five runtime packages and one development-tooling proj
 
 See [Python packages](docs/python-packaging.md) for dependency boundaries, client
 usage, alternative implementations, and migration from `server-browser-api`.
-`sdk/rust/` contains only model and client crates. See [SDKs](sdk/README.md) for
+`sdk/rust/` contains generated model/client crates and a handwritten
+`server-browser-client-sdk` for lifecycle policy. See [SDKs](sdk/README.md) for
 Rust consumption, package boundaries and release artifacts.
 
 Generated SDK sources under the four reusable runtime projects are never edited by
@@ -163,7 +164,7 @@ copies only that installed environment, default configuration, and the startup
 script. It contains no repository checkout, client/codegen sources, workspace
 manifests, or uv executable; startup invokes the installed Uvicorn directly.
 
-CI and tag workflows retain all six wheels and sdists, both Rust `.crate` archives,
+CI and tag workflows retain all six wheels and sdists, all three Rust `.crate` archives,
 and authoritative OpenAPI YAML in the `sdk-distributions-and-contract` artifact. This
 makes the contract available to non-Python tooling without another package.
 Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
