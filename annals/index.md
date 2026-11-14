@@ -1,13 +1,15 @@
 # Annals keyword index
 
 - **Cancellation**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
-- **Discord authentication**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md)
+- **Discord authentication**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
 - **EOS authentication**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md) (consumer follow-up superseded); [Remove EOS consumer migration guidance](2026-11-13-eos-consumer-migration-guidance.md)
 - **EOS consumer migration**: [Remove EOS consumer migration guidance](2026-11-13-eos-consumer-migration-guidance.md); [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md) (earlier guidance)
 - **Graylog**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
-- **Join tickets and JWKS**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md)
+- **Join tickets and JWKS**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
 - **Log formats**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md) (level width superseded); [Fixed-width console log levels](2026-11-13-fixed-width-log-levels.md)
 - **Log level width**: [Fixed-width console log levels](2026-11-13-fixed-width-log-levels.md); [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md) (earlier policy)
-- **Refresh credentials and sessions**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md)
+- **Refresh credentials and sessions**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
 - **Requestor IP**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)
+- **Signing key rotation**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
+- **SQLite cleanup and quotas**: [Discord authentication foundation and EOS retirement](2026-11-13-discord-auth-foundation.md); [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md)
 - **Uvicorn**: [Unified console logs and request attribution](2026-11-13-unified-request-log-format.md)

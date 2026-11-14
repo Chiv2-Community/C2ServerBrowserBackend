@@ -16,3 +16,7 @@ The earlier [foundation record](2026-11-13-discord-auth-foundation.md) advised r
 ## Consequences and reconsideration
 
 The working-tree documentation no longer directs EOS consumers to migrate. If an actual consumer or deployment relying on the old exchange or removed models is discovered, reassess migration guidance and compatibility before deployment. Verify the plugin and end-to-end join path before required Discord admission. The original consumer inventory, exact discussion before the checkpoint, and any later commit or release of these documentation changes are unavailable. No tests were rerun for this documentation decision.
+
+## Subsequent developments (2026-11-13)
+
+The documentation changes were committed in `f38ea86` after this record. No release or independent consumer inventory is established.

@@ -30,3 +30,5 @@ The checkpoint reports 393 tests, full local CI and compatibility replay with 57
 ## Subsequent developments (2026-11-13)
 
 The unconditional follow-up to regenerate EOS model consumers is superseded by the user's later report that nothing integrated with EOS authentication and request to remove consumer migration guidance. The technical compatibility break and integration gates are not refuted or waived. See [EOS consumer migration guidance](2026-11-13-eos-consumer-migration-guidance.md).
+
+The intended session expiry, bounded cleanup and key overlap were retained, but review found timing and cleanup failures in their initial implementation. Later fixes coordinate signing cutover and adjust session transactions. The general 90-second overlap policy above is not proof that the initial implementation enforced it under delayed publication. See [authentication timing and cleanup corrections](2026-11-13-auth-timing-and-cleanup.md).
