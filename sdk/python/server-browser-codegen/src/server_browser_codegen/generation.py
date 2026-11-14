@@ -140,6 +140,25 @@ def load_contract(root: Path) -> tuple[str, dict]:
     return text, spec
 
 
+def run_generator(arguments: Sequence[str], root: Path) -> None:
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from openapi_generator_cli import cli; cli()",
+            "generate",
+            *arguments,
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if process.returncode:
+        print(process.stdout, file=sys.stderr)
+        print(process.stderr, file=sys.stderr)
+        process.check_returncode()
+
+
 def generate(root: Path, check: bool = False) -> None:
     root = root.resolve()
     text, spec = load_contract(root)
@@ -147,12 +166,8 @@ def generate(root: Path, check: bool = False) -> None:
         temporary = Path(directory)
         config = prepare_config(root, temporary)
         output = temporary / "generated"
-        process = subprocess.run(
+        run_generator(
             [
-                sys.executable,
-                "-c",
-                "from openapi_generator_cli import cli; cli()",
-                "generate",
                 "-c",
                 str(config),
                 "-o",
@@ -160,14 +175,8 @@ def generate(root: Path, check: bool = False) -> None:
                 "--global-property",
                 "models,apis,supportingFiles,modelDocs=false,modelTests=false,apiDocs=false,apiTests=false",
             ],
-            cwd=root,
-            capture_output=True,
-            text=True,
+            root,
         )
-        if process.returncode:
-            print(process.stdout, file=sys.stderr)
-            print(process.stderr, file=sys.stderr)
-            process.check_returncode()
         prepare_packages(output, spec, text)
         for name in PACKAGES:
             source = output / f"src/server_browser_{name}"
