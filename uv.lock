@@ -312,7 +312,7 @@ wheels = [
 
 [[package]]
 name = "chivalry2-unofficial-server-browser-backend"
-version = "1.2.2"
+version = "1.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
