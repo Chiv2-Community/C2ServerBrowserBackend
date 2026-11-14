@@ -175,10 +175,21 @@ and the installed `--root` command.
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
-`vMAJOR.MINOR.PATCH` tag, optionally followed by `+build.metadata`, is pushed.
-Plain release tags publish the version without `v` and update `latest`.
-Tags with build metadata do not update the `:latest` tag.
+`vMAJOR.MINOR.PATCH` tag, optionally followed by `-prerelease` and/or
+`+build.metadata`, is pushed. For example, `v1.3.0-alpha` publishes `:1.3.0-alpha`.
+Only stable tags without build metadata update `:latest`.
 The version comes from the Git tag, not `pyproject.toml`.
+
+To recover publication for an existing tag, dispatch the updated workflow without
+moving or recreating the tag:
+
+```bash
+gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha
+```
+
+The selected workflow revision validates the tag, then builds its exact commit.
+OCI revision labels identify that commit, not the workflow branch. Recovery uses
+the existing source/package versions; it does not rewrite tagged manifests.
 
 The workflow caches uv dependencies and stores Docker build layers in the GHCR
 `buildcache` tag for reuse across releases. This tag is build cache, not a runnable

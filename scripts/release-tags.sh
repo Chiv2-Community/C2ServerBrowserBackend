@@ -3,8 +3,10 @@ set -euo pipefail
 
 number='(0|[1-9][0-9]*)'
 metadata='[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*'
-if [[ ! "$GITHUB_REF_NAME" =~ ^v$number\.$number\.$number(\+$metadata)?$ ]]; then
-    echo "Expected vMAJOR.MINOR.PATCH with optional +build.metadata" >&2
+identifier="($number|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+prerelease="$identifier(\.$identifier)*"
+if [[ ! "$GITHUB_REF_NAME" =~ ^v$number\.$number\.$number(-$prerelease)?(\+$metadata)?$ ]]; then
+    echo "Expected vMAJOR.MINOR.PATCH with optional -prerelease and +build.metadata" >&2
     exit 1
 fi
 
@@ -21,7 +23,7 @@ fi
     echo "image=$image"
     echo 'tags<<EOF'
     echo "$image:$docker_tag"
-    if [[ "$version" != *+* ]]; then
+    if [[ "$version" != *+* && "$version" != *-* ]]; then
         echo "$image:latest"
     fi
     echo 'EOF'
