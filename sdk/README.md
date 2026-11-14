@@ -79,6 +79,10 @@ Discord verification remain consumer code.
 Generated output is rustfmt-normalized during generation. Change templates or
 the contract, then regenerate; do not hand-edit generated sources to satisfy lints.
 
+Run `python scripts/check_rust.py` from the repository root for Rust-only checks.
+Add `--package` to build and verify crate archives. Full CI and Windows Rust CI
+share this runner so their validation steps stay aligned.
+
 ## Artifacts
 
 CI tests both languages, builds Python wheels/sdists, exercises the Rust client
