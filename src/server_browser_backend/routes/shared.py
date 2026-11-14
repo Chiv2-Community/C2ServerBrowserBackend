@@ -3,6 +3,7 @@ from server_browser_models.models import StatusResponse
 from server_browser_server.runtime import ApiResponse, RequestContext
 
 from server_browser_backend.ip_list import IpList
+from server_browser_backend.ip_address import canonical_address
 
 ADMIN_KEY_HEADER = "x-chiv2-server-browser-admin-key"
 KEY_HEADER = "x-chiv2-server-browser-key"
@@ -17,7 +18,10 @@ class Banned(Exception):
 
 
 def get_ip(request: RequestContext) -> str:
-    return request.client_ip
+    try:
+        return str(canonical_address(request.client_ip))
+    except ValueError:
+        return request.client_ip
 
 
 class RequestPolicy:

@@ -691,10 +691,14 @@ components:
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players the server allows
         current_map:
           type: string
@@ -780,10 +784,14 @@ components:
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players on the server
         mods:
           type: array
@@ -841,10 +849,14 @@ components:
         player_count:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The number of players currently on the server
         max_players:
           type: integer
           format: int32
+          minimum: 0
+          maximum: 1024
           description: The max number of players on the server
         password_protected:
           type: boolean

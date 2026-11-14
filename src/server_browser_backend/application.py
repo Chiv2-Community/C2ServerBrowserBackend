@@ -1,6 +1,5 @@
 """Assemble an ASGI application from explicitly constructed API services."""
 from functools import partial
-from ipaddress import ip_address, ip_network
 
 from fastapi import FastAPI
 from server_browser_fastapi.apis.api_v1_api import \
@@ -15,6 +14,7 @@ from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from server_browser_backend import error_handlers
+from server_browser_backend.ip_address import canonical_address, canonical_network
 from server_browser_backend.request_logging import request_scope, requestor_ip
 from server_browser_backend.routes.shared import Banned
 from server_browser_backend.server_list import (InvalidSecretKey,
@@ -25,7 +25,7 @@ class ForwardedHeaders:
     """Trust forwarded headers only from configured, header-overwriting proxies."""
     def __init__(self, app: ASGIApp, trusted_proxies: tuple[str, ...]):
         self.app = app
-        self.trusted_proxies = tuple(ip_network(value) for value in trusted_proxies)
+        self.trusted_proxies = tuple(canonical_network(value) for value in trusted_proxies)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
@@ -38,16 +38,18 @@ class ForwardedHeaders:
             # the outer error handler and Uvicorn access logger as well.
             headers = dict(scope["headers"])
             try:
-                peer = ip_address(scope["client"][0]) if scope.get("client") else None
+                peer = canonical_address(scope["client"][0]) if scope.get("client") else None
             except ValueError:
                 peer = None
+            if peer is not None:
+                scope["client"] = (str(peer), scope["client"][1])
             if peer is None or not any(peer in network for network in self.trusted_proxies):
                 await self.app(scope, receive, send)
                 return
             forwarded = headers.get(b"x-forwarded-for")
             if forwarded:
                 try:
-                    address = ip_address(forwarded.decode("latin-1").split(",")[-1].strip())
+                    address = canonical_address(forwarded.decode("latin-1").split(",")[-1].strip())
                 except ValueError:
                     pass
                 else:

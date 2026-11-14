@@ -2,8 +2,9 @@
 
 import logging
 from contextvars import ContextVar
-from ipaddress import ip_address
 from typing import Any, Mapping
+
+from server_browser_backend.ip_address import canonical_address
 
 request_scope: ContextVar[Mapping[str, Any] | None] = ContextVar(
     "request_log_scope", default=None
@@ -17,7 +18,7 @@ def requestor_ip(scope: Mapping[str, Any] | None) -> str:
 
 def normalize_ip(address: str) -> str:
     try:
-        return str(ip_address(address))
+        return str(canonical_address(address))
     except ValueError:
         return "-"
 

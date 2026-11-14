@@ -115,8 +115,15 @@ Registration quotas return HTTP 429 without evicting live servers. Expired
 registrations are reclaimed on registration/listing; deletion also frees capacity.
 Registration and update metadata follows OAS limits: 256 characters for server
 names/maps, 4,096 for descriptions, and 64 mods with bounded name/organization/
-version strings. Keep proxy rate limits; quotas bound retained state, not request
+version strings. Player counts and capacities must be between 0 and 1,024;
+this also bounds the synthetic player-ID lists in TBIO responses.
+Keep proxy rate limits; quotas bound retained state, not request
 rate or CPU use. The registry remains process-local: use one backend worker.
+
+IPv4-mapped IPv6 addresses use their IPv4 identity for bans, verified status,
+proxy trust, and per-IP quotas. Mapped CIDRs within `::ffff:0:0/96` are stored as
+IPv4 CIDRs; equivalent forms can remove the same entry. Native IPv6 stays
+separate: `::/0` does not grant IPv4 verified status or proxy trust.
 
 ### UV
 This is a [uv](https://docs.astral.sh/uv/) project, and as such dependencies are managed via `uv`.

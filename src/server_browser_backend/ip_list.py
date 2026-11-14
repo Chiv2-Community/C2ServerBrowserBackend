@@ -1,8 +1,9 @@
-from ipaddress import IPv4Network, IPv6Network, ip_network
+from ipaddress import IPv4Network, IPv6Network
 from typing import Iterable, Iterator, Optional, Set, Sized
 import os
 
 from server_browser_backend.secured_resource import SecuredResource
+from server_browser_backend.ip_address import canonical_network
 
 class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
     secured_ip_list: SecuredResource[Set[IPv4Network | IPv6Network]]
@@ -89,7 +90,7 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
             return None
 
         try:
-            ips = {ip_network(ip) for ip in str_ips}
+            ips = {canonical_network(ip) for ip in str_ips}
         except ValueError:
             return None
 
@@ -110,7 +111,7 @@ class IpList(Sized, Iterable[IPv4Network | IPv6Network]):
     
     def contains(self, ip_str: str) -> bool:
         try:
-            ip = ip_network(ip_str)
+            ip = canonical_network(ip_str)
         except ValueError:
             return False
 

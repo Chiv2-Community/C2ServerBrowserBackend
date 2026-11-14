@@ -99,6 +99,30 @@ def test_update_cannot_persist_an_oversized_map(client, browser):
     assert browser.server_list.get(server_id) == original
 
 
+@pytest.mark.parametrize("field", ["player_count", "max_players"])
+@pytest.mark.parametrize("value", [-1, 1025, 2**31 - 1])
+def test_player_count_limits_reject_registration_and_update(client, browser, field, value):
+    rejected = client.post("/api/v1/servers", json={**test_server_json, field: value})
+    assert rejected.status_code == 400
+    assert browser.server_list.get_all() == []
+    registration = client.post("/api/v1/servers", json=test_server_json).json()
+    server_id = registration["server"]["unique_id"]
+    original = browser.server_list.get(server_id)
+    rejected = client.put(f"/api/v1/servers/{server_id}", json={**test_server_json, field: value}, headers={KEY_HEADER: registration["key"]})
+    assert rejected.status_code == 400
+    assert browser.server_list.get(server_id) == original
+
+
+@pytest.mark.parametrize("value", [0, 1024])
+def test_player_count_boundaries_preserve_tbio_listing(client, value):
+    registration = client.post("/api/v1/servers", json={**test_server_json, "player_count": value, "max_players": value})
+    assert registration.status_code == 201
+    listing = client.post("/api/tbio/GetCurrentGames")
+    assert listing.status_code == 200
+    game = listing.json()["Data"]["Games"][0]
+    assert len(game["PlayerUserIds"]) == value
+
+
 def test_register(client: TestClient, browser):
     response = client.post("/api/v1/servers", json=test_server_json)
     response_json = response.json()

@@ -32,7 +32,57 @@ def test_untrusted_peer_cannot_bypass_bans_with_forwarded_headers(
     assert response.status_code == 403
 
 
-@pytest.mark.parametrize("trusted,expected", [((), 403), (("192.0.2.0/24",), 200)])
+@pytest.mark.parametrize(
+    "peer,forwarded", [("::ffff:192.0.2.20", None), ("127.0.0.1", "::ffff:192.0.2.20")]
+)
+def test_mapped_source_addresses_do_not_bypass_ipv4_bans(
+    app, browser, admin_key, peer, forwarded
+):
+    browser.ban_list.add(admin_key, "192.0.2.20")
+    headers = {} if forwarded is None else {"X-Forwarded-For": forwarded}
+    with TestClient(app, client=(peer, 1234)) as client:
+        assert client.get("/api/v1/servers", headers=headers).status_code == 403
+
+
+def test_mapped_and_native_source_forms_share_registration_quota(app_factory):
+    from server_browser_backend.server_list import ServerList
+
+    app = app_factory(server_list=ServerList(max_servers_per_ip=1))
+    body = {
+        "name": "test",
+        "description": "",
+        "current_map": "map",
+        "player_count": 0,
+        "max_players": 32,
+        "ports": {"game": 7777, "ping": 7778, "a2s": 7779},
+    }
+    with TestClient(app, client=("::ffff:192.0.2.20", 1234)) as client:
+        registration = client.post("/api/v1/servers", json=body)
+        assert registration.status_code == 201
+        server_id = registration.json()["server"]["unique_id"]
+        stored = app.browser_api.server_list.get(server_id)
+        assert stored is not None
+        assert str(stored.ip_address) == "192.0.2.20"
+    with TestClient(app, client=("192.0.2.20", 1234)) as client:
+        assert client.post("/api/v1/servers", json=body).status_code == 429
+        assert (
+            client.post(
+                f"/api/v1/servers/{server_id}/heartbeat",
+                headers={"X-CHIV2-SERVER-BROWSER-KEY": registration.json()["key"]},
+            ).status_code
+            == 200
+        )
+
+
+@pytest.mark.parametrize(
+    "trusted,expected",
+    [
+        ((), 403),
+        (("192.0.2.0/24",), 200),
+        (("::ffff:192.0.2.0/120",), 200),
+        (("::/0",), 403),
+    ],
+)
 def test_proxy_trust_is_explicitly_configurable(
     app_factory, admin_key, trusted, expected
 ):
@@ -62,8 +112,11 @@ def test_untrusted_peer_cannot_impersonate_verified_host(app, browser):
     assert response.json() == {"ip": "192.0.2.20", "scheme": "http"}
 
 
-@pytest.mark.parametrize("peer", ["127.0.0.1", "::1"])
-def test_trusted_proxy_only_accepts_valid_forwarded_values(app, peer):
+@pytest.mark.parametrize(
+    "peer,canonical",
+    [("127.0.0.1", "127.0.0.1"), ("::1", "::1"), ("::ffff:127.0.0.1", "127.0.0.1")],
+)
+def test_trusted_proxy_only_accepts_valid_forwarded_values(app, peer, canonical):
     @app.get("/security-probe")
     def probe(request: Request):
         assert request.client is not None
@@ -85,7 +138,7 @@ def test_trusted_proxy_only_accepts_valid_forwarded_values(app, peer):
                 "X-Forwarded-Proto": "javascript",
             },
         )
-    assert response.json() == {"ip": peer, "scheme": "http"}
+    assert response.json() == {"ip": canonical, "scheme": "http"}
 
 
 def test_oversized_json_returns_413_without_echoing_content(app):

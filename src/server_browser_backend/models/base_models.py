@@ -10,6 +10,7 @@ from server_browser_models.models import (
     ServerResponse, ServerResponseWithIP, UpdateRegisteredServer,
 )
 from server_browser_backend.dict_util import decode_ip_address, get_or
+from server_browser_backend.ip_address import canonical_address
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,7 @@ class Server:
     ) -> Server:
         return Server(
             unique_id=unique_id,
-            ip_address=decode_ip_address(ip_address).value,
+            ip_address=canonical_address(decode_ip_address(ip_address).value),
             local_ip_address=registration.local_ip_address,
             ports=registration.ports,
             password_protected=registration.password_protected,
