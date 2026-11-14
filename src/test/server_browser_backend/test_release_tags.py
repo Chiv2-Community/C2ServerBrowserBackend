@@ -23,9 +23,10 @@ def run_release_tags(tag, output):
 
 
 @pytest.mark.parametrize("metadata", ["", "+abc123", "+build.123-sha"])
-def test_release_tags(metadata, tmp_path):
+@pytest.mark.parametrize("prerelease", ["", "-alpha", "-alpha.1", "-rc.1", "-0", "-0a", "-alpha-1"])
+def test_release_tags(metadata, prerelease, tmp_path):
     output = tmp_path / "output"
-    version = f"1.1.0{metadata}"
+    version = f"1.3.0{prerelease}{metadata}"
     result = run_release_tags(f"v{version}", output)
     assert result.returncode == 0, result.stderr
     lines = output.read_text().splitlines()
@@ -33,7 +34,7 @@ def test_release_tags(metadata, tmp_path):
     assert f"version={version}" in lines
     assert f"image={image}" in lines
     assert f"{image}:{version.replace('+', '_')}" in lines
-    assert (f"{image}:latest" in lines) == (metadata == "")
+    assert (f"{image}:latest" in lines) == (metadata == "" and prerelease == "")
 
 
 @pytest.mark.parametrize(
@@ -44,7 +45,12 @@ def test_release_tags(metadata, tmp_path):
         "v1.1.0+",
         "v1.1.0+a..b",
         "v1.1.0+bad_sha",
-        "v1.1.0-rc.1",
+        "v1.1.0-",
+        "v1.1.0-01",
+        "v1.1.0-alpha.01",
+        "v1.1.0-alpha..1",
+        "v1.1.0-alpha_1",
+        "v1.1.0-alpha\ninjected",
         "v1.1.0+" + "a" * 128,
     ],
 )
