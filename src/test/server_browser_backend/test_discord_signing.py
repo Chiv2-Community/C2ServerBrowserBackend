@@ -128,6 +128,64 @@ def test_rotation_capacity_never_discards_unexpired_keys(keys, monkeypatch):
     assert len(keys.get_jwks_response().keys) == 2
 
 
+def test_slow_rotation_retains_tickets_issued_during_generation(
+    keys, monkeypatch, app_factory
+):
+    clock = [1_800_000_000]
+    monkeypatch.setattr(signing.time, "time", lambda: clock[0])
+    generate = signing.rsa.generate_private_key
+    issued = []
+
+    def slow_generation(**kwargs):
+        clock[0] += 40
+        issued.append(issue(keys))
+        return generate(**kwargs)
+
+    monkeypatch.setattr(signing.rsa, "generate_private_key", slow_generation)
+    provision(keys.path, rotate=True)
+    token = issued[0]
+    old_kid = jwt.get_unverified_header(token)["kid"]
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["exp"] == 1_800_000_100
+    retirement = claims["exp"] + signing.CLOCK_SKEW_SECONDS
+    document = json.loads(keys.path.read_text())
+    retired = next(entry for entry in document["keys"] if entry["kid"] == old_kid)
+    assert retired["retire_after"] == retirement
+    with TestClient(app_factory(signing_keys=keys)) as client:
+        for now in (1_800_000_090, claims["exp"] - 1, retirement - 1):
+            clock[0] = now
+            response = client.get("/api/v1/auth/jwks.json")
+            assert response.status_code == 200
+            public = next(
+                key for key in jwt.PyJWKSet.from_dict(response.json()).keys
+                if key.key_id == old_kid
+            )
+            assert jwt.decode(
+                token, public.key, algorithms=["RS256"], issuer=ISSUER,
+                audience=f"urn:unchained:server:{SERVER_ID}",
+                options={"verify_exp": False, "verify_iat": False, "verify_nbf": False},
+            ) == claims
+        clock[0] = retirement
+        assert old_kid not in {
+            key["kid"] for key in client.get("/api/v1/auth/jwks.json").json()["keys"]
+        }
+
+
+def test_failed_key_generation_preserves_old_keyring(keys, monkeypatch):
+    before = keys.path.read_bytes()
+    token = issue(keys)
+
+    def fail(**kwargs):
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(signing.rsa, "generate_private_key", fail)
+    with pytest.raises(RuntimeError, match="generation failed"):
+        provision(keys.path, rotate=True)
+    assert keys.path.read_bytes() == before
+    assert not list(keys.path.parent.glob(".signing-*"))
+    verify(keys, token)
+
+
 def test_jwks_reuses_one_snapshot_and_revalidates_changed_configuration(
     keys, monkeypatch
 ):
@@ -278,7 +336,7 @@ def test_jwks_api_publishes_only_public_material_and_eos_exchange_is_retired(
 
 
 def test_unconfigured_signing_publishes_no_ephemeral_key(app):
-    app.browser_api.signing_keys = None
+    assert app.browser_api.signing_keys is None
     with TestClient(app) as client:
         assert client.get("/api/v1/auth/jwks.json").json() == {"keys": []}
 

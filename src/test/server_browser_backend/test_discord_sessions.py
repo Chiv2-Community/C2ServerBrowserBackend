@@ -232,6 +232,77 @@ def test_busy_storage_leaves_credentials_usable(store, clock):
     )
 
 
+def after_sqlite_contention(store, clock, monkeypatch, now, operation):
+    connect = sqlite3.connect
+    contended = []
+    with connect(store.path, isolation_level=None) as locked:
+        locked.execute("BEGIN IMMEDIATE")
+
+        class WaitingConnection(sqlite3.Connection):
+            def execute(self, sql, parameters=()):
+                try:
+                    return super().execute(sql, parameters)
+                except sqlite3.OperationalError as error:
+                    if sql != "BEGIN IMMEDIATE" or error.sqlite_errorcode != sqlite3.SQLITE_BUSY:
+                        raise
+                    # A real failed lock acquisition advances the clock before retry.
+                    contended.append(True)
+                    clock[0] = now
+                    locked.rollback()
+                    return super().execute(sql, parameters)
+
+        def waiting_connect(*args, **kwargs):
+            return connect(*args, **{**kwargs, "timeout": 0, "factory": WaitingConnection})
+
+        with monkeypatch.context() as patched:
+            patched.setattr(sqlite3, "connect", waiting_connect)
+            try:
+                return operation()
+            finally:
+                locked.rollback()
+                assert contended == [True]
+
+
+@pytest.mark.parametrize("operation", ["authenticate", "refresh"])
+@pytest.mark.parametrize("expiry", ["idle", "absolute"])
+def test_lock_wait_crossing_expiry_rejects_credentials(
+    store, clock, monkeypatch, operation, expiry
+):
+    created = store.create(ACCOUNT, clock[0])
+    if expiry == "absolute":
+        for _ in range(3):
+            clock[0] += 90
+            store.authenticate(created.credential)
+        deadline = created.identity.absolute_expires_at
+    else:
+        deadline = created.identity.expires_at
+    clock[0] = deadline - 1
+    with pytest.raises(InvalidCredential):
+        after_sqlite_contention(
+            store, clock, monkeypatch, deadline,
+            lambda: getattr(store, operation)(created.credential),
+        )
+    assert counts(store) == (0, 0)
+
+
+def test_create_anchors_lifetimes_and_cleanup_after_lock_wait(store, clock, monkeypatch):
+    old = store.create(ACCOUNT, clock[0])
+    store.create(ACCOUNT, clock[0])
+    auth_time = clock[0]
+    now = old.identity.expires_at
+    created = after_sqlite_contention(
+        store, clock, monkeypatch, now, lambda: store.create(ACCOUNT, auth_time)
+    )
+    assert created.identity.auth_time == auth_time
+    assert created.identity.expires_at == now + store.limits.idle_seconds
+    assert created.identity.absolute_expires_at == now + store.limits.absolute_seconds
+    with sqlite3.connect(store.path) as database:
+        assert database.execute(
+            "SELECT issued_at FROM credentials WHERE session_id=?",
+            (created.identity.session_id,),
+        ).fetchone()[0] == now
+
+
 def test_insecure_or_nonregular_database_is_rejected(store):
     store.path.chmod(0o644)
     with pytest.raises(ValueError, match="group or other"):

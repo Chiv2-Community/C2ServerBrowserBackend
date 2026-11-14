@@ -13,7 +13,7 @@ from server_browser_models.models import JwksResponse, StatusResponse
 from server_browser_server.runtime import ApiResponse
 from server_browser_backend.application import Application
 from server_browser_backend.server_list import ServerList
-from server_browser_backend.auth.signing import SigningKeys
+from server_browser_backend.auth.signing import SigningKeys, provision
 
 REGISTRATION = {
     "name": "injected server", "description": "", "current_map": "Test Map",
@@ -54,9 +54,11 @@ def test_api_implementations_share_the_injected_services(app):
     assert browser.policy.verified_list is browser.verified_list
 
 
-def test_applications_isolate_registrations_policy_keys_and_visibility(app_factory, admin_key):
-    first = app_factory(expose_ips=lambda: True)
-    second = app_factory(expose_ips=lambda: False)
+def test_applications_isolate_registrations_policy_keys_and_visibility(app_factory, admin_key, tmp_path):
+    provision(tmp_path / "first-signing.json")
+    provision(tmp_path / "second-signing.json")
+    first = app_factory(expose_ips=lambda: True, signing_keys=SigningKeys(tmp_path / "first-signing.json"))
+    second = app_factory(expose_ips=lambda: False, signing_keys=SigningKeys(tmp_path / "second-signing.json"))
     assert first.browser_api.signing_keys.get_jwks_response() != second.browser_api.signing_keys.get_jwks_response()
     assert first.browser_api.ban_list.ip_list_path != second.browser_api.ban_list.ip_list_path
     assert first.browser_api.verified_list.ip_list_path != second.browser_api.verified_list.ip_list_path

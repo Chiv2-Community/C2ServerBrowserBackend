@@ -196,9 +196,22 @@ def provisioning_lock(path: Path):
 def provision(path: Path, *, rotate: bool = False) -> None:
     """Create or rotate a keyring without dropping still-valid verification keys."""
     with provisioning_lock(path):
-        entries = []
         if rotate:
             old, kid, previous = SigningKeys(path)._load()
+        elif path.exists():
+            raise FileExistsError("Signing keyring already exists")
+        private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        active = {
+            "kid": str(uuid4()),
+            "private_key": private.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ).decode(),
+        }
+        entries = []
+        if rotate:
+            # Readers can issue with the old key throughout key generation.
             now = int(time.time())
             entries = [
                 entry
@@ -217,25 +230,12 @@ def provision(path: Path, *, rotate: bool = False) -> None:
                     "retire_after": now + TICKET_SECONDS + CLOCK_SKEW_SECONDS,
                 }
             )
-        elif path.exists():
-            raise FileExistsError("Signing keyring already exists")
         if len(entries) >= MAX_KEYS:
             raise ValueError(
                 "Rotation capacity reached; wait for retained keys to expire"
             )
-        kid = str(uuid4())
-        private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        entries.append(
-            {
-                "kid": kid,
-                "private_key": private.private_bytes(
-                    serialization.Encoding.PEM,
-                    serialization.PrivateFormat.PKCS8,
-                    serialization.NoEncryption(),
-                ).decode(),
-            }
-        )
-        document = {"active_kid": kid, "keys": entries}
+        entries.append(active)
+        document = {"active_kid": active["kid"], "keys": entries}
         descriptor, temporary = tempfile.mkstemp(prefix=".signing-", dir=path.parent)
         try:
             with os.fdopen(descriptor, "w") as output:

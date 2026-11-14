@@ -11,7 +11,6 @@ from server_browser_backend.routes.api_v1 import BrowserApi
 from server_browser_backend.routes.chiv2_compat import CompatibilityApi
 from server_browser_backend.routes.shared import RequestPolicy
 from server_browser_backend.server_list import ServerList
-from server_browser_backend.auth.signing import SigningKeys, provision
 
 
 @pytest.fixture
@@ -41,9 +40,6 @@ def app_factory(tmp_path, admin_key):
         verified_list = IpList(admin_key, str(directory / "verified_list.txt"))
         verified_list.add_all(admin_key, ["127.0.0.1"])
         policy = RequestPolicy(ban_list, verified_list)
-        if signing_keys is None:
-            provision(directory / "signing.json")
-            signing_keys = SigningKeys(directory / "signing.json")
         return Application(
             BrowserApi(
                 server_list=server_list,

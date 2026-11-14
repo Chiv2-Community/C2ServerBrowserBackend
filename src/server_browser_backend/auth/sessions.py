@@ -204,10 +204,10 @@ class SessionStore:
 
     def create(self, discord_id: str, auth_time: int) -> SessionCredentials:
         validate_discord_id(discord_id)
-        now = int(time.time())
-        if type(auth_time) is not int or not 0 < auth_time <= now:
+        if type(auth_time) is not int or not 0 < auth_time <= int(time.time()):
             raise ValueError("Invalid authentication time")
         with self._transaction() as connection:
+            now = int(time.time())
             self._cleanup(connection, now)
             total = connection.execute("SELECT count(*) FROM sessions").fetchone()[0]
             account = connection.execute(
@@ -257,10 +257,10 @@ class SessionStore:
         self, credential: str, *, rotate: bool
     ) -> SessionCredentials | SessionIdentity:
         digest = credential_hash(credential)  # Invalid shapes allocate no DB state.
-        now = int(time.time())
         replay = False
         result: SessionCredentials | SessionIdentity | None = None
         with self._transaction() as connection:
+            now = int(time.time())
             self._cleanup(connection, now)
             row = connection.execute(
                 "SELECT s.*, c.issued_at, c.spent_at FROM credentials c JOIN sessions s ON s.id=c.session_id WHERE c.digest=? AND s.expires_at > ?",

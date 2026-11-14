@@ -42,7 +42,7 @@ def test_all_generated_operations_round_trip(app, browser, admin_key, monkeypatc
                 return await result if inspect.isawaitable(result) else result
 
             try:
-                assert (await call("jwks")).body.keys
+                assert (await call("jwks")).body.keys == []
                 login = await call("login", login_request=LoginRequest(token="eos-token"))
                 assert login.status == 410
                 assert isinstance(login.body, StatusResponse)
