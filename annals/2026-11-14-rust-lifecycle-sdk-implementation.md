@@ -26,3 +26,7 @@ Plugin commit `c5fdd2cccdd7a3a805b0a3f6f2e1b9beccf4f4c6` implements delegation i
 ## Follow-up and reconsideration
 
 Complete stacked PR review and merge in dependency order; verify actual game integration and release artifacts separately. Reconsider ambiguous-registration handling if an authoritative idempotency or recovery contract is introduced. Python lifecycle functionality remains deferred; its timing and design are open. Earlier deliberation and current remote PR state remain unavailable or unverified.
+
+## Subsequent developments (2026-11-14)
+
+The plugin implementation cited above later removed its adapter crate and adopted direct SDK dependencies; the lifecycle and plugin responsibility boundaries remain. See [Plugin direct backend SDK consumption](2026-11-14-plugin-direct-sdk-consumption.md).
