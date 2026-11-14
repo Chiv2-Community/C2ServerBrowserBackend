@@ -6,11 +6,9 @@ import re
 import shutil
 import subprocess
 import tempfile
-import zipfile
 from importlib.resources import files
 from pathlib import Path
 
-import openapi_generator_cli
 import yaml
 
 from server_browser_codegen.generation import copy_resources, load_contract, run_generator
@@ -100,35 +98,6 @@ def generate(root: Path, check: bool = False) -> None:
             shutil.copyfile(
                 templates / owner / f"{alias}.mustache", templates / f"{alias}.mustache"
             )
-        jar = Path(openapi_generator_cli.__file__).parent / "openapi-generator.jar"
-        with zipfile.ZipFile(jar) as archive:
-            (templates / "model-default.mustache").write_text(
-                archive.read("rust/model.mustache").decode()
-                .replace(
-                    "    pub fn new(",
-                    "    #[must_use]\n    #[allow(clippy::too_many_arguments)]\n    pub const fn new(",
-                )
-                .replace("use crate::models;", "#[allow(unused_imports)]\nuse crate::models;")
-                .replace("/// {{{classname}}} :", "/// `{{{classname}}}` :")
-                .replace("-> {{{classname}}}", "-> Self")
-                .replace("-> {{{enumName}}}", "-> Self")
-                .replace("        {{{classname}}} {", "        Self {")
-            )
-            # Retain upstream request generation; own response decoding and errors.
-            api = archive.read("rust/reqwest/api.mustache").decode()
-            marker = "    let req = req_builder.build()?;"
-            if api.count(marker) != 1:
-                raise ValueError("Pinned Rust API template response boundary changed")
-            requests, _, _ = api.partition(marker)
-            (templates / "reqwest/api.mustache").write_text(
-                requests
-                .replace("use reqwest;\n", "")
-                .replace(
-                    "{{#isDeprecated}}",
-                    "/// # Errors\n/// Returns a transport, decoding, or declared HTTP error.\n{{#isDeprecated}}",
-                )
-                + "{{>client/response}}\n}\n\n{{/operation}}\n{{/operations}}\n"
-            )
         schema = directory / "schema.yaml"
         schema.write_text(yaml.safe_dump(spec, sort_keys=False))
         config = directory / "config.yaml"
@@ -172,7 +141,6 @@ def generate(root: Path, check: bool = False) -> None:
                 (source / path).write_text(
                     "\n".join(
                         line.rstrip() for line in text.splitlines()
-                        if line.strip() != "///"
                     ).strip()
                     + "\n"
                 )

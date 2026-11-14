@@ -31,13 +31,19 @@ All templates live under `src/server_browser_codegen/templates/`:
 | `fastapi/` | `server_browser_fastapi` routers, exports, and HTTP runtime |
 | `shared/` | Common packaging markers (`py.typed`) |
 | `rust/models/` | Rust model crate, manifest, and `anyOf` decoding |
-| `rust/client/` | Rust client crate manifest and external-model exports |
+| `rust/client/` | Rust client crate manifest, external-model exports, and response decoding |
+| `rust/reqwest/` | Rust operation entry point, shared errors, and HTTP configuration |
 
 `config.yaml` maps supporting templates to their explicit generated output paths.
 OpenAPI Generator requires three entry-point filenames (`model.mustache`,
 `base_api.mustache`, `api.mustache`) at its template root. The CLI creates aliases
 only in a temporary staging directory; source templates stay with their owners.
 No top-level template forwarding files are needed in the repository.
+
+Rust's model and operation templates are checked-in, repository-owned copies;
+generation does not extract or rewrite template source from the generator JAR.
+See [Rust template provenance](src/server_browser_codegen/templates/rust/UPSTREAM.md)
+for the upstream version, source hashes, license, local changes, and update policy.
 
 Edit the authoritative contract in `assets/chiv2-server-browser-api.yaml` for
 API changes. Edit this project's templates for generation behavior. Never edit
