@@ -14,7 +14,7 @@ from server_browser_server.apis.chiv2_compat_api_base import BaseChiv2CompatApi
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from server_browser_backend import error_handlers
-from server_browser_backend.request_logging import request_scope
+from server_browser_backend.request_logging import request_scope, requestor_ip
 from server_browser_backend.routes.shared import Banned
 from server_browser_backend.server_list import (InvalidSecretKey,
                                                 SecretKeyMissing)
@@ -51,6 +51,10 @@ class Application(FastAPI):
         token = request_scope.set(scope if scope["type"] == "http" else None)
         try:
             await super().__call__(scope, receive, send)
+        except Exception as exc:
+            # Uvicorn logs escaping errors after the request context is reset.
+            setattr(exc, "_request_log_ip", requestor_ip(request_scope.get()))
+            raise
         finally:
             request_scope.reset(token)
 

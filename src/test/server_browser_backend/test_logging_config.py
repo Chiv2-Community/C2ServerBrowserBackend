@@ -141,3 +141,89 @@ for ip in ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
     assert len(lines) == 2
     for line, ip in zip(lines, ("192.0.2.1", "2001:db8:1234:5678:abcd:1234:5678:abcd")):
         assert f" | INFO  | {ip:<15} | uvicorn.access - IP-PROBE" in line
+
+
+def test_real_uvicorn_unhandled_errors_keep_ip_without_leaking_context(tmp_path):
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"GRAYLOG_HOST", "GRAYLOG_PORT", "ADMIN_KEY", "DEBUG_MODE"}
+    }
+    environment["CONFIG_DIR"] = str(tmp_path)
+    code = """
+import asyncio
+import logging
+import socket
+import httpx
+import uvicorn
+
+async def main():
+    config = uvicorn.Config("server_browser_backend.main:app", proxy_headers=False, lifespan="off")
+    config.load()
+    from server_browser_backend.main import app
+    from server_browser_backend.request_logging import request_scope
+
+    def fail():
+        logging.getLogger("server_browser_backend.probe").info("SYNC-PROBE")
+        raise RuntimeError("HTTP-FAILURE-PROBE")
+
+    app.browser_api.server_list.get_all = fail
+    application = config.loaded_app
+    async def boundary(scope, receive, send):
+        try:
+            await application(scope, receive, send)
+        finally:
+            assert request_scope.get() is None
+            logging.getLogger("uvicorn.error").warning("AFTER-ASGI-PROBE")
+    config.loaded_app = boundary
+    server = uvicorn.Server(config)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        task = asyncio.create_task(server.serve(sockets=[sock]))
+        try:
+            while not server.started:
+                await asyncio.sleep(0.01)
+            async with httpx.AsyncClient() as client:
+                responses = await asyncio.gather(*(
+                    client.get(
+                        f"http://127.0.0.1:{sock.getsockname()[1]}/api/v1/servers",
+                        headers={"X-Forwarded-For": "198.51.100.1, " + ip},
+                    )
+                    for ip in ("192.0.2.8", "2001:db8:1234:5678:abcd:1234:5678:abcd")
+                ))
+                assert all(response.status_code == 500 for response in responses)
+        finally:
+            server.should_exit = True
+            await task
+        logging.getLogger("uvicorn.error").warning("OUTSIDE-PROBE")
+
+asyncio.run(main())
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=20,
+    )
+    output = process.stdout + process.stderr
+    lines = output.splitlines()
+    for ip in ("192.0.2.8", "2001:db8:1234:5678:abcd:1234:5678:abcd"):
+        for level, namespace, message in (
+            ("INFO", "server_browser_backend.probe", "SYNC-PROBE"),
+            ("ERROR", "server_browser_backend.error_handlers", "Unhandled exception"),
+            ("INFO", "uvicorn.access", f'{ip}:0 - "GET /api/v1/servers HTTP/1.1" 500'),
+            ("ERROR", "uvicorn.error", "Exception in ASGI application"),
+        ):
+            matching = [
+                line for line in lines
+                if f" | {level:<5} | {ip:<15} | {namespace} - {message}" in line
+            ]
+            assert len(matching) == 1, output
+            assert re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \| ", matching[0])
+    for marker, count in (("AFTER-ASGI-PROBE", 2), ("OUTSIDE-PROBE", 1)):
+        assert sum(
+            f" | WARNING | {'-':<15} | uvicorn.error - {marker}" in line
+            for line in lines
+        ) == count, output
