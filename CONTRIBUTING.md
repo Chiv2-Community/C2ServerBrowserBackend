@@ -10,22 +10,25 @@ The uv workspace contains five runtime packages and one development-tooling proj
 
 - Root: `chivalry2-unofficial-server-browser-backend`, handwritten application
   handlers and domain state in `src/server_browser_backend`.
-- `packages/server-browser-models`: generated models, model runtime, and contract.
-- `packages/server-browser-client`: generated sync/async HTTPX clients.
-- `packages/server-browser-server`: framework-neutral abstract handler interfaces.
-- `packages/server-browser-fastapi`: generated FastAPI adapter.
-- `packages/server-browser-codegen`: generation CLI, toolchain, configuration,
+- `sdk/python/server-browser-models`: generated models, model runtime, and contract.
+- `sdk/python/server-browser-client`: generated sync/async HTTPX clients.
+- `sdk/python/server-browser-server`: framework-neutral abstract handler interfaces.
+- `sdk/python/server-browser-fastapi`: generated FastAPI adapter.
+- `sdk/python/server-browser-codegen`: generation CLI, toolchain, configuration,
   module-scoped templates, and generation tests (development-only).
 
 See [Python packages](docs/python-packaging.md) for dependency boundaries, client
 usage, alternative implementations, and migration from `server-browser-api`.
+`sdk/rust/` contains only model and client crates. See [SDKs](sdk/README.md) for
+Rust consumption, package boundaries and release artifacts.
 
 Generated SDK sources under the four reusable runtime projects are never edited by
 hand. Application handlers implement the generated interfaces and return typed
 `ApiResponse` values. Domain conversion functions belong in the application,
 not in generated models. Do not declare routes in the application.
 
-Install uv, Python 3.10 or newer, and Java 11 or newer (CI uses Java 21), then:
+Install uv, Python 3.10+, Java 11+ (CI uses Java 21), and Rust via rustup
+(the repository pins 1.93.0), then:
 
 ```bash
 uv sync --frozen --all-packages
@@ -49,7 +52,7 @@ For API changes:
 3. Implement the generated abstract methods and application conversions.
 4. Add compatibility and contract tests; commit the OAS and generated diff.
 
-`packages/server-browser-codegen/src/server_browser_codegen/config.yaml` selects
+`sdk/python/server-browser-codegen/src/server_browser_codegen/config.yaml` selects
 `python-fastapi`. Its sibling `templates/` directory groups templates by output
 owner: `models/`, `client/`, `server/`, and `fastapi/`, with common markers in
 `shared/`. Change these only for generator behavior, never for operation-specific
@@ -107,7 +110,9 @@ IPv6 loopback listener when available and checks bracketed registration, TBIO
 brackets, and raw PlayFab output over that socket.
 
 `uv run server-browser-codegen --check` regenerates into a temporary
-directory and rejects missing, extra, stale, or hand-edited generated Python files.
+directory and rejects missing, extra, stale, or hand-edited generated Python and
+Rust files, including Rust manifests. Use `--language python` or `--language rust`
+to select one language; the default checks both.
 The ignored contract copies are excluded from drift checks; contract tests and
 wheel checks compare them with the authoritative YAML. Generation also refreshes
 the local copies after OAS edits.
@@ -158,27 +163,38 @@ copies only that installed environment, default configuration, and the startup
 script. It contains no repository checkout, client/codegen sources, workspace
 manifests, or uv executable; startup invokes the installed Uvicorn directly.
 
-CI and tag workflows retain all six wheels and sdists plus the authoritative
-OpenAPI YAML in the `python-distributions-and-contract` Actions artifact. This
+CI and tag workflows retain all six wheels and sdists, both Rust `.crate` archives,
+and authoritative OpenAPI YAML in the `sdk-distributions-and-contract` artifact. This
 makes the contract available to non-Python tooling without another package.
 Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
 which checks out its tag, validates all packages, and attaches the wheels,
-sdists, and authoritative YAML to that release. It does not create releases or
+sdists, Rust archives, and authoritative YAML to that release. It does not create releases or
 overwrite existing assets. No package-index publication is configured; verify
 name ownership before adding it. The four generated distributions use one coordinated version and
 exact internal dependency constraints; update their `pyproject.toml` versions and
 the backend requirements together, then refresh `uv.lock` and run `./ci.sh`.
 The development-only codegen tool has its own version and owns the pinned
 generator dependency; it is never installed in runtime SDK/backend environments.
-See its [README](packages/server-browser-codegen/README.md) for template ownership
+See its [README](sdk/python/server-browser-codegen/README.md) for template ownership
 and the installed `--root` command.
 
 The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
-`vMAJOR.MINOR.PATCH` tag, optionally followed by `+build.metadata`, is pushed.
-Plain release tags publish the version without `v` and update `latest`.
-Tags with build metadata do not update the `:latest` tag.
+`vMAJOR.MINOR.PATCH` tag, optionally followed by `-prerelease` and/or
+`+build.metadata`, is pushed. For example, `v1.3.0-alpha` publishes `:1.3.0-alpha`.
+Only stable tags without build metadata update `:latest`.
 The version comes from the Git tag, not `pyproject.toml`.
+
+To recover publication for an existing tag, dispatch the updated workflow without
+moving or recreating the tag:
+
+```bash
+gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha
+```
+
+The selected workflow revision validates the tag, then builds its exact commit.
+OCI revision labels identify that commit, not the workflow branch. Recovery uses
+the existing source/package versions; it does not rewrite tagged manifests.
 
 The workflow caches uv dependencies and stores Docker build layers in the GHCR
 `buildcache` tag for reuse across releases. This tag is build cache, not a runnable

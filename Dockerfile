@@ -5,11 +5,11 @@ WORKDIR /build
 
 # uv needs every workspace manifest, but client/tooling sources are not build inputs.
 COPY pyproject.toml uv.lock /build/
-COPY packages/server-browser-models/pyproject.toml /build/packages/server-browser-models/pyproject.toml
-COPY packages/server-browser-server/pyproject.toml /build/packages/server-browser-server/pyproject.toml
-COPY packages/server-browser-fastapi/pyproject.toml /build/packages/server-browser-fastapi/pyproject.toml
-COPY packages/server-browser-client/pyproject.toml /build/packages/server-browser-client/pyproject.toml
-COPY packages/server-browser-codegen/pyproject.toml /build/packages/server-browser-codegen/pyproject.toml
+COPY sdk/python/server-browser-models/pyproject.toml /build/sdk/python/server-browser-models/pyproject.toml
+COPY sdk/python/server-browser-server/pyproject.toml /build/sdk/python/server-browser-server/pyproject.toml
+COPY sdk/python/server-browser-fastapi/pyproject.toml /build/sdk/python/server-browser-fastapi/pyproject.toml
+COPY sdk/python/server-browser-client/pyproject.toml /build/sdk/python/server-browser-client/pyproject.toml
+COPY sdk/python/server-browser-codegen/pyproject.toml /build/sdk/python/server-browser-codegen/pyproject.toml
 RUN uv export --frozen --no-dev --no-emit-workspace --no-hashes --output-file /requirements.txt
 RUN uv venv /opt/venv
 RUN uv pip sync --python /opt/venv/bin/python /requirements.txt
@@ -18,10 +18,10 @@ RUN uv pip sync --python /opt/venv/bin/python /requirements.txt
 COPY README.md /build/
 COPY assets /build/assets
 COPY src/server_browser_backend /build/src/server_browser_backend
-COPY packages/server-browser-models/hatch_build.py /build/packages/server-browser-models/hatch_build.py
-COPY packages/server-browser-models/src /build/packages/server-browser-models/src
-COPY packages/server-browser-server/src /build/packages/server-browser-server/src
-COPY packages/server-browser-fastapi/src /build/packages/server-browser-fastapi/src
+COPY sdk/python/server-browser-models/hatch_build.py /build/sdk/python/server-browser-models/hatch_build.py
+COPY sdk/python/server-browser-models/src /build/sdk/python/server-browser-models/src
+COPY sdk/python/server-browser-server/src /build/sdk/python/server-browser-server/src
+COPY sdk/python/server-browser-fastapi/src /build/sdk/python/server-browser-fastapi/src
 RUN uv build --wheel --package server-browser-models --out-dir /wheels
 RUN uv build --wheel --package server-browser-server --out-dir /wheels
 RUN uv build --wheel --package server-browser-fastapi --out-dir /wheels

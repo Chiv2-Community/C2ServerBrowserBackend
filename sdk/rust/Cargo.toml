@@ -1,0 +1,3 @@
+[workspace]
+members = ["server-browser-models", "server-browser-client"]
+resolver = "2"

@@ -1,0 +1,13 @@
+[package]
+name = "server-browser-models"
+version = "1.0.0"
+edition = "2021"
+description = "Generated models for the Chivalry 2 community server browser API"
+license = "GPL-3.0-only"
+repository = "https://github.com/Chiv2-Community/C2ServerBrowserBackend"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = { version = "3.8", default-features = false, features = ["base64", "std", "macros"] }
+serde_repr = "0.1"
