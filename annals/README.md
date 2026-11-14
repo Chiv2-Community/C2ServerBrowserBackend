@@ -2,6 +2,7 @@
 
 | Date | Record | Status | Scope | Git provenance |
 | --- | --- | --- | --- | --- |
+| 2026-11-13 | [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md) | implemented on branch; release unverified | Player counts, IP identity | `4895a9a`, `v1.2.3` |
 | 2026-11-13 | [Bound registry state and metadata](2026-11-13-registry-resource-bounds.md) | implemented on PR branch; release pending | Registry quotas, metadata, MOTD | `ca29f36`, `v1.2.3` |
 | 2026-11-13 | [SDK redirect policy and dependency security updates](2026-11-13-sdk-redirects-dependency-security.md) | implemented on PR branch; release unverified | SDK credentials, redirects, dependencies | `54a77cd`, `v1.2.3` |
 | 2026-11-13 | [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md) | implemented locally after source response | Credentials, proxy trust, JSON limits | `edcc93f`, `1d3a1b9`, `v1.2.3` |
