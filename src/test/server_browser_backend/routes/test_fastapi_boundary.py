@@ -74,7 +74,7 @@ def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread(browser):
     application = FastAPI()
     application.include_router(create_router(Implementation(
         server_list=browser.server_list, ban_list=browser.ban_list, verified_list=browser.verified_list,
-        policy=browser.policy, token_reissuer=browser.token_reissuer, show_registered_ips=browser.show_registered_ips,
+        policy=browser.policy, signing_keys=browser.signing_keys, show_registered_ips=browser.show_registered_ips,
     )))
 
     async def exercise():

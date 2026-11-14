@@ -87,5 +87,5 @@ def read_parameter(operation_id: str, location: str, name: str, value: Any, appl
 
 def render_response(result: ApiResponse[Any]) -> Response:
     if result.content_type != "application/json":
-        return Response(result.body, status_code=result.status, media_type=result.content_type)
-    return JSONResponse(to_wire(result.body), status_code=result.status)
+        return Response(result.body, status_code=result.status, media_type=result.content_type, headers=result.headers)
+    return JSONResponse(to_wire(result.body), status_code=result.status, headers=result.headers)

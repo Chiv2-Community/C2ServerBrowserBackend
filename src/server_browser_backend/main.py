@@ -5,9 +5,8 @@ import secrets
 from os import environ
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric import rsa
-
 from server_browser_backend.application import Application
+from server_browser_backend.auth.signing import SigningKeys
 from server_browser_backend.env import show_registered_ips
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.logging_config import configure_logging
@@ -15,7 +14,6 @@ from server_browser_backend.routes.api_v1 import BrowserApi
 from server_browser_backend.routes.chiv2_compat import CompatibilityApi
 from server_browser_backend.routes.shared import RequestPolicy
 from server_browser_backend.server_list import ServerList
-from server_browser_backend.token_reissuer import TokenReissuer
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +35,12 @@ def create_default_app() -> Application:
     ban_list = IpList(admin_key, str(config_dir / "ban_list.txt"))
     verified_list = IpList(admin_key, str(config_dir / "verified_list.txt"))
     policy = RequestPolicy(ban_list, verified_list)
-    token_reissuer = TokenReissuer(
-        private_key=rsa.generate_private_key(public_exponent=65537, key_size=2048),
-        kid="server-browser-backend-key-1",
-        eos_jwks="https://api.epicgames.dev/epic/oauth/v2/.well-known/jwks.json",
-        expected_audience=environ.get(
-            "EOS_AUDIENCE", "7f2b13acf2e84ab0ae8604d822f10498"
-        ),
-        issuer=environ.get("SERVER_BROWSER_FQDN", "chivalry2-server-browser-backend"),
-    )
+    signing_path = environ.get("DISCORD_SIGNING_KEYRING")
+    signing_keys = SigningKeys(Path(signing_path)) if signing_path is not None else None
+    if signing_keys is None:
+        logger.info(
+            "Discord signing is unconfigured; no join verification keys are published"
+        )
     motd_directory = Path(__file__).resolve().parent / "assets/motd"
     if not motd_directory.exists():
         motd_directory = Path(__file__).resolve().parents[2] / "assets/motd"
@@ -56,7 +51,7 @@ def create_default_app() -> Application:
             ban_list=ban_list,
             verified_list=verified_list,
             policy=policy,
-            token_reissuer=token_reissuer,
+            signing_keys=signing_keys,
             show_registered_ips=show_registered_ips,
         ),
         CompatibilityApi(

@@ -13,7 +13,7 @@ class Client(ClientTransport):
     def jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
         return self._request("jwks", parameters={ })
 
-    def login(self, *, login_request: LoginRequest) -> ClientResponse[LoginResponse | StatusResponse]:
+    def login(self, *, login_request: LoginRequest) -> ClientResponse[StatusResponse | StatusResponse]:
         return self._request("login", parameters={ }, body=login_request)
 
     def send_swagger(self) -> ClientResponse[str | StatusResponse]:
@@ -71,7 +71,7 @@ class AsyncClient(AsyncClientTransport):
     async def jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
         return await self._request("jwks", parameters={ })
 
-    async def login(self, *, login_request: LoginRequest) -> ClientResponse[LoginResponse | StatusResponse]:
+    async def login(self, *, login_request: LoginRequest) -> ClientResponse[StatusResponse | StatusResponse]:
         return await self._request("login", parameters={ }, body=login_request)
 
     async def send_swagger(self) -> ClientResponse[str | StatusResponse]:

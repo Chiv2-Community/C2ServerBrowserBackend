@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from server_browser_client import AsyncClient, Client, ClientDecodeError
 from server_browser_client.runtime import UNSET, request_arguments
 from server_browser_models.models import (
-    BanStatusResponse, Chivalry2Ports, IpListRequest, LoginRequest, LoginResponse,
+    BanStatusResponse, Chivalry2Ports, IpListRequest, LoginRequest,
     MatchmakeRequest, MotdRequest, PlayfabGame, RegistrationResponse,
     ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
 )
@@ -20,7 +20,6 @@ from server_browser_models.runtime import contract
 
 @pytest.mark.parametrize("asynchronous", [False, True])
 def test_all_generated_operations_round_trip(app, browser, admin_key, monkeypatch, asynchronous):
-    monkeypatch.setattr(browser.token_reissuer, "validate_and_reissue", lambda token, ip: "signed-token")
     with TestClient(app, client=("2001:db8::1", 50000)) as backend:
         def transport(request):
             response = backend.request(
@@ -45,8 +44,9 @@ def test_all_generated_operations_round_trip(app, browser, admin_key, monkeypatc
             try:
                 assert (await call("jwks")).body.keys
                 login = await call("login", login_request=LoginRequest(token="eos-token"))
-                assert isinstance(login.body, LoginResponse)
-                assert login.body.token == "signed-token"
+                assert login.status == 410
+                assert isinstance(login.body, StatusResponse)
+                assert login.body.status == "auth_retired"
                 assert "openapi:" in (await call("send_swagger")).body
                 assert (await call("get_servers")).body.servers == []
                 registration = await call("register", server_registration_request=ServerRegistrationRequest(

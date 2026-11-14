@@ -7,7 +7,8 @@ paths:
     get:
       operationId: jwks
       tags: [ApiV1]
-      summary: Get the JWKS for validating our tokens
+      summary: Get public verification keys for Discord join tickets
+      description: Empty while Discord signing is unconfigured. Never contains private key material.
       responses:
         default: &ApiError
           description: API error; debug deployments may include an additional stack trace.
@@ -17,6 +18,12 @@ paths:
                 $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Successful operation
+          headers:
+            Cache-Control:
+              description: Key publication must not be retained by intermediary caches.
+              schema:
+                type: string
+                enum: [no-store]
           content:
             application/json:
               schema:
@@ -25,7 +32,9 @@ paths:
     post:
       operationId: login
       tags: [ApiV1]
-      summary: Exchange an EOS ID token for our JWT
+      summary: Retired EOS token exchange
+      deprecated: true
+      description: EOS authentication has been removed. This endpoint returns 410 and never validates or exchanges credentials.
       requestBody:
         required: true
         content:
@@ -34,12 +43,12 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         default: *ApiError
-        '200':
-          description: Successful operation
+        '410':
+          description: EOS authentication has been retired
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponse'
+                $ref: '#/components/schemas/StatusResponse'
   /api/v1/swagger.yaml:
     get:
       operationId: send_swagger
@@ -972,14 +981,6 @@ components:
         token:
           type: string
           description: The EOS ID token
-    LoginResponse:
-      type: object
-      required:
-        - token
-      properties:
-        token:
-          type: string
-          description: Our short-lived JWT
     Jwk:
       type: object
       required:
@@ -1011,53 +1012,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Jwk'
-    ExternalAccount:
+    JoinTicketClaims:
+      description: Signed Discord identity for one live server registration. Not an OAuth or refresh credential.
       type: object
-      required: [eat, eaid, pltfm, dty]
+      required: [iss, sub, aud, purpose, auth_time, iat, nbf, exp, jti]
       properties:
-        eat:
-          type: string
-        eaid:
-          type: string
-        pltfm:
-          type: string
-        dty:
-          type: string
-    EosIdTokenPayload:
-      description: External EOS token claims consumed by the existing exchange endpoint.
-      type: object
-      required: [sub, pfsid, iss, dn, nonce, pfpid, aud, pfdid, appid, exp, iat, jti]
-      properties:
-        sub:
-          type: string
-        pfsid:
-          type: string
         iss:
           type: string
-        dn:
+          description: Fixed configured HTTPS issuer, compared exactly by validators.
+        sub:
           type: string
-        nonce:
-          type: string
-        pfpid:
-          type: string
+          description: Verified Discord snowflake as a decimal string, not an engine/platform ID.
         aud:
           type: string
-        pfdid:
+          description: urn:unchained:server:<registration UUID>
+        purpose:
           type: string
-        appid:
-          type: string
-        exp:
+          enum: [unchained.join]
+        auth_time:
           type: integer
+          description: Original Discord authentication time; refresh never advances it.
         iat:
           type: integer
+        nbf:
+          type: integer
+        exp:
+          type: integer
+          description: At most 60 seconds after issuance.
         jti:
           type: string
-        act:
-          type: object
-          nullable: true
-          # In OAS 3.0, nullable does not relax the referenced schema.
-          anyOf:
-            - $ref: '#/components/schemas/ExternalAccount'
-            - type: object
-              nullable: true
-              enum: [null]
+          description: Single-use random UUID, consumed atomically by the game server.

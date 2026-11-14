@@ -483,4 +483,5 @@ def test_jwks(client: TestClient):
     data = response.json()
     assert "keys" in data
     assert len(data["keys"]) == 1
-    assert data["keys"][0]["kid"] == "server-browser-backend-key-1"
+    assert data["keys"][0]["alg"] == "RS256"
+    assert response.headers["cache-control"] == "no-store"

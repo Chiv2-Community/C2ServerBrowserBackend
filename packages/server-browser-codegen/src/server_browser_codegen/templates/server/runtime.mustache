@@ -1,6 +1,6 @@
 """Generated framework-neutral server support. DO NOT EDIT."""
-from dataclasses import dataclass
-from typing import Generic, TypeVar
+from dataclasses import dataclass, field
+from typing import Generic, Mapping, TypeVar
 
 R = TypeVar("R")
 
@@ -15,3 +15,4 @@ class ApiResponse(Generic[R]):
     body: R
     status: int = 200
     content_type: str = "application/json"
+    headers: Mapping[str, str] = field(default_factory=dict)

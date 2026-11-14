@@ -23,7 +23,8 @@ docker run \
 The server can be configured using environment variables:
 - `ADMIN_KEY`: The key used for administrative actions (e.g. banning).
 - `CONFIG_DIR`: The directory where configuration files are stored (e.g. `allow_list.txt`, `ban_list.txt`).
-- `SERVER_BROWSER_FQDN`: The FQDN of the server, used as the issuer for reissued tokens (default: `chivalry2-server-browser-backend`).
+- `DISCORD_SIGNING_KEYRING`: Path to an explicitly provisioned persistent signing
+  keyring. Unset publishes an empty JWKS; an invalid configured path fails startup.
 - `UVICORN_HOST`: Listener address (default: `0.0.0.0`).
 - `UVICORN_PORT`: Listener port (default: `8080`).
 - `UVICORN_WORKERS`: Worker processes (default: `1`). Keep one worker while
@@ -37,6 +38,14 @@ The server can be configured using environment variables:
 Container arguments are passed directly to Uvicorn. Gunicorn and its
 `GUNICORN_*` settings are no longer used; migrate deployment settings above.
 There is no equivalent of Gunicorn's worker request timeout or thread setting.
+
+### Authentication migration (development)
+
+The legacy EOS token exchange is retired (HTTP 410). Discord signing/JWKS and
+internal session-storage foundations are available, but OAuth/session APIs and
+game admission are not yet implemented. See [Discord authentication](docs/discord-auth.md) for provisioning,
+rotation, compatibility limits, and rollout gates. Do not deploy this migration
+to clients that still require the EOS exchange.
 
 ### Logs
 
