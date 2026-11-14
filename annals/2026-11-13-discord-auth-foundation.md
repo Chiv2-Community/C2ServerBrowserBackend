@@ -26,3 +26,7 @@ OAuth, client handoff, public session and ticket operations, plugin validation/a
 Regenerate consumers of removed EOS models, verify legacy join compatibility, and coordinate OAuth state/PKCE, bounded HTTP work and rate limits, client retry recovery, plugin admission, and launcher rollout before activation. Validate transport confidentiality and connection binding before exposing ticket issuance. Protect keyring and session database backups; restoring a session backup can resurrect revoked credentials. Reconsider the retry policy if client recovery requirements or a safe bounded response-recovery protocol change; reconsider ticket transport if feasibility evidence shows bearer credentials cannot be protected.
 
 The checkpoint reports 393 tests, full local CI and compatibility replay with 57 exact cases and five documented differences. The implementation and test files exist, but those runs and results were not independently reproduced in this review. The commit is local on this branch; push, release and deployment are not established. No additional rejected alternatives, exact approval history, or complete prior conversation are available.
+
+## Subsequent developments (2026-11-13)
+
+The unconditional follow-up to regenerate EOS model consumers is superseded by the user's later report that nothing integrated with EOS authentication and request to remove consumer migration guidance. The technical compatibility break and integration gates are not refuted or waived. See [EOS consumer migration guidance](2026-11-13-eos-consumer-migration-guidance.md).
