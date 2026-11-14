@@ -1,7 +1,7 @@
 # Live verification and atomic IP policy snapshots
 
 - Date: 2026-11-13
-- Status: implemented locally; uncommitted
+- Status: implemented on branch; release unverified
 - Scope: verified and banned IP policy, listings and persistence
 - Repository: C2ServerBrowserBackend, `git@github.com:Chiv2-Community/C2ServerBrowserBackend.git`
 - Branch: `feature/discord-auth`; recording HEAD: `0b98dc7a1979ca06f9fec6cf0a9de89e29546858`; no exact tag; nearest release tag `v1.2.3` at `7b66edc60021cdbee8ffde64038b21c08f5a1d99`. The implementation, documentation and tests described here are uncommitted.
@@ -20,3 +20,7 @@ Policy changes can alter official flags without re-registration. Atomic replacem
 The local CI artifact `/tmp/opencode/discord-auth-security-policy-ci.log` reports 500 passing tests, mypy success across 107 files and installed-wheel smoke success. The compatibility artifact reports 57 deterministic cases matching baseline `80e1fae0e635d6ae1619ab75ea87a9add50749ef` and five documented differences. These logs were inspected, not rerun; they do not prove the current working tree is identical to the tested tree. Remote CI, commit, release and deployment are unverified.
 
 Reconsider persistence and locking if multiple processes, external policy editors, shared filesystems or stronger crash-durability guarantees become requirements. Reconsider response consistency if clients require a single policy snapshot across an entire listing or registration operation. Original deliberation, production topology and observed production failures remain unknown.
+
+## Subsequent development - 2026-11-13
+
+The implementation, documentation and tests were committed in `51ea012833a0c99b8227de7af2ef686c9c639571`; the earlier uncommitted status and unverified commit refer to the original recording time. This is an implementation milestone, not a changed decision. Review source: checkpoint of session `ses_e2fd4d988ffeEfPUe73w30m5Fd` through response `msg_1d876219f001Npop7196GouSWm`. The checkpoint reports a push to PR #18, but remote inclusion and CI were not independently verified in this review.

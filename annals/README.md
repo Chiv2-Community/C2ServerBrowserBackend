@@ -2,8 +2,8 @@
 
 | Date | Record | Status | Scope | Git provenance |
 | --- | --- | --- | --- | --- |
-| 2026-11-13 | [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md) | implemented locally; uncommitted | IP policy, verification, persistence | HEAD `0b98dc7`, `v1.2.3` |
-| 2026-11-13 | [JSON depth and Unicode guard](2026-11-13-json-depth-and-unicode-guard.md) | implemented locally; uncommitted | JSON ingestion, registry safety | HEAD `429b068`, `v1.2.3` |
+| 2026-11-13 | [Live verification and atomic IP policy snapshots](2026-11-13-live-verification-policy-snapshots.md) | implemented on branch; release unverified | IP policy, verification, persistence | `51ea012`, `v1.2.3` |
+| 2026-11-13 | [JSON depth and Unicode guard](2026-11-13-json-depth-and-unicode-guard.md) | implemented on branch; release unverified | JSON ingestion, registry safety | `51ea012`, `v1.2.3` |
 | 2026-11-13 | [Player-count and mapped-IP boundaries](2026-11-13-player-count-and-mapped-ip-boundaries.md) | implemented on branch; release unverified | Player counts, IP identity | `4895a9a`, `v1.2.3` |
 | 2026-11-13 | [Bound registry state and metadata](2026-11-13-registry-resource-bounds.md) | implemented on PR branch; release pending | Registry quotas, metadata, MOTD | `ca29f36`, `v1.2.3` |
 | 2026-11-13 | [SDK redirect policy and dependency security updates](2026-11-13-sdk-redirects-dependency-security.md) | implemented on PR branch; release unverified | SDK credentials, redirects, dependencies | `54a77cd`, `v1.2.3` |
