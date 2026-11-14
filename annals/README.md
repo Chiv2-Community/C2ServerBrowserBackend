@@ -2,6 +2,7 @@
 
 | Date | Record | Status | Scope | Git provenance |
 | --- | --- | --- | --- | --- |
+| 2026-11-13 | [SDK redirect policy and dependency security updates](2026-11-13-sdk-redirects-dependency-security.md) | implemented in uncommitted working tree | SDK credentials, redirects, dependencies | `f1ce157`, `1d3a1b9`, `v1.2.3` |
 | 2026-11-13 | [HTTP security boundaries and proxy trust](2026-11-13-http-security-boundaries.md) | implemented locally after source response | Credentials, proxy trust, JSON limits | `edcc93f`, `1d3a1b9`, `v1.2.3` |
 | 2026-11-13 | [Authentication timing and bounded cleanup corrections](2026-11-13-auth-timing-and-cleanup.md) | implemented; integration pending | Sessions, signing cutover | `1879fe2`, `v1.2.3` |
 | 2026-11-13 | [Remove EOS consumer migration guidance](2026-11-13-eos-consumer-migration-guidance.md) | implemented in documentation | EOS consumer guidance | `fe6aa24`, `f38ea86`, `v1.2.3` |
