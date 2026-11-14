@@ -52,7 +52,7 @@ or `package = "server-browser-models"`. For lifecycle management, use
 Cargo finds crates within `sdk/rust/`.
 Commit the consuming application's lockfile. Never depend on a moving branch.
 
-Inject a configured reqwest client through `apis::configuration::Configuration`.
+Inject a configured reqwest client with `apis::configuration::Configuration::with_client`.
 Callers own timeouts, redirects, proxy policy and source-IP binding. Generated
 configuration diagnostics are redacted. Generated errors may contain credentials
 or response bodies; do not log them.
@@ -82,6 +82,9 @@ the contract, then regenerate; do not hand-edit generated sources to satisfy lin
 Run `python scripts/check_rust.py` from the repository root for Rust-only checks.
 Add `--package` to build and verify crate archives. Full CI and Windows Rust CI
 share this runner so their validation steps stay aligned.
+Packaging uses a fresh target directory to avoid Cargo reusing stale workspace
+registry entries for unchanged package versions, then copies verified `.crate`
+archives to `sdk/rust/target/package/`.
 
 ## Artifacts
 

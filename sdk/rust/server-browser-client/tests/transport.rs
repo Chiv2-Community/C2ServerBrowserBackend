@@ -33,12 +33,13 @@ fn client_uses_injected_transport_and_encodes_path_parameter() {
     });
     let config = Configuration {
         base_path,
-        client: reqwest::blocking::Client::builder()
-            .no_proxy()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .unwrap(),
-        ..Configuration::default()
+        ..Configuration::with_client(
+            reqwest::blocking::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(5))
+                .build()
+                .unwrap(),
+        )
     };
     assert!(
         !api_v1_api::check_banned(&config, "2001:db8::1")
@@ -47,6 +48,17 @@ fn client_uses_injected_transport_and_encodes_path_parameter() {
     );
     let request = worker.join().unwrap();
     assert!(request.starts_with("GET /api/v1/check-banned/2001%3Adb8%3A%3A1 "));
+    assert!(request
+        .to_ascii_lowercase()
+        .contains("user-agent: server-browser-client/1.0.0\r\n"));
+}
+
+#[test]
+fn injected_configuration_preserves_default_metadata() {
+    let default = Configuration::default();
+    let injected = Configuration::with_client(default.client.clone());
+    assert_eq!(injected.base_path, default.base_path);
+    assert_eq!(injected.user_agent, default.user_agent);
 }
 
 #[test]

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,14 +25,26 @@ def main(argv: list[str] | None = None) -> None:
         ["test", "--locked", "--workspace"],
         ["test", "--locked", "--workspace", "--release", "--all-features"],
     ]
-    if args.package:
-        checks.append(["package", "--locked", "--workspace", "--allow-dirty"])
     for command, *options in checks:
         subprocess.run(
             ["cargo", command, "--manifest-path", MANIFEST, *options],
             cwd=ROOT,
             check=True,
         )
+    if args.package:
+        # Cargo caches workspace-registry crates by target path and version.
+        # A fresh path prevents reuse of older same-version workspace packages.
+        with tempfile.TemporaryDirectory(prefix="server-browser-crates-") as temporary:
+            subprocess.run(
+                ["cargo", "package", "--manifest-path", MANIFEST, "--locked",
+                 "--workspace", "--allow-dirty", "--target-dir", temporary],
+                cwd=ROOT,
+                check=True,
+            )
+            destination = ROOT / "sdk/rust/target/package"
+            destination.mkdir(parents=True, exist_ok=True)
+            for archive in (Path(temporary) / "package").glob("*.crate"):
+                shutil.copyfile(archive, destination / archive.name)
 
 
 if __name__ == "__main__":
