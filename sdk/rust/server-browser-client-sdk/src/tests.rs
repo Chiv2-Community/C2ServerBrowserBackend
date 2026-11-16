@@ -166,6 +166,78 @@ async fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
 }
 
 #[tokio::test]
+async fn identical_metadata_does_not_send_updates_or_postpone_heartbeats() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    registration.poll().await.unwrap();
+    let mut metadata = UpdateRegisteredServer::new(2, 32, "map".into());
+    metadata.mods = Some(vec![models::Mod::new(
+        "mod".into(),
+        "org".into(),
+        "1".into(),
+    )]);
+    registration.set_update(metadata.clone()).unwrap();
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
+    for _ in 0..2 {
+        let deadline = registration.next_attempt;
+        for step in 1..=6 {
+            clock.advance(5);
+            let mut duplicate = metadata.clone();
+            if step % 2 == 0 {
+                duplicate.mods = None;
+            }
+            registration.set_update(duplicate).unwrap();
+            assert_eq!(registration.next_attempt, deadline);
+            assert_eq!(
+                registration.poll().await,
+                Ok(if step == 6 {
+                    Event::Heartbeat
+                } else {
+                    Event::Waiting(Duration::from_secs(30 - step * 5))
+                })
+            );
+        }
+    }
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "update", "heartbeat", "heartbeat"]
+    );
+    metadata.mods = Some(Vec::new());
+    registration.set_update(metadata).unwrap();
+    assert_eq!(registration.poll().await, Ok(Event::Updated));
+}
+
+#[tokio::test]
+async fn worker_ignores_duplicate_metadata_and_uses_heartbeat() {
+    let Fixture {
+        registration,
+        transport,
+        clock,
+    } = fixture();
+    let worker = registration.into_worker();
+    worker
+        .run(|event| match event {
+            Event::Registered { .. } => {
+                let metadata = UpdateRegisteredServer::default();
+                assert!(worker.set_update(metadata.clone()));
+                assert!(worker.set_update(metadata));
+                clock.advance(30);
+            }
+            Event::Heartbeat => worker.cancel(),
+            event => panic!("unexpected event: {event:?}"),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "heartbeat", "delete"]
+    );
+}
+
+#[tokio::test]
 async fn retries_keep_identity_and_do_not_let_updates_bypass_backoff() {
     let Fixture {
         mut registration,

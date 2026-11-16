@@ -75,6 +75,9 @@ Registration responses contain the secret key: log only explicitly selected safe
   time, not the client's wall clock.
 - Metadata updates also renew the lease; no separate heartbeat is needed while
   updates succeed before the deadline. Each poll makes at most one request.
+- Identical effective metadata is ignored. It sends no UPDATE and does not move
+  the heartbeat deadline; the regular heartbeat keeps the registration alive.
+  Omitted mods retain the previous list; an explicit empty list clears it.
 - Retry known-registration failures with bounded exponential backoff. Metadata
   changes do not bypass backoff. Defaults: 10–300 seconds, stop on the eighth
   consecutive failure; success resets the count. No jitter or Retry-After support

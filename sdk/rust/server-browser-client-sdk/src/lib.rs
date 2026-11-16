@@ -277,11 +277,22 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     /// Coalesce metadata changes without bypassing an active retry backoff.
+    /// Identical effective metadata is ignored without changing the heartbeat deadline.
     ///
     /// # Errors
     /// Returns the terminal lifecycle error if halted or stopped.
     pub fn set_update(&mut self, update: UpdateRegisteredServer) -> Result<(), SdkError> {
         self.check_running()?;
+        if update.player_count == self.request.player_count
+            && update.max_players == self.request.max_players
+            && update.current_map == self.request.current_map
+            && update
+                .mods
+                .as_ref()
+                .is_none_or(|mods| self.request.mods.as_ref() == Some(mods))
+        {
+            return Ok(());
+        }
         self.request.player_count = update.player_count;
         self.request.max_players = update.max_players;
         self.request.current_map = update.current_map;
@@ -648,6 +659,9 @@ impl RegistrationControl {
                 .update
                 .as_ref()
                 .and_then(|update| update.mods.clone());
+        }
+        if pending.update.as_ref() == Some(&update) {
+            return true;
         }
         pending.update = Some(update);
         drop(pending);
