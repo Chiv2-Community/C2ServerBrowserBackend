@@ -54,11 +54,16 @@ def signed_joining(joining, browser, tmp_path):
         VerifiedEosIdentity,
     )
     from server_browser_backend.auth.signing import SigningKeys, provision
+    from server_browser_backend.auth.game_accounts import GameAccountStore
 
     client, service, verifier, server, key = joining
     path = tmp_path / "game-signing.json"
     provision(path)
     service.signing = SigningKeys(path)
+    service.accounts = GameAccountStore(tmp_path / "accounts.sqlite")
+    verifier.verify_steam_link.side_effect = (
+        lambda identity, steam: VerifiedGameIdentity(identity.playfab_id, steam)
+    )
     browser.game_signing_keys = service.signing
     service.eos = Mock(spec=EosConnectVerifier)
     service.eos.verify.return_value = VerifiedEosIdentity(
@@ -174,6 +179,84 @@ def test_signed_admission_rejects_proof_expiring_during_playfab_read(signed_join
         service.eos.verify.return_value, expires_at=int(time.time()) - 1
     )
     assert admission(client, begin(client).json()["challenge_id"]).status_code == 401
+
+
+def account_rows(service, table):
+    import sqlite3
+
+    with sqlite3.connect(service.accounts.path) as db:
+        return db.execute(f"SELECT * FROM {table}").fetchall()
+
+
+def test_signed_admission_pins_and_audits_verified_conflict(signed_joining):
+    client, service, _, _, _ = signed_joining
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 200
+    original = account_rows(service, "user_accounts")
+    service.eos.verify.return_value = replace(
+        service.eos.verify.return_value, product_user_id="b" * 32
+    )
+    service.signing = Mock(wraps=service.signing)
+    for _ in range(2):
+        challenge = begin(client).json()["challenge_id"]
+        response = admission(client, challenge)
+        assert response.status_code == 409
+        assert response.json() == {
+            "status": "account_mismatch",
+            "message": "Account Mismatch",
+            "context": None,
+        }
+        assert response.headers["cache-control"] == "no-store"
+        assert admission(client, challenge).status_code == 401
+    assert account_rows(service, "user_accounts") == original
+    assert len(account_rows(service, "validated_mismatches")) == 1
+    assert account_rows(service, "validated_mismatches")[0][-1] == 2
+    service.signing.issue_game_admission.assert_not_called()
+
+
+@pytest.mark.parametrize("provider", ["eos", "playfab", "steam_link"])
+def test_invalid_proofs_never_create_pins_or_mismatch_audit(signed_joining, provider):
+    client, service, verifier, _, _ = signed_joining
+    if provider == "steam_link":
+        verifier.verify_steam_link.side_effect = InvalidGameCredential()
+    else:
+        (service.eos if provider == "eos" else verifier).verify.side_effect = (
+            InvalidGameCredential()
+        )
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 401
+    assert account_rows(service, "user_accounts") == []
+    assert account_rows(service, "validated_mismatches") == []
+
+
+def test_registration_removed_during_steam_lookup_cannot_pin(signed_joining):
+    client, service, verifier, server, key = signed_joining
+
+    def lookup(identity, steam):
+        service.registry.delete(server, key)
+        return VerifiedGameIdentity(identity.playfab_id, steam)
+
+    verifier.verify_steam_link.side_effect = lookup
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 404
+    assert account_rows(service, "user_accounts") == []
+
+
+def test_signed_admission_requires_durable_account_storage(signed_joining):
+    client, service, _, _, _ = signed_joining
+    service.accounts = None
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 503
+
+
+def test_epic_pinning_does_not_require_steam_or_claim_provider_linkage(signed_joining):
+    client, service, verifier, _, _ = signed_joining
+    service.eos.verify.return_value = replace(
+        service.eos.verify.return_value, platform_provider="eos", platform_id="a" * 32
+    )
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 200
+    verifier.verify_steam_link.assert_not_called()
+    assert account_rows(service, "user_accounts")[0][2] is None
+    service.eos.verify.return_value = replace(
+        service.eos.verify.return_value, product_user_id="b" * 32, platform_id="b" * 32
+    )
+    assert admission(client, begin(client).json()["challenge_id"]).status_code == 409
 
 
 def begin(client, **changes):

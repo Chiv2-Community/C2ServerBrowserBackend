@@ -79,6 +79,8 @@ paths:
       description: |
         Consumes the account-control challenge and verifies an EOS Connect ID token, not an EOS Auth token or access token.
 
+        After both proofs validate, atomically pins the first PlayFab/EOS PUID association and any verified Steam ID in persistent backend storage. Later conflicts, including an EOS or Steam ID pinned to another PlayFab account, are audited and rejected with HTTP 409, status account_mismatch and message "Account Mismatch". Matching attempts update the last-login timestamp; absent Steam IDs never erase a pin. Steam IDs added later must match the existing PlayFab/EOS pair and the provider's Steam mapping. Pins are trust on first use, not proof of provider-backed Epic/PlayFab linkage. Recovery is manual; rejected combinations never replace pins. Storage failures fail closed.
+
         RS256 admission JWTs are bound to one fresh server registration UUID and expire within 60 seconds and before the EOS proof expires. Hosts validate locally and consume jti atomically; no redemption request is required. Proofs and raw JWTs must not be logged or persisted. Discord is not included.
       requestBody:
         required: true
@@ -88,6 +90,12 @@ paths:
               $ref: '#/components/schemas/GameAdmissionRequest'
       responses:
         default: *ApiError
+        '409':
+          description: Independently verified identities conflict with a pinned account association; status account_mismatch and message Account Mismatch. No admission is issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
         '200':
           description: Signed admission containing verified identities only
           headers:

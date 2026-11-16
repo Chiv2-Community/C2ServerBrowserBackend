@@ -19,7 +19,7 @@ class Client(ClientTransport):
     def game_join_jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
         return self._request("game_join_jwks", parameters={ })
 
-    def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[GameAdmissionResponse | StatusResponse]:
+    def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[StatusResponse | GameAdmissionResponse | StatusResponse]:
         return self._request("issue_game_admission", parameters={ }, body=game_admission_request)
 
     def begin_game_join_challenge(self, *, game_join_challenge_request: GameJoinChallengeRequest) -> ClientResponse[GameJoinChallengeResponse | StatusResponse]:
@@ -92,7 +92,7 @@ class AsyncClient(AsyncClientTransport):
     async def game_join_jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
         return await self._request("game_join_jwks", parameters={ })
 
-    async def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[GameAdmissionResponse | StatusResponse]:
+    async def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[StatusResponse | GameAdmissionResponse | StatusResponse]:
         return await self._request("issue_game_admission", parameters={ }, body=game_admission_request)
 
     async def begin_game_join_challenge(self, *, game_join_challenge_request: GameJoinChallengeRequest) -> ClientResponse[GameJoinChallengeResponse | StatusResponse]:

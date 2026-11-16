@@ -11,6 +11,7 @@ from server_browser_backend.auth.game_join import GameJoinService
 from server_browser_backend.auth.game_identity import PlayFabIdentityVerifier
 from server_browser_backend.auth.game_join_tickets import GameJoinTicketStore
 from server_browser_backend.auth.eos_identity import EosConnectVerifier
+from server_browser_backend.auth.game_accounts import GameAccountStore
 from server_browser_backend.env import show_registered_ips
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.logging_config import configure_logging
@@ -48,6 +49,11 @@ def create_default_app() -> Application:
     audience = environ.get("GAME_JOIN_AUDIENCE")
     game_signing_path = environ.get("GAME_JOIN_SIGNING_KEYRING")
     game_signing = SigningKeys(Path(game_signing_path)) if game_signing_path else None
+    account_path = environ.get("GAME_ACCOUNT_DATABASE")
+    if game_signing and not account_path:
+        raise ValueError(
+            "Signed game admission requires persistent GAME_ACCOUNT_DATABASE"
+        )
     eos_settings = {
         name: environ.get(variable, "")
         for name, variable in {
@@ -85,6 +91,11 @@ def create_default_app() -> Application:
             audience or "",
             eos=eos,
             signing=game_signing,
+            accounts=(
+                GameAccountStore(Path(account_path))
+                if game_signing and account_path
+                else None
+            ),
         )
         if ticket_path or game_signing
         else None

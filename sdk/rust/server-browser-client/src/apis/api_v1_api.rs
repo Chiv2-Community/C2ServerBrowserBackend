@@ -716,13 +716,14 @@ pub async fn heartbeat(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum IssueGameAdmissionError {
+    Status409(models::StatusResponse),
     DefaultResponse(models::StatusResponse),
     UnknownValue(serde_json::Value),
 }
 
 /// Issue a signed game admission after `PlayFab` and EOS proof verification
 ///
-/// Consumes the account-control challenge and verifies an EOS Connect ID token, not an EOS Auth token or access token.  RS256 admission JWTs are bound to one fresh server registration UUID and expire within 60 seconds and before the EOS proof expires. Hosts validate locally and consume jti atomically; no redemption request is required. Proofs and raw JWTs must not be logged or persisted. Discord is not included.
+/// Consumes the account-control challenge and verifies an EOS Connect ID token, not an EOS Auth token or access token.  After both proofs validate, atomically pins the first PlayFab/EOS PUID association and any verified Steam ID in persistent backend storage. Later conflicts, including an EOS or Steam ID pinned to another PlayFab account, are audited and rejected with HTTP 409, status account_mismatch and message \"Account Mismatch\". Matching attempts update the last-login timestamp; absent Steam IDs never erase a pin. Steam IDs added later must match the existing PlayFab/EOS pair and the provider's Steam mapping. Pins are trust on first use, not proof of provider-backed Epic/PlayFab linkage. Recovery is manual; rejected combinations never replace pins. Storage failures fail closed.  RS256 admission JWTs are bound to one fresh server registration UUID and expire within 60 seconds and before the EOS proof expires. Hosts validate locally and consume jti atomically; no redemption request is required. Proofs and raw JWTs must not be logged or persisted. Discord is not included.
 ///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
@@ -758,7 +759,11 @@ pub async fn issue_game_admission(
         }
     } else {
         let entity = {
-            {
+            if status.as_u16() == 409 {
+                serde_json::from_str(&content)
+                    .ok()
+                    .map(IssueGameAdmissionError::Status409)
+            } else {
                 serde_json::from_str(&content)
                     .map(IssueGameAdmissionError::DefaultResponse)
                     .or_else(|_| {

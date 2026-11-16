@@ -17,8 +17,61 @@ proof; ambiguous, malformed or unavailable upstream responses fail closed.
 Callers must separately verify PlayFab control and the EOS Connect proof from
 which the Steam account ID originates.
 
-This helper is not yet connected to signed admission issuance. Adding it does
-not establish Epic linkage or change the current admission guarantees.
+Signed admission issuance uses this helper for Steam proofs before account
+pinning. Epic proofs use independently verified control plus first-use pinning;
+they are not represented as a provider-maintained association.
+
+## First-use pinning
+
+Signed admissions require `GAME_ACCOUNT_DATABASE`, an explicit durable SQLite
+path shared by all backend workers. The parent directory must exist and be
+private. The file must be a private regular file (created with mode 0600).
+Back up this database; deleting it discards the established trust boundary.
+Do not use a temporary path, restore an older snapshot casually, or share it
+between unrelated PlayFab titles/EOS deployments. Do not enable the new backend
+until the database path is provisioned; missing configuration fails startup.
+
+After PlayFab control and EOS proof verification, the backend atomically checks:
+
+- `user_accounts`: UUID `id`, unique `playfab_id`, nullable unique `steam_id`,
+  unique `eos_id` (EOS PUID), `first_login_date`, `last_login_date`.
+- A new nonconflicting combination is pinned on first accepted issuance.
+- Matching issuance updates only the last-login timestamp. A verified Steam ID
+  can be added to the same PlayFab/EOS pair if not pinned elsewhere. Epic logins
+  without Steam never erase an existing Steam pin.
+- Any conflicting pinned ID rejects issuance with HTTP 409, status
+  `account_mismatch`, message `Account Mismatch`. The response reveals no stored
+  IDs. No JWT is minted and no existing pin/login timestamp is changed.
+- `validated_mismatches` retains a UUID, attempted verified PlayFab/Steam/EOS
+  combination, reason, first/last mismatch timestamps and occurrence count.
+  Repeated combinations update the same record, including nullable Steam IDs.
+- Failed proofs and stale registrations create neither pins nor mismatch rows.
+  Mismatch audit records commit despite admission rejection; pin/login changes
+  roll back if signing fails. Concurrent first-use conflicts cannot both win.
+
+Dates are UTC Unix seconds. Login dates mean successful backend admission
+issuance, not confirmation that the game connection completed. No raw proofs,
+JWTs or reusable player credentials are stored in these tables.
+
+This is deliberately **trust on first use**: the first combination can be
+provider-unlinked even when both proofs validate. Later conflicting combinations
+are blocked; first-use poisoning is an accepted risk. The existing legacy opaque
+route does not establish these pins and is not a fallback for signed rejection.
+
+Default budgets are 100,000 pins, 100,000 distinct mismatches and 16,384 SQLite
+pages. Workers must use identical persisted limits. Full, busy or corrupt storage
+fails closed; pins/audits are never automatically evicted. Retention and access to
+this identity database are operator responsibilities.
+
+### Manual recovery
+
+There is no public reassociation/reset API. Review the affected verified mismatch
+and establish the correct account association through support. Stop all workers,
+back up the database, and have an authorized operator make a deliberate correction
+while preserving uniqueness and the mismatch history. Record the old/new values,
+operator, time and reason in the support audit. Never automatically replace a pin
+in response to a login attempt. Previously issued JWTs remain usable until expiry
+(at most 60 seconds); existing host connections are not revoked by a correction.
 
 ## Epic investigation
 
@@ -70,10 +123,11 @@ client-forwarded account response is not backend-verifiable evidence. Forwarding
 the player's reusable session would violate the credential boundary. Do not use
 either as a linkage workaround or create a new account link during admission.
 
-Epic linkage therefore remains unresolved under the current public-API and
-credential constraints. A supported title-authorized mapping service or signed,
-independently verifiable association assertion is still needed. Steam lookup
-availability does not justify labeling Epic admissions as provider-linked.
+Provider-backed Epic linkage therefore remains unresolved under the current
+public-API and credential constraints. A supported title-authorized mapping
+service or signed, independently verifiable association assertion would be needed
+for that stronger claim. First-use pinning above is the chosen policy instead;
+it does not justify labeling Epic admissions as provider-linked.
 
 ## Sources
 

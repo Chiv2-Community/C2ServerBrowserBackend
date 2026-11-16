@@ -49,6 +49,7 @@ from server_browser_backend.server_list import (
     ServerList,
 )
 from server_browser_backend.auth.signing import SigningKeys
+from server_browser_backend.auth.game_accounts import AccountMismatch
 from server_browser_backend.auth.game_join import GameJoinService, GameJoinRateLimited
 from server_browser_backend.auth.game_identity import (
     InvalidGameCredential,
@@ -112,6 +113,12 @@ class BrowserApi(BaseApiV1Api):
             )
         except InvalidJoinRegistration:
             return status("invalid_target", "No unique live target registration", 404)
+        except AccountMismatch:
+            return ApiResponse(
+                StatusResponse(status="account_mismatch", message="Account Mismatch"),
+                409,
+                headers={"Cache-Control": "no-store"},
+            )
         except InvalidGameCredential:
             return status("invalid_proof", "Account-control proof rejected", 401)
         except GameJoinRateLimited:

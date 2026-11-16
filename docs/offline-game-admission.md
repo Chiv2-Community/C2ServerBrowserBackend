@@ -20,6 +20,11 @@ validation remains incomplete; this is not merge approval.
   configured issuer, client, product, sandbox and deployment values.
   Derive the PUID from `sub` and the external identity from signed `act` claims.
   Currently allow Steam and Epic accounts; omit Discord and Microsoft Store.
+- Persist/check first-use PlayFab/EOS/Steam pins after proof verification and
+  before signing. Verified conflicting combinations return `409 account_mismatch`
+  / `Account Mismatch` and update the mismatch audit without changing the pin.
+  Steam associations also require PlayFab's provider mapping. See
+  [account pinning and recovery](game-account-linkage.md).
 - Sign an RS256 admission with `typ=unchained-game-join+jwt`, purpose
   `unchained.game-join`, version `1`, PlayFab `sub`, verified identities, timestamps,
   and a random UUID `jti`. Lifetime is at most 60 seconds and cannot exceed the EOS
@@ -34,8 +39,9 @@ Both proofs demonstrate account control. They do not, by themselves, establish a
 provider-maintained link between the PlayFab account and EOS account, or current
 game ownership. Do not describe independent proofs as proving those relationships.
 Native token retrieval and signature/identity verification passed on both supported
-clients. Required account linkage remains unresolved; do not deploy the native
-admission path as proof of a provider-maintained account link.
+clients. The chosen Epic policy is independent account control plus first-use
+pinning, accepting the risk of a wrong first combination. Do not describe this
+as a provider-maintained Epic/PlayFab link.
 
 ## Host verifier
 
@@ -59,12 +65,14 @@ redemption by an interceptor. No proof-of-possession transport is implemented.
 
 ## Backend configuration
 
-Keep the existing `GAME_JOIN_VERIFIER_SESSION` and `GAME_JOIN_AUDIENCE`; the latter
+Keep the existing `GAME_JOIN_VERIFIER_SESSION_TICKET` and `GAME_JOIN_AUDIENCE`; the latter
 is the exact trusted backend issuer URL, without a trailing slash.
 
 For the new signed path, configure:
 
 - `GAME_JOIN_SIGNING_KEYRING`: explicitly provisioned private RSA keyring path.
+- `GAME_ACCOUNT_DATABASE`: required durable private SQLite path shared by workers;
+  back it up and retain it across deployments. Startup rejects a missing path.
 - `EOS_CONNECT_ISSUER`: exact EOS Connect issuer.
 - `EOS_CONNECT_CLIENT_ID`, `EOS_CONNECT_PRODUCT_ID`, `EOS_CONNECT_SANDBOX_ID`,
   `EOS_CONNECT_DEPLOYMENT_ID`: operator-pinned game trust settings.
@@ -85,14 +93,14 @@ Evidence: `/tmp/opencode/eos-token-live/result.json`; raw tokens were not saved.
 
 Do not derive these values from an unverified token in production. Use the existing
 signing module's provisioning and rotation commands with a separate keyring.
-Leave `GAME_JOIN_TICKET_DB` unset to disable opaque issuance/redemption. Those old
+Leave `GAME_JOIN_TICKET_DATABASE` unset to disable opaque issuance/redemption. Those old
 operations remain available for the unfinished plugin transition, not as an
 authentication fallback after JWT rejection.
 
 ## Remaining integration and validation
 
-- Settle required PlayFab/EOS account linkage; independent proofs are insufficient
-  to claim a provider-maintained link.
+- Validate first-use pinning and mismatch rejection with both storefronts;
+  independent proofs plus pins do not claim a provider-maintained Epic link.
 - Runtime-test the plugin's signed issuance, registration-bound key-refresh/lease
   integration and synchronous verification under failures and key rotation.
 - Run isolated browser joins, reconnect, restart, travel, key rotation, expiry,

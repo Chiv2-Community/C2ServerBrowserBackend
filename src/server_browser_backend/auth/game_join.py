@@ -27,8 +27,12 @@ from server_browser_backend.server_list import InvalidJoinRegistration
 from server_browser_backend.auth.game_identity import InvalidGameCredential
 from server_browser_backend.auth.game_join_tickets import GameJoinCapacity
 from server_browser_backend.auth.game_identity import GameIdentityUnavailable
-from server_browser_backend.auth.eos_identity import EosConnectVerifier, VerifiedEosIdentity
+from server_browser_backend.auth.eos_identity import (
+    EosConnectVerifier,
+    VerifiedEosIdentity,
+)
 from server_browser_backend.auth.signing import SigningKeys
+from server_browser_backend.auth.game_accounts import GameAccountStore
 
 Proof = TypeVar("Proof")
 Issued = TypeVar("Issued")
@@ -78,12 +82,14 @@ class GameJoinService:
         *,
         eos: EosConnectVerifier | None = None,
         signing: SigningKeys | None = None,
+        accounts: GameAccountStore | None = None,
     ):
         self.registry = registry
         self.verifier = verifier
         self.tickets = tickets
         self.eos = eos
         self.signing = signing
+        self.accounts = accounts
         if not audience or len(audience) > 2048 or "\0" in audience:
             raise ValueError("Invalid game join audience")
         self.audience = audience
@@ -208,8 +214,8 @@ class GameJoinService:
     def issue_admission(
         self, source: str, challenge_id: str, secret: str, eos_id_token: str
     ) -> tuple[str, str, int]:
-        eos, signing = self.eos, self.signing
-        if eos is None or signing is None:
+        eos, signing, accounts = self.eos, self.signing, self.accounts
+        if eos is None or signing is None or accounts is None:
             raise GameIdentityUnavailable("Signed game admissions are disabled")
 
         def mint(
@@ -219,16 +225,30 @@ class GameJoinService:
         ) -> tuple[str, str, int]:
             if platform.expires_at <= int(time.time()):
                 raise InvalidGameCredential("EOS identity proof expired")
-            ticket, expires = signing.issue_game_admission(
-                issuer=self.audience,
-                server_id=challenge.server_id,
-                playfab_id=identity.playfab_id,
-                eos=platform,
+            ticket, expires = accounts.admit(
+                identity,
+                platform,
+                lambda: signing.issue_game_admission(
+                    issuer=self.audience,
+                    server_id=challenge.server_id,
+                    playfab_id=identity.playfab_id,
+                    eos=platform,
+                ),
             )
             return challenge.server_id, ticket, expires
 
+        def verify_pair(identity: VerifiedGameIdentity, platform: VerifiedEosIdentity):
+            if platform.platform_provider == "steam":
+                return self.verifier.verify_steam_link(identity, platform.platform_id)
+            return identity
+
         return self._complete(
-            source, challenge_id, secret, lambda: eos.verify(eos_id_token), mint
+            source,
+            challenge_id,
+            secret,
+            lambda: eos.verify(eos_id_token),
+            mint,
+            verify_pair=verify_pair,
         )
 
     def _complete(
@@ -238,6 +258,10 @@ class GameJoinService:
         secret: str,
         verify_extra: Callable[[], Proof],
         mint: Callable[[GameJoinChallenge, VerifiedGameIdentity, Proof], Issued],
+        *,
+        verify_pair: (
+            Callable[[VerifiedGameIdentity, Proof], VerifiedGameIdentity] | None
+        ) = None,
     ) -> Issued:
         source_ip = canonical_address(ip_address(source))
         with self._admit(str(source_ip), "issue"):
@@ -264,6 +288,10 @@ class GameJoinService:
             identity = self.verifier.verify(challenge.playfab_id, challenge.proof)
             if identity.playfab_id != challenge.playfab_id:
                 raise InvalidGameCredential("Account-control identity mismatch")
+            if verify_pair is not None:
+                identity = verify_pair(identity, extra)
+                if identity.playfab_id != challenge.playfab_id:
+                    raise InvalidGameCredential("Account-control identity mismatch")
             # Re-resolve after HTTP. Registration and challenge consumption are
             # coordinated; concurrent completions can mint at most one grant.
             with self.registry.join_target(

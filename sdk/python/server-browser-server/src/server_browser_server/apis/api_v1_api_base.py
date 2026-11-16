@@ -45,7 +45,7 @@ class BaseApiV1Api(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def issue_game_admission(self, request: RequestContext, *, game_admission_request: GameAdmissionRequest) -> ApiResponse[GameAdmissionResponse] | ApiResponse[StatusResponse]:
+    def issue_game_admission(self, request: RequestContext, *, game_admission_request: GameAdmissionRequest) -> ApiResponse[StatusResponse] | ApiResponse[GameAdmissionResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
 
     @abstractmethod
