@@ -28,14 +28,14 @@ pub struct JoinTicketClaims {
     pub purpose: Purpose,
     /// Original Discord authentication time; refresh never advances it.
     #[serde(rename = "auth_time")]
-    pub auth_time: i32,
+    pub auth_time: i64,
     #[serde(rename = "iat")]
-    pub iat: i32,
+    pub iat: i64,
     #[serde(rename = "nbf")]
-    pub nbf: i32,
+    pub nbf: i64,
     /// At most 60 seconds after issuance.
     #[serde(rename = "exp")]
-    pub exp: i32,
+    pub exp: i64,
     /// Single-use random UUID, consumed atomically by the game server.
     #[serde(rename = "jti")]
     pub jti: String,
@@ -50,10 +50,10 @@ impl JoinTicketClaims {
         sub: String,
         aud: String,
         purpose: Purpose,
-        auth_time: i32,
-        iat: i32,
-        nbf: i32,
-        exp: i32,
+        auth_time: i64,
+        iat: i64,
+        nbf: i64,
+        exp: i64,
         jti: String,
     ) -> Self {
         Self {
