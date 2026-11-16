@@ -7,3 +7,4 @@ uv run mypy
 DEBUG_MODE=true uv run pytest
 uv build --all-packages
 uv run python scripts/check_wheels.py
+uv run python scripts/check_rust.py --package

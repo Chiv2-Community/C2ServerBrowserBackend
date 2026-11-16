@@ -3,6 +3,19 @@ name: CI
 on: [push]
 
 jobs:
+  rust_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: clippy, rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate Rust
+        run: python scripts/check_rust.py
+
   server_ci:
     runs-on: ubuntu-latest
 
@@ -25,15 +38,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: clippy, rustfmt
+
       - name: Validate and build all packages
         run: ./ci.sh
 
-      - name: Upload Python distributions and OpenAPI contract
+      - name: Upload SDK distributions and OpenAPI contract
         uses: actions/upload-artifact@v4
         with:
-          name: python-distributions-and-contract
+          name: sdk-distributions-and-contract
           path: |
             dist/*.whl
             dist/*.tar.gz
+            sdk/rust/target/package/*.crate
             assets/chiv2-server-browser-api.yaml
           if-no-files-found: error

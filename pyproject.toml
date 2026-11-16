@@ -47,11 +47,11 @@ pythonpath = [ "src" ]
 
 [tool.uv.workspace]
 members = [
-    "packages/server-browser-models",
-    "packages/server-browser-server",
-    "packages/server-browser-fastapi",
-    "packages/server-browser-client",
-    "packages/server-browser-codegen",
+    "sdk/python/server-browser-models",
+    "sdk/python/server-browser-server",
+    "sdk/python/server-browser-fastapi",
+    "sdk/python/server-browser-client",
+    "sdk/python/server-browser-codegen",
 ]
 
 [tool.uv.sources]
@@ -64,11 +64,11 @@ server-browser-codegen = { workspace = true }
 [tool.mypy]
 files = [
     "src",
-    "packages/server-browser-models/src",
-    "packages/server-browser-server/src",
-    "packages/server-browser-fastapi/src",
-    "packages/server-browser-client/src",
-    "packages/server-browser-codegen/src",
+    "sdk/python/server-browser-models/src",
+    "sdk/python/server-browser-server/src",
+    "sdk/python/server-browser-fastapi/src",
+    "sdk/python/server-browser-client/src",
+    "sdk/python/server-browser-codegen/src",
     "scripts",
     "examples",
 ]

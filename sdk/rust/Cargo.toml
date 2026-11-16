@@ -1,0 +1,30 @@
+[workspace]
+members = ["server-browser-models", "server-browser-client", "server-browser-client-sdk"]
+resolver = "2"
+
+[workspace.lints.rust]
+warnings = "deny"
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "deny", priority = -1 }
+future_incompatible = { level = "deny", priority = -1 }
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+let_underscore_drop = "deny"
+non_ascii_idents = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+# Transitive HTTP/TLS dependencies select multiple major versions.
+multiple_crate_versions = "allow"
+
+[workspace.lints.rustdoc]
+all = { level = "deny", priority = -1 }
+
+[profile.release]
+overflow-checks = true
+debug-assertions = true

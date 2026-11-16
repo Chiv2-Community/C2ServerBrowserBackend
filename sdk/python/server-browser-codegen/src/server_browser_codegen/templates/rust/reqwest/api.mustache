@@ -1,0 +1,91 @@
+{{! Derived from OpenAPI Generator v7.17.0 rust/reqwest/api.mustache (Apache-2.0).
+    Async-only JSON/scalar operations; unsupported capabilities are rejected in rust.py.
+    See ../UPSTREAM.md and ../LICENSE.apache-2.0. }}
+{{>partial_header}}
+
+use serde::{Deserialize, Serialize, de::Error as _};
+use crate::{apis::ResponseContent, models};
+use super::{Error, configuration, ContentType};
+
+{{#operations}}
+{{#operation}}
+/// Typed HTTP errors from [`{{operationId}}`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum {{{operationIdCamelCase}}}Error {
+    {{#responses}}
+    {{#is4xx}}
+    Status{{code}}({{{dataType}}}),
+    {{/is4xx}}
+    {{#is5xx}}
+    Status{{code}}({{{dataType}}}),
+    {{/is5xx}}
+    {{#isDefault}}
+    DefaultResponse({{{dataType}}}),
+    {{/isDefault}}
+    {{/responses}}
+    UnknownValue(serde_json::Value),
+}
+
+{{#description}}
+/// {{{.}}}
+{{/description}}
+{{#notes}}
+/// {{{.}}}
+{{/notes}}
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+{{#isDeprecated}}
+#[deprecated]
+{{/isDeprecated}}
+pub async fn {{{operationId}}}(configuration: &configuration::Configuration, {{#allParams}}{{{paramName}}}: {{^required}}Option<{{/required}}{{#required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}{{#isString}}&str{{/isString}}{{^isString}}{{^isPrimitiveType}}{{^isContainer}}models::{{/isContainer}}{{/isPrimitiveType}}{{{dataType}}}{{/isString}}{{^required}}>{{/required}}{{#required}}{{#isNullable}}>{{/isNullable}}{{/required}}{{^-last}}, {{/-last}}{{/allParams}}) -> Result<{{^returnType}}(){{/returnType}}{{{returnType}}}, Error<{{{operationIdCamelCase}}}Error>> {
+    {{#allParams}}
+    let {{{vendorExtensions.x-rust-param-identifier}}} = {{{paramName}}};
+    {{/allParams}}
+    let uri_str = format!("{}{{{path}}}", configuration.base_path{{#pathParams}}, {{{baseName}}}={{#isString}}crate::apis::urlencode({{/isString}}{{{vendorExtensions.x-rust-param-identifier}}}{{#isString}}){{/isString}}{{/pathParams}});
+    let mut req_builder = configuration.client.request(reqwest::Method::{{{httpMethod}}}, &uri_str);
+    {{#queryParams}}
+    {{#required}}
+    {{^isNullable}}
+    req_builder = req_builder.query(&[("{{{baseName}}}", &{{{vendorExtensions.x-rust-param-identifier}}}.to_string())]);
+    {{/isNullable}}
+    {{/required}}
+    {{^required}}
+    if let Some(value) = {{{vendorExtensions.x-rust-param-identifier}}} {
+        req_builder = req_builder.query(&[("{{{baseName}}}", &value.to_string())]);
+    }
+    {{/required}}
+    {{#required}}
+    {{#isNullable}}
+    if let Some(value) = {{{vendorExtensions.x-rust-param-identifier}}} {
+        req_builder = req_builder.query(&[("{{{baseName}}}", &value.to_string())]);
+    }
+    {{/isNullable}}
+    {{/required}}
+    {{/queryParams}}
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    {{#headerParams}}
+    {{#required}}
+    {{^isNullable}}
+    req_builder = req_builder.header("{{{baseName}}}", {{{vendorExtensions.x-rust-param-identifier}}}.to_string());
+    {{/isNullable}}
+    {{#isNullable}}
+    req_builder = req_builder.header("{{{baseName}}}", {{{vendorExtensions.x-rust-param-identifier}}}.map_or_else(String::new, |value| value.to_string()));
+    {{/isNullable}}
+    {{/required}}
+    {{^required}}
+    if let Some(value) = {{{vendorExtensions.x-rust-param-identifier}}} {
+        req_builder = req_builder.header("{{{baseName}}}", value.to_string());
+    }
+    {{/required}}
+    {{/headerParams}}
+    {{#bodyParams}}
+    req_builder = req_builder.json(&{{{vendorExtensions.x-rust-param-identifier}}});
+    {{/bodyParams}}
+{{>client/response}}
+}
+
+{{/operation}}
+{{/operations}}

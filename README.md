@@ -3,6 +3,9 @@
 This is a FastAPI server with OAS-generated models, interfaces, and routes.
 The contract is [here](./assets/chiv2-server-browser-api.yaml).
 
+Reusable SDKs live under [`sdk/<language>/`](sdk/README.md). The backend owns
+their generation and release artifacts; consumers pin SDK versions or commits.
+
 ## Running the server 
 
 ### Docker

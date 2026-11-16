@@ -30,7 +30,7 @@ The codegen project is a root development dependency, not a runtime dependency.
 Its independent version starts at `0.1.0`. Run `uv run server-browser-codegen`
 to regenerate SDK sources or add `--check` to detect drift. Configuration,
 templates grouped by generated module, and tests belong to that project rather
-than top-level scripts. See its [README](../packages/server-browser-codegen/README.md).
+than top-level scripts. See its [README](../sdk/python/server-browser-codegen/README.md).
 
 ## Models
 

@@ -193,6 +193,57 @@ def test_register_invalid_local_ip(client: TestClient, browser):
     assert "local_ip_address" in response.json()["message"]
     assert browser.server_list.get_all() == []
 
+def test_metadata_updates_renew_lease_and_expire_after_activity_stops(app_factory, monkeypatch):
+    class Clock(datetime):
+        timestamp_now = 100.0
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(cls.timestamp_now, tz)
+
+    monkeypatch.setattr("server_browser_backend.routes.api_v1.datetime", Clock)
+    monkeypatch.setattr("server_browser_backend.server_list.datetime", Clock)
+    registry = ServerList(heartbeat_timeout=10)
+    app = app_factory(server_list=registry)
+    with TestClient(app, client=("192.0.2.1", 1234)) as client:
+        registration = client.post("/api/v1/servers", json=test_server_json).json()
+        server_id = registration["server"]["unique_id"]
+        path = f"/api/v1/servers/{server_id}"
+        headers = {KEY_HEADER: registration["key"]}
+        assert registration["refresh_before"] == 110.0
+        original = registry.get(server_id)
+        for now in (109.0, 118.0, 127.0):
+            Clock.timestamp_now = now
+            body = {"player_count": 10, "max_players": 32, "current_map": str(now)}
+            response = client.put(path, headers=headers, json=body)
+            assert response.status_code == 200
+            assert response.json()["refresh_before"] == now + 10
+            assert response.json()["server"]["last_heartbeat"] == now
+            stored = registry.get(server_id)
+            assert stored.last_heartbeat == now
+            assert stored.unique_id == server_id
+            assert stored.current_map == str(now)
+            assert stored.player_count == 10
+            assert stored.max_players == 32
+            assert stored.mods == original.mods
+            assert stored.ports == original.ports
+            assert client.get("/api/v1/servers").json()["servers"][0]["unique_id"] == server_id
+
+        Clock.timestamp_now = 136.0
+        accepted = registry.get(server_id)
+        for rejected_headers, body, status_code in (
+            ({KEY_HEADER: "wrong"}, body, 403),
+            ({}, body, 400),
+            (headers, {**body, "player_count": -1}, 400),
+        ):
+            assert client.put(path, headers=rejected_headers, json=body).status_code == status_code
+            assert registry.get(server_id) == accepted
+        Clock.timestamp_now = 137.0
+        assert len(client.get("/api/v1/servers").json()["servers"]) == 1
+        Clock.timestamp_now = 137.001
+        assert client.get("/api/v1/servers").json()["servers"] == []
+
+
 def test_update(client: TestClient, browser):
     registration_response = client.post("/api/v1/servers", json=test_server_json)
     server_id = registration_response.json()["server"]["unique_id"]
