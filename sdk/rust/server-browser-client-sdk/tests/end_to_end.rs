@@ -2,7 +2,7 @@
 use server_browser_client::apis::{api_v1_api as api, configuration::Configuration};
 use server_browser_client_sdk::{
     models::{Chivalry2Ports, ServerRegistrationRequest, UpdateRegisteredServer},
-    Clock, Event, HttpTransport, Policy, Registration, RegistrationControl,
+    Clock, Event, HttpTransport, Policy, Registration, SdkError,
 };
 use std::{
     cell::Cell,
@@ -85,23 +85,37 @@ async fn registration_sdk_against_python_backend() {
         .is_empty());
 
     // The async driver coalesces updates and cancels without waiting a lease.
-    let mut registration = Registration::new(transport, request, Policy::default()).unwrap();
-    let control = RegistrationControl::default();
+    let registration = Registration::new(transport.clone(), request.clone(), Policy::default())
+        .unwrap()
+        .into_worker();
     let mut events = Vec::new();
     registration
-        .run(&control, |event| {
+        .run(|event| {
             events.push(event.clone());
             match event {
                 Event::Registered { .. } => {
-                    assert!(control.publish(UpdateRegisteredServer::new(3, 32, "driver".into())));
+                    assert!(registration.set_update(UpdateRegisteredServer::new(
+                        3,
+                        32,
+                        "driver".into()
+                    )));
                 }
-                Event::Updated => control.cancel(),
+                Event::Updated => registration.cancel(),
                 _ => panic!("unexpected lifecycle event"),
             }
         })
         .await
         .unwrap();
     assert_eq!(events.len(), 2);
+    let mut rejected = Registration::new(transport, request, Policy::default()).unwrap();
+    rejected.add_registration_response_listener(|_| Err("listener rejected registration".into()));
+    assert_eq!(
+        rejected
+            .into_worker()
+            .run(|_| panic!("listener failure must halt the driver"))
+            .await,
+        Err(SdkError::ListenerFailed)
+    );
     assert!(api::get_servers(&configuration)
         .await
         .unwrap()

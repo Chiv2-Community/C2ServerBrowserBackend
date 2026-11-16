@@ -6,8 +6,9 @@ Generation does not modify this crate. There is no Python lifecycle SDK yet.
 ```rust,no_run
 use server_browser_client_sdk::{
     models::{Chivalry2Ports, ServerRegistrationRequest},
-    HttpTransport, Policy, Registration, RegistrationControl,
+    HttpTransport, Policy, Registration,
 };
+use std::sync::Arc;
 
 # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 let request = ServerRegistrationRequest::new(
@@ -16,18 +17,22 @@ let request = ServerRegistrationRequest::new(
 );
 let transport = HttpTransport::new("https://browser.example", None)?;
 let mut registration = Registration::new(transport, request, Policy::default())?;
-let control = RegistrationControl::default();
-let worker_control = control.clone();
-let worker = tokio::spawn(async move {
-    let result = registration.run(&worker_control, |event| println!("{event:?}")).await;
-    // run cleans up on cancellation; explicitly clean up after an error.
-    let cleanup = registration.stop().await;
-    result.and(cleanup)
+registration.add_registration_response_listener(|response| {
+    match response {
+        Ok(response) => println!("Registered {}", response.server.unique_id),
+        Err(failure) => eprintln!("Registration failed: {failure:?}"),
+    }
+    Ok(())
 });
-// Publish live metadata with control.publish(UpdateRegisteredServer { ... }).
+let registration = Arc::new(registration.into_worker());
+let worker = Arc::clone(&registration);
+let task = tokio::spawn(async move {
+    worker.run(|event| println!("{event:?}")).await
+});
+// Publish metadata independently with registration.set_update(UpdateRegisteredServer { ... }).
 // On application shutdown:
-control.cancel();
-worker.await??;
+registration.cancel();
+task.await??;
 # Ok(())
 # }
 ```
@@ -35,10 +40,33 @@ worker.await??;
 Applications collect game state and choose addresses/ports. The SDK serializes
 registration, coalesced updates, heartbeats and deletion. It starts no hidden
 threads or runtimes. Call this example from an application-owned Tokio runtime
-with time and I/O enabled. Use `run` in a caller-owned task or await `poll` and
-honor `next_delay`. `RegistrationTransport` returns `Send` futures; the monotonic
+with time and I/O enabled. `RegistrationWorker::run` owns scheduling and cleanup;
+`set_update` coalesces metadata without waiting for HTTP. Keep metadata collection
+outside the driver so slow collection cannot delay lease maintenance.
+The worker runs once; cancellation/completion rejects further updates. Aborting
+the driver closes it without hidden I/O; stranded identities expire server-side.
+For lower-level control, use `Registration::run` with `RegistrationControl`, or
+await `poll` and honor `next_delay`. `RegistrationTransport` returns `Send` futures; the monotonic
 `Clock` remains injectable. A manager is spawnable when its transport and clock
 are `Send`. Synchronous control methods only hold brief metadata mutexes.
+
+## Response listeners
+
+Add listeners to `Registration` before converting it into a worker:
+
+- `add_registration_response_listener`: registration responses, including failures.
+- `add_heartbeat_response_listener`: heartbeat responses.
+- `add_update_response_listener`: metadata-update responses.
+- `add_deletion_response_listener`: the single deletion result, including HTTP 404.
+
+Callbacks receive a typed response or credential-safe `RequestFailure` and return
+`ListenerResult` (`Result<(), Box<dyn Error + Send + Sync>>`). They run in insertion
+order within the driver; keep them brief and nonblocking. The first callback error
+halts the lifecycle with `SdkError::ListenerFailed` and skips remaining callbacks
+for that response. Error details are deliberately omitted from SDK diagnostics.
+The worker attempts cleanup of a known registration, including when a successful
+registration's listener fails. Failed deletion/listeners never cause a second DELETE.
+Registration responses contain the secret key: log only explicitly selected safe fields.
 
 ## Lifecycle policy
 
@@ -61,7 +89,8 @@ are `Send`. Synchronous control methods only hold brief metadata mutexes.
   no registration idempotency/recovery operation yet.
 - `cancel` wakes waits; an in-flight request must finish or time out first.
   `stop` attempts deletion once. No network work occurs in `Drop`; failed cleanup
-  leaves expiry to the server. `run` errors require explicit `stop`.
+   leaves expiry to the server. The worker attempts cleanup on terminal errors
+   too; the lower-level `Registration::run` requires explicit `stop` on error.
 - Dropping an in-flight registration future also leaves `RegistrationUncertain`;
   no blind retry is allowed. Dropping an update/heartbeat retains the known ID,
   last confirmed metadata and deadline. Dropping cleanup after it starts still

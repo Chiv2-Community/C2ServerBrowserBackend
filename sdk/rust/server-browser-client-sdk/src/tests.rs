@@ -411,6 +411,258 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
 }
 
 #[tokio::test]
+async fn worker_accepts_updates_and_owns_cleanup() {
+    let Fixture {
+        registration,
+        transport,
+        ..
+    } = fixture();
+    let worker = registration.into_worker();
+    worker
+        .run(|event| match event {
+            Event::Registered { .. } => {
+                assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "next".into())));
+            }
+            Event::Updated => worker.cancel(),
+            event => panic!("unexpected event: {event:?}"),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "update", "delete"]
+    );
+    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.run(|_| panic!("second run")).await,
+        Err(SdkError::Stopped)
+    );
+}
+
+#[tokio::test]
+async fn worker_renews_without_metadata_and_cleans_up_terminal_errors() {
+    let Fixture {
+        registration,
+        transport,
+        clock,
+    } = fixture();
+    let worker = registration.into_worker();
+    assert_eq!(
+        worker
+            .run(|event| match event {
+                Event::Registered { .. } => clock.advance(30),
+                Event::Heartbeat => {
+                    transport
+                        .failures
+                        .lock()
+                        .unwrap()
+                        .push_back(RequestFailure::Http(403));
+                    clock.advance(30);
+                }
+                event => panic!("unexpected event: {event:?}"),
+            })
+            .await,
+        Err(SdkError::Rejected(403))
+    );
+    assert_eq!(
+        *transport.calls.lock().unwrap(),
+        ["register", "heartbeat", "heartbeat", "delete"]
+    );
+    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+}
+
+#[tokio::test]
+async fn worker_shutdown_finishes_registration_before_deleting() {
+    let Fixture {
+        registration,
+        transport,
+        ..
+    } = fixture();
+    *transport.blocked.lock().unwrap() = Some("register");
+    let worker = registration.into_worker();
+    let shutdown = async {
+        transport.entered.notified().await;
+        assert_eq!(
+            worker.run(|_| panic!("concurrent run")).await,
+            Err(SdkError::Stopped)
+        );
+        worker.cancel();
+        assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
+        transport.release.notify_one();
+    };
+    let (result, ()) = tokio::join!(worker.run(|_| {}), shutdown);
+    assert_eq!(result, Ok(()));
+    assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
+}
+
+#[tokio::test]
+async fn aborted_worker_never_restarts_an_uncertain_registration() {
+    let Fixture {
+        registration,
+        transport,
+        ..
+    } = fixture();
+    *transport.blocked.lock().unwrap() = Some("register");
+    let worker = registration.into_worker();
+    interrupt(worker.run(|_| {}), &transport.entered).await;
+    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.run(|_| panic!("restarted")).await,
+        Err(SdkError::Stopped)
+    );
+    assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
+}
+
+#[tokio::test]
+async fn response_listeners_cover_each_http_operation() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let responses = Arc::clone(&observed);
+    registration.add_registration_response_listener(move |response| {
+        assert_eq!(response.unwrap().server.unique_id, "1");
+        responses.lock().unwrap().push("register");
+        Ok(())
+    });
+    let responses = Arc::clone(&observed);
+    registration.add_update_response_listener(move |response| {
+        assert_eq!(response.unwrap().server.unique_id, "1");
+        responses.lock().unwrap().push("update");
+        Ok(())
+    });
+    let responses = Arc::clone(&observed);
+    registration.add_heartbeat_response_listener(move |response| {
+        assert_eq!(response.unwrap().server.unique_id, "1");
+        responses.lock().unwrap().push("heartbeat");
+        Ok(())
+    });
+    let responses = Arc::clone(&observed);
+    registration.add_deletion_response_listener(move |response| {
+        assert_eq!(response, Ok(()));
+        responses.lock().unwrap().push("delete");
+        Ok(())
+    });
+    let worker = registration.into_worker();
+    worker
+        .run(|event| match event {
+            Event::Registered { .. } => {
+                assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "map".into())));
+            }
+            Event::Updated => clock.advance(30),
+            Event::Heartbeat => worker.cancel(),
+            event => panic!("unexpected event: {event:?}"),
+        })
+        .await
+        .unwrap();
+    assert_eq!(*observed.lock().unwrap(), *transport.calls.lock().unwrap());
+    assert_eq!(
+        *observed.lock().unwrap(),
+        ["register", "update", "heartbeat", "delete"]
+    );
+}
+
+#[tokio::test]
+async fn listener_errors_halt_the_worker_and_cleanup_remains_single_shot() {
+    for operation in ["register", "update", "heartbeat", "delete"] {
+        let Fixture {
+            mut registration,
+            transport,
+            clock,
+        } = fixture();
+        match operation {
+            "register" => {
+                registration
+                    .add_registration_response_listener(|_| Err("private-listener-error".into()));
+                registration
+                    .add_registration_response_listener(|_| panic!("listener after failure"));
+            }
+            "update" => {
+                registration.add_update_response_listener(|_| Err("private-listener-error".into()));
+            }
+            "heartbeat" => registration
+                .add_heartbeat_response_listener(|_| Err("private-listener-error".into())),
+            "delete" => registration
+                .add_deletion_response_listener(|_| Err("private-listener-error".into())),
+            _ => unreachable!(),
+        }
+        let worker = registration.into_worker();
+        let result = worker
+            .run(|event| {
+                assert!(matches!(event, Event::Registered { .. }));
+                match operation {
+                    "update" => {
+                        assert!(worker.set_update(UpdateRegisteredServer::new(
+                            1,
+                            32,
+                            "map".into()
+                        )));
+                    }
+                    "heartbeat" => clock.advance(30),
+                    "delete" => worker.cancel(),
+                    _ => panic!("event after listener failure"),
+                }
+            })
+            .await;
+        assert_eq!(result, Err(SdkError::ListenerFailed));
+        assert_eq!(transport.calls.lock().unwrap().last(), Some(&"delete"));
+        assert_eq!(
+            transport
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|call| **call == "delete")
+                .count(),
+            1
+        );
+        assert_eq!(
+            worker.run(|_| panic!("restarted")).await,
+            Err(SdkError::Stopped)
+        );
+        assert!(!format!("{worker:?} {result:?}").contains("private-listener-error"));
+    }
+}
+
+#[tokio::test]
+async fn listeners_receive_http_failures_before_retry_events() {
+    let Fixture {
+        mut registration,
+        transport,
+        clock,
+    } = fixture();
+    transport
+        .failures
+        .lock()
+        .unwrap()
+        .push_back(RequestFailure::Http(429));
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let responses = Arc::clone(&observed);
+    registration.add_registration_response_listener(move |response| {
+        responses.lock().unwrap().push(response.map(|_| ()));
+        Ok(())
+    });
+    let worker = registration.into_worker();
+    worker
+        .run(|event| match event {
+            Event::RetryScheduled(_) => {
+                assert_eq!(*observed.lock().unwrap(), [Err(RequestFailure::Http(429))]);
+                clock.advance(10);
+            }
+            Event::Registered { .. } => worker.cancel(),
+            event => panic!("unexpected event: {event:?}"),
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        *observed.lock().unwrap(),
+        [Err(RequestFailure::Http(429)), Ok(())]
+    );
+}
+
+#[tokio::test]
 async fn cleanup_reports_failure_without_logging_secrets_or_retrying() {
     let Fixture {
         mut registration,
