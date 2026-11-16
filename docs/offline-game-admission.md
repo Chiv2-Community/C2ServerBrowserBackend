@@ -1,8 +1,9 @@
 # Offline game admission
 
-Backend signing and the Rust verifier are implemented; native integration is pending.
-The existing plugin still uses opaque-ticket redemption. Do not deploy this as a
-completed server-authoritative identity fix.
+Backend signing and the Rust verifier are implemented. Plugin branch
+`fix/validated-player-identity` now requests signed admissions, verifies them
+locally and assigns native IDs while blocking the client platform-ID RPC.
+Runtime validation of that integration is ongoing; this is not merge approval.
 
 ## Protocol
 
@@ -30,8 +31,8 @@ Both proofs demonstrate account control. They do not, by themselves, establish a
 provider-maintained link between the PlayFab account and EOS account, or current
 game ownership. Do not describe independent proofs as proving those relationships.
 Native token retrieval and signature/identity verification passed on both supported
-clients. Required account linkage remains unresolved; do not enable the native
-admission switch until that requirement is settled.
+clients. Required account linkage remains unresolved; do not deploy the native
+admission path as proof of a provider-maintained account link.
 
 ## Host verifier
 
@@ -89,10 +90,8 @@ authentication fallback after JWT rejection.
 
 - Settle required PlayFab/EOS account linkage; independent proofs are insufficient
   to claim a provider-maintained link.
-- Replace client opaque-ticket issuance with signed admissions.
-- Runtime-test the plugin's registration-bound key-refresh/lease integration.
-- Replace host online redemption with synchronous verification.
-- Assign all native typed IDs from claims and reject post-admission client updates.
+- Runtime-test the plugin's signed issuance, registration-bound key-refresh/lease
+  integration, synchronous verification, authoritative native setters and RPC block.
 - Run isolated browser joins, reconnect, restart, travel, key rotation, expiry,
   replay, mismatched proofs and identity-overwrite tests before merging.
 
