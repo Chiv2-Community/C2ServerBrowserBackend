@@ -3,7 +3,10 @@
 Backend signing and the Rust verifier are implemented. Plugin branch
 `fix/validated-player-identity` now requests signed admissions, verifies them
 locally and assigns native IDs while blocking the client platform-ID RPC.
-Runtime validation of that integration is ongoing; this is not merge approval.
+Live Steam-host browser joins passed for Steam and Epic clients, including
+authoritative ID replication, rejection of the demonstrated platform-RPC spoof
+and fresh-process Epic reconnect. No online redemption occurred. Broader runtime
+validation remains incomplete; this is not merge approval.
 
 ## Protocol
 
@@ -91,9 +94,14 @@ authentication fallback after JWT rejection.
 - Settle required PlayFab/EOS account linkage; independent proofs are insufficient
   to claim a provider-maintained link.
 - Runtime-test the plugin's signed issuance, registration-bound key-refresh/lease
-  integration, synchronous verification, authoritative native setters and RPC block.
+  integration and synchronous verification under failures and key rotation.
 - Run isolated browser joins, reconnect, restart, travel, key rotation, expiry,
   replay, mismatched proofs and identity-overwrite tests before merging.
+
+Current live evidence: `/tmp/opencode/offline-authority/control/result.json`;
+plugin implementation `a51ac33`, SDK pin `c8b3ca9`. The private test backend disabled
+legacy opaque issuance/redemption. Epic-host Steam joins and the broader JWT
+negative/travel matrix remain unvalidated.
 
 The authoritative wire contract is
 [`assets/chiv2-server-browser-api.yaml`](../assets/chiv2-server-browser-api.yaml).
