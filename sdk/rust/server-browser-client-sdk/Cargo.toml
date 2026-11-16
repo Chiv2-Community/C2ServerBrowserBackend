@@ -17,9 +17,13 @@ server-browser-client = { version = "=1.0.0", path = "../server-browser-client",
 server-browser-models = { version = "=1.0.0", path = "../server-browser-models" }
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 tokio = { version = "1", features = ["sync", "time", "macros"] }
+jsonwebtoken = { version = "9.3", default-features = false }
+serde_json = "1"
+base64 = "0.22"
 
 [dev-dependencies]
-serde_json = "1"
+rsa = "0.9"
+rand = "0.8"
 tokio = { version = "1", features = ["rt"] }
 
 [features]

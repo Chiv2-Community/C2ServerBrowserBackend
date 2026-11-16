@@ -52,6 +52,148 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
+  /api/v1/game-join-jwks.json:
+    get:
+      operationId: game_join_jwks
+      tags: [ApiV1]
+      summary: Get public keys for offline game admission verification
+      description: Hosts preload and refresh these keys outside login. Unknown keys fail closed without an inline fetch. Empty while game admission signing is unconfigured. Never contains private keys.
+      responses:
+        default: *ApiError
+        '200':
+          description: Current and retained game admission verification keys
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksResponse'
+  /api/v1/game-admissions:
+    post:
+      operationId: issue_game_admission
+      tags: [ApiV1]
+      summary: Issue a signed game admission after `PlayFab` and EOS proof verification
+      description: |
+        Consumes the account-control challenge and verifies an EOS Connect ID token, not an EOS Auth token or access token.
+
+        RS256 admission JWTs are bound to one fresh server registration UUID and expire within 60 seconds and before the EOS proof expires. Hosts validate locally and consume jti atomically; no redemption request is required. Proofs and raw JWTs must not be logged or persisted. Discord is not included.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameAdmissionRequest'
+      responses:
+        default: *ApiError
+        '200':
+          description: Signed admission containing verified identities only
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameAdmissionResponse'
+  /api/v1/game-join-challenges:
+    post:
+      operationId: begin_game_join_challenge
+      tags: [ApiV1]
+      summary: Begin a `PlayFab` public-data account-control challenge
+      description: |
+        No player session credential is accepted.
+
+        Binds a private-secret commitment to one account, backend audience and live server generation for 60 seconds. Publish the specified protocol commitment only to the reserved `UnchainedJoin_v1` `PlayFab` user-data key. Responses must not be cached.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameJoinChallengeRequest'
+      responses:
+        default: *ApiError
+        '200':
+          description: Pending challenge; not an authenticated identity or join grant
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameJoinChallengeResponse'
+  /api/v1/game-join-tickets:
+    post:
+      operationId: issue_game_join_ticket
+      tags: [ApiV1]
+      summary: Complete a `PlayFab` account-control challenge and issue a single-use join ticket
+      description: |
+        Requires the private completion secret and a matching public proof read directly from `PlayFab` with the backend's independent verifier session.
+
+        Atomically consumes the challenge; never accepts a player session credential. Responses must not be cached.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameJoinTicketRequest'
+      responses:
+        default: *ApiError
+        '200':
+          description: Server-bound ticket, valid for at most 60 seconds
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameJoinTicketResponse'
+  /api/v1/servers/{server_id}/game-join-tickets/redeem:
+    post:
+      operationId: redeem_game_join_ticket
+      tags: [ApiV1]
+      summary: Consume a game join ticket for an authenticated live registration
+      description: |
+        Requires the current registration key and unchanged registration source IP.
+
+        Rejects expired, replayed, wrong-server, wrong-account and old-generation tickets. Does not renew the registration lease. Responses must not be cached.
+      parameters:
+        - in: path
+          name: server_id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-CHIV2-SERVER-BROWSER-KEY
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameJoinRedemptionRequest'
+      responses:
+        default: *ApiError
+        '200':
+          description: Authenticated account; the ticket is now spent
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameJoinRedemptionResponse'
   /api/v1/swagger.yaml:
     get:
       operationId: send_swagger
@@ -547,6 +689,186 @@ paths:
                 $ref: '#/components/schemas/PlayfabMatchmakeResponse'
 components:
   schemas:
+    GamePlatformIdentity:
+      type: object
+      additionalProperties: false
+      required: [provider, id]
+      properties:
+        provider:
+          type: string
+          enum: [steam, eos]
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Canonical Steam uint64 decimal string or EOS PUID; verified from EOS Connect sub and act, never copied from a client claim.
+    GameAdmissionIdentities:
+      type: object
+      additionalProperties: false
+      required: [playfab, eos_product_user_id, platform]
+      properties:
+        playfab:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[0-9A-F]+$'
+        eos_product_user_id:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+        platform:
+          $ref: '#/components/schemas/GamePlatformIdentity'
+    GameAdmissionClaims:
+      type: object
+      additionalProperties: false
+      description: RS256 JWT payload with typ unchained-game-join+jwt. Receivers require exact issuer, registration-instance audience, purpose and version; validate all times and identity consistency; consume jti locally. Not an OAuth or refresh credential.
+      required: [iss, sub, aud, purpose, version, identities, iat, nbf, exp, jti]
+      properties:
+        iss:
+          type: string
+        sub:
+          type: string
+          description: Must equal identities.playfab.
+        aud:
+          type: string
+          description: Exact urn:unchained:server:<fresh registration UUID>; registrations must not be restored across process restarts.
+        purpose:
+          type: string
+          enum: [unchained.game-join]
+        version:
+          type: integer
+          minimum: 1
+          maximum: 1
+        identities:
+          $ref: '#/components/schemas/GameAdmissionIdentities'
+        iat:
+          type: integer
+          format: int64
+        nbf:
+          type: integer
+          format: int64
+        exp:
+          type: integer
+          format: int64
+        jti:
+          type: string
+          description: Random UUID consumed once by the host; replay state lasts until token expiration.
+    GameAdmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, secret, eos_id_token]
+      properties:
+        challenge_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+        secret:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          writeOnly: true
+        eos_id_token:
+          type: string
+          minLength: 1
+          maxLength: 16384
+          writeOnly: true
+          description: EOS Connect identity-only JWT from `EOS_Connect_CopyIdToken`. Not a reusable `PlayFab` session or EOS access token.
+    GameAdmissionResponse:
+      type: object
+      required: [server_id, ticket, expires_at]
+      properties:
+        server_id:
+          type: string
+        ticket:
+          type: string
+          description: Signed game admission JWT; never logged or persisted.
+        expires_at:
+          type: integer
+          format: int64
+    GameJoinChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [playfab_id, commitment, audience, target_ip, target_port]
+      properties:
+        playfab_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[0-9A-Fa-f]+$'
+        commitment:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: Lowercase SHA-256 of the client's private 43-character base64url completion secret, hashed as ASCII.
+        audience:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: Canonical configured backend URL, without trailing slash; must match `GAME_JOIN_AUDIENCE`.
+        target_ip:
+          type: string
+          format: ip-address
+        target_port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+    GameJoinChallengeResponse:
+      type: object
+      required: [challenge_id, server_id, expires_at]
+      properties:
+        challenge_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+        server_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,128}$'
+        expires_at:
+          type: integer
+          format: int64
+    GameJoinTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, secret]
+      properties:
+        challenge_id:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{43}$'
+        secret:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          writeOnly: true
+          description: Private client-generated completion secret; never published to `PlayFab`, logged or persisted. Not a `PlayFab` credential.
+    GameJoinTicketResponse:
+      type: object
+      required: [server_id, ticket, expires_at]
+      properties:
+        server_id:
+          type: string
+        ticket:
+          type: string
+          description: Opaque single-use credential. Never logged.
+        expires_at:
+          type: integer
+          format: int64
+    GameJoinRedemptionRequest:
+      type: object
+      required: [ticket, playfab_id]
+      properties:
+        ticket:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+          writeOnly: true
+        playfab_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[0-9A-Fa-f]+$'
+    GameJoinRedemptionResponse:
+      type: object
+      required: [playfab_id]
+      properties:
+        playfab_id:
+          type: string
     TbioServerListResponse:
       type: object
       required: [Success, Data]

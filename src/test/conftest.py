@@ -25,6 +25,7 @@ def app_factory(tmp_path, admin_key):
     def create(
         *,
         signing_keys=None,
+        game_join=None,
         server_list=None,
         debug_mode=True,
         expose_ips=show_registered_ips,
@@ -48,6 +49,7 @@ def app_factory(tmp_path, admin_key):
                 verified_list=verified_list,
                 policy=policy,
                 signing_keys=signing_keys,
+                game_join=game_join,
                 show_registered_ips=expose_ips,
             ),
             CompatibilityApi(

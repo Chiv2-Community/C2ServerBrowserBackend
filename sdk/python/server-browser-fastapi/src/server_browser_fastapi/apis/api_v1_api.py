@@ -7,6 +7,14 @@ from pydantic import Field, StrictStr
 from typing_extensions import Annotated
 from server_browser_models.models.ban_list_response import BanListResponse
 from server_browser_models.models.ban_status_response import BanStatusResponse
+from server_browser_models.models.game_admission_request import GameAdmissionRequest
+from server_browser_models.models.game_admission_response import GameAdmissionResponse
+from server_browser_models.models.game_join_challenge_request import GameJoinChallengeRequest
+from server_browser_models.models.game_join_challenge_response import GameJoinChallengeResponse
+from server_browser_models.models.game_join_redemption_request import GameJoinRedemptionRequest
+from server_browser_models.models.game_join_redemption_response import GameJoinRedemptionResponse
+from server_browser_models.models.game_join_ticket_request import GameJoinTicketRequest
+from server_browser_models.models.game_join_ticket_response import GameJoinTicketResponse
 from server_browser_models.models.ip_list_request import IpListRequest
 from server_browser_models.models.jwks_response import JwksResponse
 from server_browser_models.models.login_request import LoginRequest
@@ -37,6 +45,47 @@ def create_router(implementation: BaseApiV1Api) -> APIRouter:
         await run_in_threadpool(implementation.before_operation, context, "login")
         login_request = LoginRequest.from_json(await read_body(request))
         result = await run_in_threadpool(implementation.login, context, login_request=login_request)
+        return render_response(result)
+
+    @router.api_route("/api/v1/game-join-jwks.json", methods=["GET"] + (["HEAD"] if "GET" == "GET" else []), operation_id="game_join_jwks", response_model=None)
+    async def game_join_jwks(request: Request) -> Response:
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "game_join_jwks")
+        result = await run_in_threadpool(implementation.game_join_jwks, context)
+        return render_response(result)
+
+    @router.api_route("/api/v1/game-admissions", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="issue_game_admission", response_model=None)
+    async def issue_game_admission(request: Request) -> Response:
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "issue_game_admission")
+        game_admission_request = GameAdmissionRequest.from_json(await read_body(request))
+        result = await run_in_threadpool(implementation.issue_game_admission, context, game_admission_request=game_admission_request)
+        return render_response(result)
+
+    @router.api_route("/api/v1/game-join-challenges", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="begin_game_join_challenge", response_model=None)
+    async def begin_game_join_challenge(request: Request) -> Response:
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "begin_game_join_challenge")
+        game_join_challenge_request = GameJoinChallengeRequest.from_json(await read_body(request))
+        result = await run_in_threadpool(implementation.begin_game_join_challenge, context, game_join_challenge_request=game_join_challenge_request)
+        return render_response(result)
+
+    @router.api_route("/api/v1/game-join-tickets", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="issue_game_join_ticket", response_model=None)
+    async def issue_game_join_ticket(request: Request) -> Response:
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "issue_game_join_ticket")
+        game_join_ticket_request = GameJoinTicketRequest.from_json(await read_body(request))
+        result = await run_in_threadpool(implementation.issue_game_join_ticket, context, game_join_ticket_request=game_join_ticket_request)
+        return render_response(result)
+
+    @router.api_route("/api/v1/servers/{server_id}/game-join-tickets/redeem", methods=["POST"] + (["HEAD"] if "POST" == "GET" else []), operation_id="redeem_game_join_ticket", response_model=None)
+    async def redeem_game_join_ticket(request: Request) -> Response:
+        context = RequestContext(client_ip=request.client.host if request.client is not None else "None")
+        await run_in_threadpool(implementation.before_operation, context, "redeem_game_join_ticket")
+        game_join_redemption_request = GameJoinRedemptionRequest.from_json(await read_body(request))
+        server_id = read_parameter("redeem_game_join_ticket", "path", "server_id", request.path_params.get("server_id"))
+        x_chiv2_server_browser_key = read_parameter("redeem_game_join_ticket", "header", "X-CHIV2-SERVER-BROWSER-KEY", request.headers.get("X-CHIV2-SERVER-BROWSER-KEY"), application_validated=True)
+        result = await run_in_threadpool(implementation.redeem_game_join_ticket, context, server_id=server_id, x_chiv2_server_browser_key=x_chiv2_server_browser_key, game_join_redemption_request=game_join_redemption_request)
         return render_response(result)
 
     @router.api_route("/api/v1/swagger.yaml", methods=["GET"] + (["HEAD"] if "GET" == "GET" else []), operation_id="send_swagger", response_model=None)

@@ -3,8 +3,11 @@ from __future__ import annotations
 import logging
 import secrets
 import threading
+import hashlib
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Iterator
+from ipaddress import IPv4Address, IPv6Address
 
 from server_browser_backend.models.base_models import Server
 from server_browser_backend.secured_resource import SecuredResource
@@ -22,6 +25,10 @@ class SecretKeyMissing(Exception):
 
 class RegistryCapacity(Exception):
     """Registration budget exhausted; existing servers remain registered."""
+
+
+class InvalidJoinRegistration(Exception):
+    pass
 
 
 class ServerList:
@@ -52,6 +59,45 @@ class ServerList:
         """Returns true if a server with the given id exists."""
         with self.servers_mutex:
             return server_id in self.servers
+
+    @contextmanager
+    def join_target(
+        self,
+        client_ip: IPv4Address | IPv6Address,
+        target_ip: IPv4Address | IPv6Address,
+        port: int,
+    ) -> Iterator[tuple[str, bytes]]:
+        """Hold registration identity stable through a bounded ticket-store write."""
+        with self.servers_mutex:
+            now = datetime.now().timestamp()
+            matches = [
+                (server_id, secured)
+                for server_id, secured in self.servers.items()
+                if secured.resource.last_heartbeat + self.heartbeat_timeout > now
+                and secured.resource.address_for(client_ip) == target_ip
+                and secured.resource.ports.game == port
+            ]
+            if len(matches) != 1:
+                raise InvalidJoinRegistration()
+            server_id, secured = matches[0]
+            yield server_id, hashlib.sha256(secured.secret_key.encode()).digest()
+
+    @contextmanager
+    def join_registration(
+        self, server_id: str, key: str, source_ip: IPv4Address | IPv6Address
+    ) -> Iterator[bytes]:
+        """Authenticate without renewing the lease; serialize with deletion/update."""
+        with self.servers_mutex:
+            secured = self.servers.get(server_id)
+            if (
+                secured is None
+                or not secured.validate(key)
+                or secured.resource.ip_address != source_ip
+                or secured.resource.last_heartbeat + self.heartbeat_timeout
+                <= datetime.now().timestamp()
+            ):
+                raise InvalidJoinRegistration()
+            yield hashlib.sha256(secured.secret_key.encode()).digest()
 
     def register(self, server: Server) -> str:
         """Registers a server and returns a secret key."""

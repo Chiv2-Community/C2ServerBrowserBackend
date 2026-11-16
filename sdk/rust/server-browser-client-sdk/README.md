@@ -87,3 +87,21 @@ uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py
 
 The Python harness executes the otherwise ignored Rust integration test against
 the actual backend over IPv4/IPv6 loopback, with ordinary and diagnostic listings.
+## Game identity admission
+
+`Registration<HttpTransport>::redeem_game_join_ticket` calls the generated
+redemption operation with the manager's private registration key. It rejects a
+different server ID or stopped manager and never retries a consumed grant.
+This is the older opaque-ticket path retained during native integration.
+Discord sessions and legacy Matchmake tickets are not game proof.
+
+For signed admissions, use `admission::AdmissionVerifier` with the trusted backend
+issuer and a fresh registration UUID. Install JWKS snapshots outside login with
+`replace_keys`; `consume` validates and consumes a JWT synchronously without I/O.
+Share one verifier across login paths. Key refreshes retain replay state; missing,
+unknown or stale keys and exhausted replay capacity fail closed. Never restore
+the old registration UUID or reset replay state within a live registration.
+
+Native proof retrieval, background key refresh and authoritative identity setters
+still require plugin integration. See `docs/offline-game-admission.md` in the
+repository for protocol, configuration and remaining runtime validation.

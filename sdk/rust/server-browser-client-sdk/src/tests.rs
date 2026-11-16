@@ -2,6 +2,77 @@ use super::*;
 use models::{RegistrationResponse, ServerResponse, UpdateResponse};
 use std::collections::VecDeque;
 
+#[tokio::test]
+async fn game_join_redemption_keeps_registration_key_private_and_checks_identity() {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let transport =
+        HttpTransport::new(&format!("http://{}", listener.local_addr().unwrap()), None).unwrap();
+    let mut manager = Registration::new(
+        transport,
+        ServerRegistrationRequest::default(),
+        Policy::default(),
+    )
+    .unwrap();
+    let request = models::GameJoinRedemptionRequest::new("a".repeat(43), "ABC".into());
+    assert_eq!(
+        manager.redeem_game_join_ticket("id", request.clone()).await,
+        Err(SdkError::InvalidLease)
+    );
+    manager.identity = Some(Identity {
+        id: "id".into(),
+        key: "private-key".into(),
+    });
+    assert!(!format!("{manager:?}").contains("private-key"));
+    assert_eq!(
+        manager
+            .redeem_game_join_ticket("other", request.clone())
+            .await,
+        Err(SdkError::InvalidLease)
+    );
+    let worker = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut stream = BufReader::new(stream);
+        let mut headers = String::new();
+        while !headers.ends_with("\r\n\r\n") {
+            assert_ne!(stream.read_line(&mut headers).unwrap(), 0);
+        }
+        let length = headers
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+            .unwrap()
+            .1
+            .trim()
+            .parse()
+            .unwrap();
+        let mut body = vec![0; length];
+        stream.read_exact(&mut body).unwrap();
+        assert!(headers.starts_with("POST /api/v1/servers/id/game-join-tickets/redeem "));
+        assert!(headers
+            .to_lowercase()
+            .contains("x-chiv2-server-browser-key: private-key"));
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap()["playfab_id"],
+            "ABC"
+        );
+        let response = r#"{"playfab_id":"ABC"}"#;
+        write!(stream.get_mut(), "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}", response.len()).unwrap();
+    });
+    assert_eq!(
+        manager
+            .redeem_game_join_ticket("id", request)
+            .await
+            .unwrap()
+            .playfab_id,
+        "ABC"
+    );
+    worker.join().unwrap();
+}
+
 #[derive(Default)]
 struct Value<T>(Mutex<T>);
 impl<T: Copy> Value<T> {
@@ -126,6 +197,27 @@ fn fixture() -> Fixture {
         transport,
         clock,
     }
+}
+
+#[tokio::test]
+async fn admission_lease_expires_without_speculative_renewal() {
+    let Fixture { mut registration, transport, clock } = fixture();
+    assert!(registration.live_lease().is_none());
+    registration.poll().await.unwrap();
+    let (id, deadline) = registration.live_lease().unwrap();
+    assert_eq!(id, "1");
+    assert_eq!(deadline.duration_since(clock.now()), Duration::from_secs(65));
+    clock.advance(30);
+    transport.failures.lock().unwrap().push_back(RequestFailure::Transport);
+    assert!(matches!(registration.poll().await, Ok(Event::RetryScheduled(_))));
+    assert_eq!(registration.live_lease().unwrap().1, deadline);
+    clock.advance(35);
+    assert!(registration.live_lease().is_none());
+    assert_eq!(registration.server_id(), Some("1"));
+    registration.poll().await.unwrap();
+    assert!(registration.live_lease().is_some());
+    registration.stop().await.unwrap();
+    assert!(registration.live_lease().is_none());
 }
 
 #[tokio::test]

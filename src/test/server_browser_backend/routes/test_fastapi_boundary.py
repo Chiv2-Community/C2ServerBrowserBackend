@@ -75,6 +75,7 @@ def test_synchronous_handlers_do_not_execute_on_the_event_loop_thread(browser):
     application.include_router(create_router(Implementation(
         server_list=browser.server_list, ban_list=browser.ban_list, verified_list=browser.verified_list,
         policy=browser.policy, signing_keys=browser.signing_keys, show_registered_ips=browser.show_registered_ips,
+        game_join=browser.game_join,
     )))
 
     async def exercise():

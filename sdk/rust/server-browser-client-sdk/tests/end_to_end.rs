@@ -162,3 +162,31 @@ async fn metadata_updates_renew_lease_without_heartbeats() {
         .servers
         .is_empty());
 }
+/// Python supplies freshly signed synthetic admissions and the real JWKS format.
+#[test]
+#[ignore = "run uv run pytest -q src/test/server_browser_backend/test_sdk_e2e.py"]
+fn offline_admissions_from_python_signer() {
+    use server_browser_client_sdk::admission::{AdmissionError, AdmissionVerifier};
+    let path = std::env::var("SDK_ADMISSION_FIXTURE").unwrap();
+    let fixture: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let verifier = AdmissionVerifier::new(
+        fixture["issuer"].as_str().unwrap(),
+        fixture["server_id"].as_str().unwrap(),
+    )
+    .unwrap();
+    verifier
+        .replace_keys(serde_json::from_value(fixture["jwks"].clone()).unwrap())
+        .unwrap();
+    for invalid in fixture["invalid"].as_array().unwrap() {
+        assert_eq!(
+            verifier.consume(invalid.as_str().unwrap()),
+            Err(AdmissionError::Rejected)
+        );
+    }
+    for token in fixture["valid"].as_array().unwrap() {
+        let token = token.as_str().unwrap();
+        let claims = verifier.consume(token).unwrap();
+        assert_eq!(claims.identities.playfab, "ABC123");
+        assert_eq!(verifier.consume(token), Err(AdmissionError::Replay));
+    }
+}

@@ -20,6 +20,9 @@ pub enum GetMotdError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get the Message of the Day
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn get_motd(
@@ -79,6 +82,9 @@ pub enum PlayfabClientMatchmakeError {
     UnknownValue(serde_json::Value),
 }
 
+/// Matchmake a client to a server
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn playfab_client_matchmake(
@@ -147,6 +153,9 @@ pub enum TbioGetServersError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get a list of servers in Chivalry 2 format
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn tbio_get_servers(

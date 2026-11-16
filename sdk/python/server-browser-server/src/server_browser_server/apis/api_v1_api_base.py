@@ -8,6 +8,14 @@ from pydantic import Field, StrictStr
 from typing_extensions import Annotated
 from server_browser_models.models.ban_list_response import BanListResponse
 from server_browser_models.models.ban_status_response import BanStatusResponse
+from server_browser_models.models.game_admission_request import GameAdmissionRequest
+from server_browser_models.models.game_admission_response import GameAdmissionResponse
+from server_browser_models.models.game_join_challenge_request import GameJoinChallengeRequest
+from server_browser_models.models.game_join_challenge_response import GameJoinChallengeResponse
+from server_browser_models.models.game_join_redemption_request import GameJoinRedemptionRequest
+from server_browser_models.models.game_join_redemption_response import GameJoinRedemptionResponse
+from server_browser_models.models.game_join_ticket_request import GameJoinTicketRequest
+from server_browser_models.models.game_join_ticket_response import GameJoinTicketResponse
 from server_browser_models.models.ip_list_request import IpListRequest
 from server_browser_models.models.jwks_response import JwksResponse
 from server_browser_models.models.login_request import LoginRequest
@@ -30,6 +38,26 @@ class BaseApiV1Api(ABC):
 
     @abstractmethod
     def login(self, request: RequestContext, *, login_request: LoginRequest) -> ApiResponse[StatusResponse] | ApiResponse[StatusResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def game_join_jwks(self, request: RequestContext) -> ApiResponse[JwksResponse] | ApiResponse[StatusResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def issue_game_admission(self, request: RequestContext, *, game_admission_request: GameAdmissionRequest) -> ApiResponse[GameAdmissionResponse] | ApiResponse[StatusResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def begin_game_join_challenge(self, request: RequestContext, *, game_join_challenge_request: GameJoinChallengeRequest) -> ApiResponse[GameJoinChallengeResponse] | ApiResponse[StatusResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def issue_game_join_ticket(self, request: RequestContext, *, game_join_ticket_request: GameJoinTicketRequest) -> ApiResponse[GameJoinTicketResponse] | ApiResponse[StatusResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def redeem_game_join_ticket(self, request: RequestContext, *, server_id: str, x_chiv2_server_browser_key: str | None, game_join_redemption_request: GameJoinRedemptionRequest) -> ApiResponse[GameJoinRedemptionResponse] | ApiResponse[StatusResponse]:
         raise NotImplementedError
 
     @abstractmethod

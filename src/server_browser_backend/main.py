@@ -7,6 +7,10 @@ from pathlib import Path
 
 from server_browser_backend.application import Application
 from server_browser_backend.auth.signing import SigningKeys
+from server_browser_backend.auth.game_join import GameJoinService
+from server_browser_backend.auth.game_identity import PlayFabIdentityVerifier
+from server_browser_backend.auth.game_join_tickets import GameJoinTicketStore
+from server_browser_backend.auth.eos_identity import EosConnectVerifier
 from server_browser_backend.env import show_registered_ips
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.logging_config import configure_logging
@@ -39,6 +43,52 @@ def create_default_app() -> Application:
     ban_list = IpList(admin_key, str(config_dir / "ban_list.txt"))
     verified_list = IpList(admin_key, str(config_dir / "verified_list.txt"))
     policy = RequestPolicy(ban_list, verified_list)
+    ticket_path = environ.get("GAME_JOIN_TICKET_DATABASE")
+    verifier_session = environ.get("GAME_JOIN_VERIFIER_SESSION_TICKET")
+    audience = environ.get("GAME_JOIN_AUDIENCE")
+    game_signing_path = environ.get("GAME_JOIN_SIGNING_KEYRING")
+    game_signing = SigningKeys(Path(game_signing_path)) if game_signing_path else None
+    eos_settings = {
+        name: environ.get(variable, "")
+        for name, variable in {
+            "issuer": "EOS_CONNECT_ISSUER",
+            "client_id": "EOS_CONNECT_CLIENT_ID",
+            "product_id": "EOS_CONNECT_PRODUCT_ID",
+            "sandbox_id": "EOS_CONNECT_SANDBOX_ID",
+            "deployment_id": "EOS_CONNECT_DEPLOYMENT_ID",
+        }.items()
+    }
+    if (game_signing or any(eos_settings.values())) and not all(eos_settings.values()):
+        raise ValueError(
+            "Signed game admission requires all pinned EOS Connect trust settings"
+        )
+    eos = (
+        EosConnectVerifier(
+            issuer=eos_settings["issuer"],
+            client_id=eos_settings["client_id"],
+            product_id=eos_settings["product_id"],
+            sandbox_id=eos_settings["sandbox_id"],
+            deployment_id=eos_settings["deployment_id"],
+        )
+        if game_signing
+        else None
+    )
+    if (ticket_path or game_signing) and (not verifier_session or not audience):
+        raise ValueError(
+            "Game join validation requires an independent verifier session and GAME_JOIN_AUDIENCE"
+        )
+    game_join = (
+        GameJoinService(
+            server_list,
+            PlayFabIdentityVerifier(verifier_session or ""),
+            GameJoinTicketStore(Path(ticket_path)) if ticket_path else None,
+            audience or "",
+            eos=eos,
+            signing=game_signing,
+        )
+        if ticket_path or game_signing
+        else None
+    )
     signing_path = environ.get("DISCORD_SIGNING_KEYRING")
     signing_keys = SigningKeys(Path(signing_path)) if signing_path is not None else None
     if signing_keys is None:
@@ -57,6 +107,8 @@ def create_default_app() -> Application:
             policy=policy,
             signing_keys=signing_keys,
             show_registered_ips=show_registered_ips,
+            game_join=game_join,
+            game_signing_keys=game_signing,
         ),
         CompatibilityApi(
             server_list=server_list, policy=policy, motd_directory=motd_directory

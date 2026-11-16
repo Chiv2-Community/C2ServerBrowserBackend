@@ -2,6 +2,7 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs, missing_debug_implementations)]
 pub mod transport;
+pub mod admission;
 pub use server_browser_models as models;
 pub use transport::{HttpTransport, RegistrationTransport, RequestFailure};
 
@@ -114,6 +115,7 @@ pub struct Registration<T, C = SystemClock> {
     identity: Option<Identity>,
     published: Option<UpdateRegisteredServer>,
     next_attempt: Instant,
+    lease_deadline: Option<Instant>,
     failures: u32,
     terminal_error: Option<SdkError>,
 }
@@ -138,6 +140,39 @@ impl<T: RegistrationTransport> Registration<T> {
         policy: Policy,
     ) -> Result<Self, SdkError> {
         Self::with_clock(transport, request, policy, SystemClock)
+    }
+}
+
+impl<C: Clock + Sync> Registration<HttpTransport, C> {
+    /// Redeem once with this manager's private registration credential.
+    /// Does not retry, renew the lease, or expose the registration key.
+    ///
+    /// # Errors
+    /// Returns an invalid lease for a different server, or a credential-safe failure.
+    pub async fn redeem_game_join_ticket(
+        &self,
+        server_id: &str,
+        request: models::GameJoinRedemptionRequest,
+    ) -> Result<models::GameJoinRedemptionResponse, SdkError> {
+        self.check_running()?;
+        let identity = self
+            .identity
+            .as_ref()
+            .filter(|identity| identity.id == server_id)
+            .ok_or(SdkError::InvalidLease)?;
+        server_browser_client::apis::api_v1_api::redeem_game_join_ticket(
+            self.transport.configuration(),
+            &identity.id,
+            &identity.key,
+            request,
+        )
+        .await
+        .map_err(|error| match error {
+            server_browser_client::apis::Error::ResponseError(response) => {
+                SdkError::Rejected(response.status.as_u16())
+            }
+            _ => SdkError::Rejected(503),
+        })
     }
 }
 
@@ -168,6 +203,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             identity: None,
             published: None,
             next_attempt,
+            lease_deadline: None,
             failures: 0,
             terminal_error: None,
         })
@@ -176,6 +212,15 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// Return the current backend identity, if one is known.
     pub fn server_id(&self) -> Option<&str> {
         self.identity.as_ref().map(|identity| identity.id.as_str())
+    }
+
+    /// Return the last confirmed live registration and its conservative deadline.
+    /// Unlike [`Self::server_id`], expired, halted and stopped leases return none.
+    /// A lost renewal response never extends admission trust speculatively.
+    pub fn live_lease(&self) -> Option<(&str, Instant)> {
+        self.check_running().ok()?;
+        let deadline = self.lease_deadline.filter(|deadline| *deadline > self.clock.now())?;
+        Some((self.server_id()?, deadline))
     }
 
     /// Return the delay until another poll, or none after a terminal outcome.
@@ -254,6 +299,8 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         self.next_attempt = started
             .checked_add(interval.min(self.policy.heartbeat_interval))
             .ok_or_else(|| self.halt(SdkError::InvalidLease))?;
+        self.lease_deadline = Some(started.checked_add(lifetime)
+            .ok_or_else(|| self.halt(SdkError::InvalidLease))?);
         self.failures = 0;
         self.published = Some(self.snapshot());
         Ok(())

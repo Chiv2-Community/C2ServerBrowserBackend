@@ -12,6 +12,14 @@ from uuid import uuid4
 from server_browser_models.models import (
     BanListResponse,
     BanStatusResponse,
+    GameJoinTicketRequest,
+    GameJoinChallengeRequest,
+    GameJoinChallengeResponse,
+    GameJoinTicketResponse,
+    GameJoinRedemptionRequest,
+    GameJoinRedemptionResponse,
+    GameAdmissionRequest,
+    GameAdmissionResponse,
     IpListRequest,
     JwksResponse,
     LoginRequest,
@@ -35,8 +43,23 @@ from server_browser_backend.models.base_models import (
     server_response,
 )
 from server_browser_backend.routes.shared import RequestPolicy, get_ip, status
-from server_browser_backend.server_list import RegistryCapacity, SecretKeyMissing, ServerList
+from server_browser_backend.server_list import (
+    RegistryCapacity,
+    SecretKeyMissing,
+    ServerList,
+)
 from server_browser_backend.auth.signing import SigningKeys
+from server_browser_backend.auth.game_join import GameJoinService, GameJoinRateLimited
+from server_browser_backend.auth.game_identity import (
+    InvalidGameCredential,
+    GameIdentityUnavailable,
+)
+from server_browser_backend.auth.game_join_tickets import (
+    InvalidGameJoinTicket,
+    GameJoinCapacity,
+    GameJoinBusy,
+)
+from server_browser_backend.server_list import InvalidJoinRegistration
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +80,8 @@ class BrowserApi(BaseApiV1Api):
         policy: RequestPolicy,
         signing_keys: SigningKeys | None,
         show_registered_ips: Callable[[], bool],
+        game_join: GameJoinService | None,
+        game_signing_keys: SigningKeys | None = None,
     ):
         self.server_list = server_list
         self.ban_list = ban_list
@@ -64,9 +89,150 @@ class BrowserApi(BaseApiV1Api):
         self.policy = policy
         self.signing_keys = signing_keys
         self.show_registered_ips = show_registered_ips
+        self.game_join = game_join
+        self.game_signing_keys = game_signing_keys
+
+    def game_join_jwks(self, request: RequestContext) -> ApiResponse[JwksResponse]:
+        keys = (
+            self.game_signing_keys.get_jwks_response()
+            if self.game_signing_keys
+            else JwksResponse(keys=[])
+        )
+        return ApiResponse(keys, headers={"Cache-Control": "no-store"})
+
+    def issue_game_admission(
+        self, request: RequestContext, game_admission_request: GameAdmissionRequest
+    ) -> ApiResponse[GameAdmissionResponse] | ApiResponse[StatusResponse]:
+        if self.game_join is None:
+            return status("game_join_disabled", "Game admission is not configured", 503)
+        body = game_admission_request
+        try:
+            server, ticket, expires = self.game_join.issue_admission(
+                get_ip(request), body.challenge_id, body.secret, body.eos_id_token
+            )
+        except InvalidJoinRegistration:
+            return status("invalid_target", "No unique live target registration", 404)
+        except InvalidGameCredential:
+            return status("invalid_proof", "Account-control proof rejected", 401)
+        except GameJoinRateLimited:
+            return status("rate_limited", "Game join request limit exceeded", 429)
+        except (GameIdentityUnavailable, GameJoinCapacity, GameJoinBusy):
+            return status("game_join_unavailable", "Game admission unavailable", 503)
+        return ApiResponse(
+            GameAdmissionResponse(server_id=server, ticket=ticket, expires_at=expires),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def begin_game_join_challenge(
+        self,
+        request: RequestContext,
+        game_join_challenge_request: GameJoinChallengeRequest,
+    ) -> ApiResponse[GameJoinChallengeResponse] | ApiResponse[StatusResponse]:
+        if self.game_join is None:
+            return status(
+                "game_join_disabled", "Game join validation is not configured", 503
+            )
+        body = game_join_challenge_request
+        try:
+            challenge = self.game_join.begin(
+                get_ip(request),
+                body.target_ip,
+                body.target_port,
+                body.playfab_id,
+                body.commitment,
+                body.audience,
+            )
+        except InvalidJoinRegistration:
+            return status("invalid_target", "No unique live target registration", 404)
+        except InvalidGameCredential:
+            return status(
+                "invalid_challenge", "Account-control challenge rejected", 401
+            )
+        except GameJoinRateLimited:
+            return status("rate_limited", "Game join request limit exceeded", 429)
+        except GameJoinCapacity:
+            return status(
+                "game_join_unavailable", "Game join challenge capacity exhausted", 503
+            )
+        return ApiResponse(
+            GameJoinChallengeResponse(
+                challenge_id=challenge.challenge_id,
+                server_id=challenge.server_id,
+                expires_at=challenge.expires_at,
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def issue_game_join_ticket(
+        self, request: RequestContext, game_join_ticket_request: GameJoinTicketRequest
+    ) -> ApiResponse[GameJoinTicketResponse] | ApiResponse[StatusResponse]:
+        if self.game_join is None:
+            return status(
+                "game_join_disabled", "Game join validation is not configured", 503
+            )
+        body = game_join_ticket_request
+        try:
+            server_id, ticket = self.game_join.issue(
+                get_ip(request), body.challenge_id, body.secret
+            )
+        except InvalidJoinRegistration:
+            return status("invalid_target", "No unique live target registration", 404)
+        except InvalidGameCredential:
+            return status("invalid_proof", "Account-control proof rejected", 401)
+        except GameJoinRateLimited:
+            return status("rate_limited", "Game join request limit exceeded", 429)
+        except (GameIdentityUnavailable, GameJoinCapacity, GameJoinBusy):
+            return status(
+                "game_join_unavailable", "Game join validation unavailable", 503
+            )
+        return ApiResponse(
+            GameJoinTicketResponse(
+                server_id=server_id,
+                ticket=ticket.credential,
+                expires_at=ticket.expires_at,
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def redeem_game_join_ticket(
+        self,
+        request: RequestContext,
+        server_id: str,
+        game_join_redemption_request: GameJoinRedemptionRequest,
+        x_chiv2_server_browser_key: str | None,
+    ) -> ApiResponse[GameJoinRedemptionResponse] | ApiResponse[StatusResponse]:
+        if self.game_join is None:
+            return status(
+                "game_join_disabled", "Game join validation is not configured", 503
+            )
+        body = game_join_redemption_request
+        try:
+            identity = self.game_join.redeem(
+                get_ip(request),
+                server_id,
+                x_chiv2_server_browser_key or "",
+                body.ticket,
+                body.playfab_id,
+            )
+        except InvalidJoinRegistration:
+            return status(
+                "invalid_registration", "Live registration authentication failed", 403
+            )
+        except InvalidGameJoinTicket:
+            return status("invalid_ticket", "Game join ticket rejected", 403)
+        except GameJoinRateLimited:
+            return status("rate_limited", "Game join request limit exceeded", 429)
+        except (GameIdentityUnavailable, GameJoinCapacity, GameJoinBusy):
+            return status(
+                "game_join_unavailable", "Game join validation unavailable", 503
+            )
+        return ApiResponse(
+            GameJoinRedemptionResponse(playfab_id=identity.playfab_id),
+            headers={"Cache-Control": "no-store"},
+        )
 
     def before_operation(self, request: RequestContext, operation_id: str) -> None:
-        if operation_id not in {"jwks", "login"}:
+        if operation_id not in {"jwks", "game_join_jwks", "login"}:
             self.policy.get_and_validate_ip(request)
 
     def jwks(self, request: RequestContext) -> ApiResponse[JwksResponse]:
@@ -113,8 +279,15 @@ class BrowserApi(BaseApiV1Api):
         try:
             key = self.server_list.register(server)
         except RegistryCapacity:
-            logger.warning("Server registration rejected: capacity exhausted requester_ip=%r", get_ip(request))
-            return status("registration_capacity", "Server registration capacity exhausted; retry after registrations expire", 429)
+            logger.warning(
+                "Server registration rejected: capacity exhausted requester_ip=%r",
+                get_ip(request),
+            )
+            return status(
+                "registration_capacity",
+                "Server registration capacity exhausted; retry after registrations expire",
+                429,
+            )
         logger.info(
             "Server registered server_id=%r name=%r ip=%s game_port=%s verified=%s",
             server.unique_id,
@@ -158,7 +331,9 @@ class BrowserApi(BaseApiV1Api):
             request,
             server_id,
             x_chiv2_server_browser_key,
-            lambda server: server.with_update(update_registered_server, datetime.now().timestamp()),
+            lambda server: server.with_update(
+                update_registered_server, datetime.now().timestamp()
+            ),
             operation="update",
         )
 
@@ -350,7 +525,8 @@ class BrowserApi(BaseApiV1Api):
             )
             return status("unauthorized", "Invalid IP address", 401)
         server = self.server_list.update(
-            server_id, key,
+            server_id,
+            key,
             lambda existing: self.policy.with_current_verification(transform(existing)),
         )
         if server is None:

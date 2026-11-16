@@ -27,12 +27,17 @@ pub enum {{{operationIdCamelCase}}}Error {
     UnknownValue(serde_json::Value),
 }
 
+{{#summary}}
+/// {{{.}}}
+///
+{{/summary}}
 {{#description}}
 /// {{{.}}}
 {{/description}}
 {{#notes}}
 /// {{{.}}}
 {{/notes}}
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 {{#isDeprecated}}

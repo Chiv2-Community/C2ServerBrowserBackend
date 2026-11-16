@@ -16,6 +16,21 @@ class Client(ClientTransport):
     def login(self, *, login_request: LoginRequest) -> ClientResponse[StatusResponse | StatusResponse]:
         return self._request("login", parameters={ }, body=login_request)
 
+    def game_join_jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
+        return self._request("game_join_jwks", parameters={ })
+
+    def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[GameAdmissionResponse | StatusResponse]:
+        return self._request("issue_game_admission", parameters={ }, body=game_admission_request)
+
+    def begin_game_join_challenge(self, *, game_join_challenge_request: GameJoinChallengeRequest) -> ClientResponse[GameJoinChallengeResponse | StatusResponse]:
+        return self._request("begin_game_join_challenge", parameters={ }, body=game_join_challenge_request)
+
+    def issue_game_join_ticket(self, *, game_join_ticket_request: GameJoinTicketRequest) -> ClientResponse[GameJoinTicketResponse | StatusResponse]:
+        return self._request("issue_game_join_ticket", parameters={ }, body=game_join_ticket_request)
+
+    def redeem_game_join_ticket(self, *, server_id: str, x_chiv2_server_browser_key: str | Unset = UNSET, game_join_redemption_request: GameJoinRedemptionRequest) -> ClientResponse[GameJoinRedemptionResponse | StatusResponse]:
+        return self._request("redeem_game_join_ticket", parameters={ "server_id": server_id, "X-CHIV2-SERVER-BROWSER-KEY": x_chiv2_server_browser_key, }, body=game_join_redemption_request)
+
     def send_swagger(self) -> ClientResponse[str | StatusResponse]:
         return self._request("send_swagger", parameters={ })
 
@@ -73,6 +88,21 @@ class AsyncClient(AsyncClientTransport):
 
     async def login(self, *, login_request: LoginRequest) -> ClientResponse[StatusResponse | StatusResponse]:
         return await self._request("login", parameters={ }, body=login_request)
+
+    async def game_join_jwks(self) -> ClientResponse[JwksResponse | StatusResponse]:
+        return await self._request("game_join_jwks", parameters={ })
+
+    async def issue_game_admission(self, *, game_admission_request: GameAdmissionRequest) -> ClientResponse[GameAdmissionResponse | StatusResponse]:
+        return await self._request("issue_game_admission", parameters={ }, body=game_admission_request)
+
+    async def begin_game_join_challenge(self, *, game_join_challenge_request: GameJoinChallengeRequest) -> ClientResponse[GameJoinChallengeResponse | StatusResponse]:
+        return await self._request("begin_game_join_challenge", parameters={ }, body=game_join_challenge_request)
+
+    async def issue_game_join_ticket(self, *, game_join_ticket_request: GameJoinTicketRequest) -> ClientResponse[GameJoinTicketResponse | StatusResponse]:
+        return await self._request("issue_game_join_ticket", parameters={ }, body=game_join_ticket_request)
+
+    async def redeem_game_join_ticket(self, *, server_id: str, x_chiv2_server_browser_key: str | Unset = UNSET, game_join_redemption_request: GameJoinRedemptionRequest) -> ClientResponse[GameJoinRedemptionResponse | StatusResponse]:
+        return await self._request("redeem_game_join_ticket", parameters={ "server_id": server_id, "X-CHIV2-SERVER-BROWSER-KEY": x_chiv2_server_browser_key, }, body=game_join_redemption_request)
 
     async def send_swagger(self) -> ClientResponse[str | StatusResponse]:
         return await self._request("send_swagger", parameters={ })

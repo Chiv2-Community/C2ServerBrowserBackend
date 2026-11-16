@@ -22,6 +22,9 @@ pub enum AddToBanListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Add IP addresses to the ban list
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn add_to_ban_list(
@@ -95,7 +98,10 @@ pub enum AddToVerifiedListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Add IP addresses to the verified list
+///
 /// Listings and update responses reflect the current verified policy for existing registrations as well as new ones.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn add_to_verified_list(
@@ -159,6 +165,70 @@ pub async fn add_to_verified_list(
     }
 }
 
+/// Typed HTTP errors from [`begin_game_join_challenge`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BeginGameJoinChallengeError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// Begin a `PlayFab` public-data account-control challenge
+///
+/// No player session credential is accepted.  Binds a private-secret commitment to one account, backend audience and live server generation for 60 seconds. Publish the specified protocol commitment only to the reserved `UnchainedJoin_v1` `PlayFab` user-data key. Responses must not be cached.
+///
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+pub async fn begin_game_join_challenge(
+    configuration: &configuration::Configuration,
+    game_join_challenge_request: models::GameJoinChallengeRequest,
+) -> Result<models::GameJoinChallengeResponse, Error<BeginGameJoinChallengeError>> {
+    let p_body_game_join_challenge_request = game_join_challenge_request;
+    let uri_str = format!("{}/api/v1/game-join-challenges", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&p_body_game_join_challenge_request);
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = ContentType::from(content_type);
+    let content = resp.text().await?;
+
+    if !status.is_client_error() && !status.is_server_error() {
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GameJoinChallengeResponse`"))),
+            ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::GameJoinChallengeResponse`")))),
+        }
+    } else {
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(BeginGameJoinChallengeError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content)
+                            .map(BeginGameJoinChallengeError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
+        Err(Error::ResponseError(Box::new(ResponseContent {
+            status,
+            content,
+            entity,
+        })))
+    }
+}
+
 /// Typed HTTP errors from [`check_banned`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -167,6 +237,9 @@ pub enum CheckBannedError {
     UnknownValue(serde_json::Value),
 }
 
+/// Check if an IP address is banned
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn check_banned(
@@ -228,6 +301,9 @@ pub enum DeleteServerError {
     UnknownValue(serde_json::Value),
 }
 
+/// Remove the listing for a game server.
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn delete_server(
@@ -300,6 +376,64 @@ pub async fn delete_server(
     }
 }
 
+/// Typed HTTP errors from [`game_join_jwks`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GameJoinJwksError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// Get public keys for offline game admission verification
+///
+/// Hosts preload and refresh these keys outside login. Unknown keys fail closed without an inline fetch. Empty while game admission signing is unconfigured. Never contains private keys.
+///
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+pub async fn game_join_jwks(
+    configuration: &configuration::Configuration,
+) -> Result<models::JwksResponse, Error<GameJoinJwksError>> {
+    let uri_str = format!("{}/api/v1/game-join-jwks.json", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = ContentType::from(content_type);
+    let content = resp.text().await?;
+
+    if !status.is_client_error() && !status.is_server_error() {
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::JwksResponse`"))),
+            ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::JwksResponse`")))),
+        }
+    } else {
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(GameJoinJwksError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(GameJoinJwksError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
+        Err(Error::ResponseError(Box::new(ResponseContent {
+            status,
+            content,
+            entity,
+        })))
+    }
+}
+
 /// Typed HTTP errors from [`get_ban_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -309,6 +443,9 @@ pub enum GetBanListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get the list of banned IP addresses
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn get_ban_list(
@@ -371,6 +508,9 @@ pub enum GetServersError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get a list of registered game servers.
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn get_servers(
@@ -424,6 +564,9 @@ pub enum GetVerifiedListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get the list of verified IP addresses
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn get_verified_list(
@@ -492,6 +635,9 @@ pub enum HeartbeatError {
     UnknownValue(serde_json::Value),
 }
 
+/// Send a keepalive signal to stay on the server list
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn heartbeat(
@@ -566,6 +712,132 @@ pub async fn heartbeat(
     }
 }
 
+/// Typed HTTP errors from [`issue_game_admission`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum IssueGameAdmissionError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// Issue a signed game admission after `PlayFab` and EOS proof verification
+///
+/// Consumes the account-control challenge and verifies an EOS Connect ID token, not an EOS Auth token or access token.  RS256 admission JWTs are bound to one fresh server registration UUID and expire within 60 seconds and before the EOS proof expires. Hosts validate locally and consume jti atomically; no redemption request is required. Proofs and raw JWTs must not be logged or persisted. Discord is not included.
+///
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+pub async fn issue_game_admission(
+    configuration: &configuration::Configuration,
+    game_admission_request: models::GameAdmissionRequest,
+) -> Result<models::GameAdmissionResponse, Error<IssueGameAdmissionError>> {
+    let p_body_game_admission_request = game_admission_request;
+    let uri_str = format!("{}/api/v1/game-admissions", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&p_body_game_admission_request);
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = ContentType::from(content_type);
+    let content = resp.text().await?;
+
+    if !status.is_client_error() && !status.is_server_error() {
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GameAdmissionResponse`"))),
+            ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::GameAdmissionResponse`")))),
+        }
+    } else {
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(IssueGameAdmissionError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(IssueGameAdmissionError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
+        Err(Error::ResponseError(Box::new(ResponseContent {
+            status,
+            content,
+            entity,
+        })))
+    }
+}
+
+/// Typed HTTP errors from [`issue_game_join_ticket`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum IssueGameJoinTicketError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// Complete a `PlayFab` account-control challenge and issue a single-use join ticket
+///
+/// Requires the private completion secret and a matching public proof read directly from `PlayFab` with the backend's independent verifier session.  Atomically consumes the challenge; never accepts a player session credential. Responses must not be cached.
+///
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+pub async fn issue_game_join_ticket(
+    configuration: &configuration::Configuration,
+    game_join_ticket_request: models::GameJoinTicketRequest,
+) -> Result<models::GameJoinTicketResponse, Error<IssueGameJoinTicketError>> {
+    let p_body_game_join_ticket_request = game_join_ticket_request;
+    let uri_str = format!("{}/api/v1/game-join-tickets", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&p_body_game_join_ticket_request);
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = ContentType::from(content_type);
+    let content = resp.text().await?;
+
+    if !status.is_client_error() && !status.is_server_error() {
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GameJoinTicketResponse`"))),
+            ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::GameJoinTicketResponse`")))),
+        }
+    } else {
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(IssueGameJoinTicketError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(IssueGameJoinTicketError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
+        Err(Error::ResponseError(Box::new(ResponseContent {
+            status,
+            content,
+            entity,
+        })))
+    }
+}
+
 /// Typed HTTP errors from [`jwks`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -574,7 +846,10 @@ pub enum JwksError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get public verification keys for Discord join tickets
+///
 /// Empty while Discord signing is unconfigured. Never contains private key material.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn jwks(
@@ -628,7 +903,10 @@ pub enum LoginError {
     UnknownValue(serde_json::Value),
 }
 
+/// Retired EOS token exchange
+///
 /// EOS authentication has been removed. This endpoint returns 410 and never validates or exchanges credentials.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 #[deprecated]
@@ -683,6 +961,81 @@ pub async fn login(
     }
 }
 
+/// Typed HTTP errors from [`redeem_game_join_ticket`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RedeemGameJoinTicketError {
+    DefaultResponse(models::StatusResponse),
+    UnknownValue(serde_json::Value),
+}
+
+/// Consume a game join ticket for an authenticated live registration
+///
+/// Requires the current registration key and unchanged registration source IP.  Rejects expired, replayed, wrong-server, wrong-account and old-generation tickets. Does not renew the registration lease. Responses must not be cached.
+///
+/// # Errors
+/// Returns a transport, decoding, or declared HTTP error.
+pub async fn redeem_game_join_ticket(
+    configuration: &configuration::Configuration,
+    server_id: &str,
+    x_chiv2_server_browser_key: &str,
+    game_join_redemption_request: models::GameJoinRedemptionRequest,
+) -> Result<models::GameJoinRedemptionResponse, Error<RedeemGameJoinTicketError>> {
+    let p_path_server_id = server_id;
+    let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
+    let p_body_game_join_redemption_request = game_join_redemption_request;
+    let uri_str = format!(
+        "{}/api/v1/servers/{server_id}/game-join-tickets/redeem",
+        configuration.base_path,
+        server_id = crate::apis::urlencode(p_path_server_id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.header(
+        "X-CHIV2-SERVER-BROWSER-KEY",
+        p_header_x_chiv2_server_browser_key.to_string(),
+    );
+    req_builder = req_builder.json(&p_body_game_join_redemption_request);
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = ContentType::from(content_type);
+    let content = resp.text().await?;
+
+    if !status.is_client_error() && !status.is_server_error() {
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::GameJoinRedemptionResponse`"))),
+            ContentType::Unsupported(unknown_type) => Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::GameJoinRedemptionResponse`")))),
+        }
+    } else {
+        let entity = {
+            {
+                serde_json::from_str(&content)
+                    .map(RedeemGameJoinTicketError::DefaultResponse)
+                    .or_else(|_| {
+                        serde_json::from_str(&content).map(RedeemGameJoinTicketError::UnknownValue)
+                    })
+                    .ok()
+            }
+        };
+        Err(Error::ResponseError(Box::new(ResponseContent {
+            status,
+            content,
+            entity,
+        })))
+    }
+}
+
 /// Typed HTTP errors from [`register`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -693,7 +1046,10 @@ pub enum RegisterError {
     UnknownValue(serde_json::Value),
 }
 
+/// Register a game server
+///
 /// Bounded by global and source-IP registration quotas; capacity rejection does not evict existing registrations.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn register(
@@ -761,6 +1117,9 @@ pub enum RemoveFromBanListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Remove IP addresses from the ban list
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn remove_from_ban_list(
@@ -836,7 +1195,10 @@ pub enum RemoveFromVerifiedListError {
     UnknownValue(serde_json::Value),
 }
 
+/// Remove IP addresses from the verified list
+///
 /// Revokes verified/official status in subsequent listings and update responses without requiring re-registration.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn remove_from_verified_list(
@@ -911,6 +1273,9 @@ pub enum SendSwaggerError {
     UnknownValue(serde_json::Value),
 }
 
+/// Get the swagger documentation
+///
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn send_swagger(
@@ -977,7 +1342,10 @@ pub enum UpdateError {
     UnknownValue(serde_json::Value),
 }
 
+/// Update the listing for a game server and renew its registration lease
+///
 /// A successful authenticated update also counts as a heartbeat, advancing `last_heartbeat` and `refresh_before`. Rejected updates do not renew the lease.
+///
 /// # Errors
 /// Returns a transport, decoding, or declared HTTP error.
 pub async fn update(

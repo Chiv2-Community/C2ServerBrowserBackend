@@ -44,6 +44,15 @@ async fn generated_client_against_python_backend() {
         )
     };
     assert!(!success(api::jwks(&config).await).keys.is_empty());
+    assert!(success(api::game_join_jwks(&config).await).keys.is_empty());
+    status_error(
+        api::issue_game_admission(
+            &config,
+            GameAdmissionRequest::new("a".repeat(43), "s".repeat(43), "proof".into()),
+        )
+        .await,
+        503,
+    );
     assert!(success(api::send_swagger(&config).await).contains("openapi:"));
     status_error(
         api::login(&config, LoginRequest::new("retired".into())).await,
@@ -66,6 +75,38 @@ async fn generated_client_against_python_backend() {
         .is_none());
     let id = &registration.server.unique_id;
     let key = &registration.key;
+    status_error(
+        api::begin_game_join_challenge(
+            &config,
+            GameJoinChallengeRequest::new(
+                "ABC".into(),
+                "a".repeat(64),
+                "https://browser.example".into(),
+                host.clone(),
+                7777,
+            ),
+        )
+        .await,
+        503,
+    );
+    status_error(
+        api::issue_game_join_ticket(
+            &config,
+            GameJoinTicketRequest::new("a".repeat(43), "s".repeat(43)),
+        )
+        .await,
+        503,
+    );
+    status_error(
+        api::redeem_game_join_ticket(
+            &config,
+            id,
+            key,
+            GameJoinRedemptionRequest::new("a".repeat(43), "ABC".into()),
+        )
+        .await,
+        503,
+    );
     let mut invalid = request.clone();
     invalid.player_count = 1025;
     status_error(api::register(&config, invalid).await, 400);

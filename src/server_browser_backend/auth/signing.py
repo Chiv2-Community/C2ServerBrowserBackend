@@ -1,4 +1,4 @@
-"""Persistent, rotating RSA keys for Discord join tickets.
+"""Persistent, rotating RSA keys for identity tickets.
 
 Provisioning is explicit. Readers reload the atomically replaced keyring so
 independent workers share the same signing identity without a restart.
@@ -17,11 +17,19 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
 from uuid import UUID, uuid4
+from server_browser_backend.auth.eos_identity import VerifiedEosIdentity
 
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from server_browser_models.models import JoinTicketClaims, Jwk, JwksResponse
+from server_browser_models.models import (
+    GameAdmissionClaims,
+    GameAdmissionIdentities,
+    GamePlatformIdentity,
+    JoinTicketClaims,
+    Jwk,
+    JwksResponse,
+)
 
 from server_browser_backend.auth.identity import validate_discord_id
 
@@ -139,6 +147,75 @@ class SigningKeys:
                 assert isinstance(public, rsa.RSAPublicKey)
                 keys.append(public_jwk(public, entry["kid"]))
         return JwksResponse(keys=keys)
+
+    def issue_game_admission(
+        self, *, issuer: str, server_id: str, playfab_id: str, eos: VerifiedEosIdentity
+    ) -> tuple[str, int]:
+        """Internal boundary: callers must verify both provider proofs first."""
+        from urllib.parse import urlsplit
+        from ipaddress import ip_address
+        from server_browser_backend.auth.game_identity import VerifiedGameIdentity
+        import re
+
+        parsed = urlsplit(issuer)
+        try:
+            loopback = ip_address(parsed.hostname or "").is_loopback
+        except ValueError:
+            loopback = False
+        if (
+            parsed.scheme != "https"
+            and not (parsed.scheme == "http" and loopback)
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or issuer.endswith("/")
+            or str(UUID(server_id)) != server_id
+            or not isinstance(eos, VerifiedEosIdentity)
+            or re.fullmatch(r"[0-9a-f]{32}", eos.product_user_id) is None
+            or eos.platform_provider not in {"eos", "steam"}
+            or eos.platform_provider == "eos"
+            and eos.platform_id != eos.product_user_id
+            or eos.platform_provider == "steam"
+            and (
+                re.fullmatch(r"[1-9][0-9]{0,19}", eos.platform_id) is None
+                or int(eos.platform_id) >= 2**64
+            )
+        ):
+            raise ValueError("Invalid verified game admission identity or issuer")
+        identity = VerifiedGameIdentity(playfab_id)
+        with provisioning_lock(self.path, shared=True):
+            now = int(time.time())
+            expires = min(now + TICKET_SECONDS, eos.expires_at)
+            if expires <= now:
+                raise ValueError("Game admission proof expired")
+            key, kid, _ = self._load()
+            claims = GameAdmissionClaims(
+                iss=issuer,
+                sub=identity.playfab_id,
+                aud=f"urn:unchained:server:{server_id}",
+                purpose="unchained.game-join",
+                version=1,
+                identities=GameAdmissionIdentities(
+                    playfab=identity.playfab_id,
+                    eos_product_user_id=eos.product_user_id,
+                    platform=GamePlatformIdentity(
+                        provider=eos.platform_provider, id=eos.platform_id
+                    ),
+                ),
+                iat=now,
+                nbf=now,
+                exp=expires,
+                jti=str(uuid4()),
+            )
+            token = jwt.encode(
+                claims.model_dump(by_alias=True),
+                key,
+                algorithm="RS256",
+                headers={"kid": kid, "typ": "unchained-game-join+jwt"},
+            )
+            return token, expires
 
     def issue_join_ticket(
         self, *, issuer: str, discord_id: str, server_id: str, auth_time: int
