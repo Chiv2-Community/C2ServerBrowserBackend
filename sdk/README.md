@@ -16,11 +16,12 @@ sdk/
     server-browser-models/
     server-browser-client/
     server-browser-client-sdk/
+    server-browser-auth-sdk/
 ```
 
 Python package names, imports, versions and dependency boundaries are unchanged.
 See [Python packaging](../docs/python-packaging.md). Rust has generated models and
-protocol bindings plus a handwritten lifecycle SDK. It has no server interfaces
+protocol bindings plus handwritten lifecycle and ticket-verification SDKs. It has no server interfaces
 or framework adapters. Python lifecycle SDK work is deferred.
 
 ## Generate and validate
@@ -40,7 +41,7 @@ Runtime consumers need neither Java nor generation tools.
 
 ## Rust consumption
 
-All three Rust crates start at `1.0.0`; dependencies pin exact sibling versions.
+All four Rust crates start at `1.0.0`; dependencies pin exact sibling versions.
 Models depend only on serialization libraries, not an HTTP client or backend. The
 async client uses reqwest and reexports the shared model module. Use the
 model crate directly when no HTTP transport is needed.
@@ -58,13 +59,14 @@ configuration diagnostics are redacted. Generated errors may contain credentials
 or response bodies; do not log them.
 `server-browser-client` contains protocol bindings only. Registration, heartbeat,
 retry and cleanup policy belongs in `server-browser-client-sdk`. Game hooks and
-Discord verification remain consumer code.
+native identity/connection binding remain consumer code. Offline backend-ticket
+verification belongs in [server-browser-auth-sdk](rust/server-browser-auth-sdk/README.md).
 
 ## Rust build policy
 
 - Every crate inherits workspace lints: warnings are errors, unsafe code is
   forbidden, and Clippy `all`, `pedantic`, `nursery`, and `cargo` are denied.
-- Handwritten lifecycle APIs also require documentation and `Debug` implementations.
+- Handwritten SDK APIs also require documentation and `Debug` implementations.
 - CI checks formatting, all targets/features, rustls without native TLS, rustdoc,
   debug/release tests, and verified packages. Windows runs the Rust-only checks;
   Linux also runs the real-backend E2E suite.
@@ -91,7 +93,7 @@ archives to `sdk/rust/target/package/`.
 CI tests both languages, builds Python wheels/sdists, exercises the Rust client
 and lifecycle SDK against local Uvicorn, and runs verified Cargo workspace
 packaging. Rust uses the pinned 1.93.0 toolchain. Publishing a GitHub Release
-attaches Python artifacts, all three Rust `.crate` archives and the authoritative
+attaches Python artifacts, all four Rust `.crate` archives and the authoritative
 OAS. This does not publish to PyPI or crates.io and does not create a release.
 
 The permanent E2E suite runs generated Python sync/async clients, generated Rust

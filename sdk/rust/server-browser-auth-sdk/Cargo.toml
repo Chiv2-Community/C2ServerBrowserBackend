@@ -1,0 +1,31 @@
+[package]
+name = "server-browser-auth-sdk"
+version = "1.0.0"
+edition = "2021"
+description = "Join-ticket verification SDK for the Chivalry 2 community server browser"
+license = "GPL-3.0-only"
+repository = "https://github.com/Chiv2-Community/C2ServerBrowserBackend"
+readme = "README.md"
+keywords = ["chivalry", "server-browser", "sdk", "authentication"]
+categories = ["authentication", "game-development"]
+
+[lints]
+workspace = true
+
+[dependencies]
+server-browser-models = { version = "=1.0.0", path = "../server-browser-models" }
+base64 = "0.22"
+jsonwebtoken = "9.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+uuid = "1"
+
+[dev-dependencies]
+test-case = "3.3"
+rsa = { version = "0.9", features = ["pem"] }
+rand = "0.8"
+server-browser-client-sdk = { version = "=1.0.0", path = "../server-browser-client-sdk" }
+server-browser-client = { version = "=1.0.0", path = "../server-browser-client" }
+testcontainers = { version = "0.28", features = ["blocking"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }

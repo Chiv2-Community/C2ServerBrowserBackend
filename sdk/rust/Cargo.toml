@@ -1,5 +1,5 @@
 [workspace]
-members = ["server-browser-models", "server-browser-client", "server-browser-client-sdk"]
+members = ["server-browser-models", "server-browser-client", "server-browser-client-sdk", "server-browser-auth-sdk"]
 resolver = "2"
 
 [workspace.lints.rust]
