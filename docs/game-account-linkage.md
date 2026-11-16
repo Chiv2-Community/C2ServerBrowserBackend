@@ -35,11 +35,50 @@ responses, reusable credentials, or identity tokens are saved. Probes do not
 link, unlink or create accounts. Writable custom/generic IDs are not evidence
 of provider-authenticated linkage.
 
-Runtime results are pending. A successful Steam mapping does not establish an
-Epic mapping; an unavailable private field is not evidence that no link exists.
+### Live results, 2026-11-16
+
+- Both Steam and Epic sessions read the controlled Steam account's exact
+  Steam-to-PlayFab mapping successfully. This supports an independent verifier
+  lookup, not merely an own-account read.
+- Epic's own `GetAccountInfo` returned `Origination=ServerCustomId` and a
+  `ServerCustomIdInfo.CustomId` exactly equal to the external-account ID in its
+  independently verified EOS Connect JWT. It was not the EOS PUID.
+- Cross-account reads succeeded but omitted the private association fields:
+  neither session could read the other account's provider association this way.
+- Both own-account responses omitted OpenID associations. The pinned EOS issuer
+  plus either the PUID or external-account candidate returned no PlayFab mapping
+  through `GetPlayFabIDsFromOpenIdSubjectIdentifiers` on either storefront.
+  This tests those candidates only, not every possible issuer/configuration.
+- Both EOS proofs verified against the fixed Epic JWKS. No account writes or
+  account creation occurred; all private game processes were stopped.
+
+Evidence: `/tmp/opencode/account-linkage/result.json`. Probe DLL SHA-256:
+`6910d31ba1836c5d2b49bad270a9febe6debc8db5ed2a962b787a11ee6cedbdc`.
+Only selected metadata/equality results were saved; no raw responses or tokens.
+
+### Remaining trust boundary
+
+The published `Server/GetPlayFabIDsFromServerCustomIDs` lookup requires the
+title's `SecretKey`; so does `Server/GetUserAccountInfo`. A player or independently
+provisioned verifier session cannot substitute for that credential.
+`Authentication/ValidateEntityToken` is callable only by the title entity, not
+an ordinary player entity. These are not deployable verifier routes without
+title-owner cooperation.
+
+An own-session comparison is useful diagnosis, but its boolean result or a
+client-forwarded account response is not backend-verifiable evidence. Forwarding
+the player's reusable session would violate the credential boundary. Do not use
+either as a linkage workaround or create a new account link during admission.
+
+Epic linkage therefore remains unresolved under the current public-API and
+credential constraints. A supported title-authorized mapping service or signed,
+independently verifiable association assertion is still needed. Steam lookup
+availability does not justify labeling Epic admissions as provider-linked.
 
 ## Sources
 
 - [PlayFab Steam lookup](https://learn.microsoft.com/en-us/rest/api/playfab/client/account-management/get-playfab-ids-from-steam-ids?view=playfab-rest).
 - [PlayFab account metadata](https://learn.microsoft.com/en-us/rest/api/playfab/client/account-management/get-account-info?view=playfab-rest).
 - [Pinned published Client API specification](https://github.com/PlayFab/API_Specs/blob/80e104aa/Legacy/PlayFab/Client.api.json).
+- [Pinned published Server API specification](https://github.com/PlayFab/API_Specs/blob/80e104aa/Legacy/PlayFab/Server.api.json).
+- [Pinned published Authentication API specification](https://github.com/PlayFab/API_Specs/blob/80e104aa/Legacy/PlayFab/Authentication.api.json).
