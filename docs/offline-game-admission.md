@@ -99,8 +99,9 @@ authentication fallback after JWT rejection.
 
 ## Remaining integration and validation
 
-- Validate first-use pinning and mismatch rejection with both storefronts;
-  independent proofs plus pins do not claim a provider-maintained Epic link.
+- Expand pinning/mismatch runtime coverage beyond the passing controlled
+  Steam/Epic joins, backend restart, conflicting real-proof combination and
+  fresh-process recovery; pins do not claim a provider-maintained Epic link.
 - Runtime-test the plugin's signed issuance, registration-bound key-refresh/lease
   integration and synchronous verification under failures and key rotation.
 - Run isolated browser joins, reconnect, restart, travel, key rotation, expiry,
@@ -110,6 +111,11 @@ Current live evidence: `/tmp/opencode/offline-authority/control/result.json`;
 plugin implementation `a51ac33`, SDK pin `c8b3ca9`. The private test backend disabled
 legacy opaque issuance/redemption. Epic-host Steam joins and the broader JWT
 negative/travel matrix remain unvalidated.
+
+Persistent account-pinning evidence is retained separately at
+`/tmp/opencode/account-pinning-runtime/result.json` against backend `0077356`.
+The earlier host/browser-probe DLLs remain protocol-compatible; the latest plugin
+SDK pin/logging change is compile-checked, not a newly runtime-validated DLL.
 
 The authoritative wire contract is
 [`assets/chiv2-server-browser-api.yaml`](../assets/chiv2-server-browser-api.yaml).

@@ -73,6 +73,22 @@ operator, time and reason in the support audit. Never automatically replace a pi
 in response to a login attempt. Previously issued JWTs remain usable until expiry
 (at most 60 seconds); existing host connections are not revoked by a correction.
 
+### Live pinning validation
+
+Backend implementation `0077356` passed controlled Steam and Epic native browser
+joins using the protocol-compatible plugin host/browser probes. Both pins retained
+their UUIDs across a backend restart. A scratch request adapter then combined the
+real controlled Steam PlayFab proof with the real controlled Epic EOS token;
+production verification validated both proofs and rejected their pinned conflict.
+One mismatch row committed, neither account row changed, and no host admission
+occurred. A fresh Steam process subsequently joined with the correct combination.
+
+Four admissions and one mismatch were observed, with zero online redemptions.
+Games/backend were stopped. No raw tokens or reusable credentials were saved.
+Evidence: `/tmp/opencode/account-pinning-runtime/{result.json,backend-evidence.json,run.log}`.
+The updated plugin log message is compile-checked only; no native menu dialog was
+added. Broader negative proofs/replay/rotation/travel cases remain unvalidated live.
+
 ## Epic investigation
 
 Read-only controlled-account probes inspect:
