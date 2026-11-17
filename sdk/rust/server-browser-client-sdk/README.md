@@ -111,6 +111,8 @@ Low-level `poll` returns `LifecycleEvent`; `poll` and `stop` have no observer.
   consumes its one attempt. Dropping a never-polled future has no effect.
 
 The default transport disables redirects and bounds requests to ten seconds.
+Use `HttpTransport::with_user_agent` to identify an application without replacing
+the bounded HTTP client or cloning its generated configuration.
 It honors reqwest proxy settings; an optional source IP binds outgoing requests.
 Use HTTPS outside loopback tests. Injected configurations own their timeout,
 redirect and proxy policy. Do not log generated errors/configurations: they can

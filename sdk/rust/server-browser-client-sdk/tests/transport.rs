@@ -14,6 +14,22 @@ fn transport_debug_redacts_configuration() {
     assert_eq!(format!("{transport:?}"), "HttpTransport([REDACTED])");
 }
 
+#[test]
+fn user_agent_customization_preserves_base_path_and_redaction() {
+    let transport = HttpTransport::new("http://user:secret@127.0.0.1/private///", None)
+        .unwrap()
+        .with_user_agent(String::from("private-user-agent"));
+    assert_eq!(
+        transport.configuration().base_path,
+        "http://user:secret@127.0.0.1/private"
+    );
+    assert_eq!(
+        transport.configuration().user_agent.as_deref(),
+        Some("private-user-agent")
+    );
+    assert_eq!(format!("{transport:?}"), "HttpTransport([REDACTED])");
+}
+
 #[tokio::test]
 async fn route_errors_preserve_typed_responses_bodies_and_summaries() {
     let server = MockServer::start().await;
@@ -129,12 +145,15 @@ async fn default_transport_does_not_forward_registration_credentials() {
         .await;
     Mock::given(method("DELETE"))
         .and(path("/api/v1/servers/id"))
+        .and(header("User-Agent", "sdk-test/1.0"))
         .and(header("X-CHIV2-SERVER-BROWSER-KEY", "credential-sentinel"))
         .respond_with(ResponseTemplate::new(302).insert_header("Location", target.uri()))
         .expect(1)
         .mount(&origin)
         .await;
-    let transport = HttpTransport::new(&origin.uri(), None).unwrap();
+    let transport = HttpTransport::new(&origin.uri(), None)
+        .unwrap()
+        .with_user_agent("sdk-test/1.0");
     assert_eq!(
         transport
             .delete("id", "credential-sentinel")

@@ -105,6 +105,13 @@ impl HttpTransport {
         }))
     }
 
+    /// Set the application user-agent without changing the HTTP client or its policy.
+    #[must_use]
+    pub fn with_user_agent(mut self, user_agent: impl Into<String>) -> Self {
+        self.configuration.user_agent = Some(user_agent.into());
+        self
+    }
+
     /// Callers supplying a transport own its timeout, redirect and proxy policy.
     #[must_use]
     pub const fn from_configuration(configuration: Configuration) -> Self {
