@@ -206,6 +206,45 @@ async fn lifecycle_coalesces_updates_schedules_heartbeats_and_deletes_once() {
 }
 
 #[tokio::test]
+async fn heartbeats_reuse_snapshots_and_each_metadata_field_triggers_an_update() {
+    let mut metadata = UpdateRegisteredServer::new(0, 32, "map".into());
+    metadata.mods = Some(vec![models::Mod::new(
+        "mod".into(),
+        "org".into(),
+        "1".into(),
+    )]);
+    for field in ["players", "capacity", "map", "mods"] {
+        let Fixture {
+            mut registration,
+            clock,
+            ..
+        } = fixture();
+        registration.set_update(metadata.clone()).unwrap();
+        registration.poll().await.unwrap();
+        let published = registration.published.as_ref().unwrap();
+        let map = published.current_map.as_ptr();
+        let mods = published.mods.as_ref().unwrap().as_ptr();
+        clock.advance(30);
+        assert_eq!(registration.poll().await, Ok(Event::Heartbeat));
+        let published = registration.published.as_ref().unwrap();
+        assert_eq!(published.current_map.as_ptr(), map);
+        assert_eq!(published.mods.as_ref().unwrap().as_ptr(), mods);
+
+        let mut update = metadata.clone();
+        match field {
+            "players" => update.player_count += 1,
+            "capacity" => update.max_players += 1,
+            "map" => update.current_map = "next".into(),
+            "mods" => update.mods = Some(Vec::new()),
+            _ => unreachable!(),
+        }
+        registration.set_update(update.clone()).unwrap();
+        assert_eq!(registration.poll().await, Ok(Event::Updated), "{field}");
+        assert_eq!(registration.published.as_ref(), Some(&update), "{field}");
+    }
+}
+
+#[tokio::test]
 async fn identical_metadata_does_not_send_updates_or_postpone_heartbeats() {
     let Fixture {
         mut registration,

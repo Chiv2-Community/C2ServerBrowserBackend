@@ -254,6 +254,15 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         }
     }
 
+    fn metadata_changed(&self) -> bool {
+        self.published.as_ref().is_none_or(|published| {
+            published.player_count != self.request.player_count
+                || published.max_players != self.request.max_players
+                || published.current_map != self.request.current_map
+                || published.mods != self.request.mods
+        })
+    }
+
     /// Coalesce metadata changes without bypassing an active retry backoff.
     /// Identical effective metadata is ignored without changing the heartbeat deadline.
     ///
@@ -277,10 +286,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         if update.mods.is_some() {
             self.request.mods = update.mods;
         }
-        if self.identity.is_some()
-            && self.failures == 0
-            && self.published.as_ref() != Some(&self.snapshot())
-        {
+        if self.identity.is_some() && self.failures == 0 && self.metadata_changed() {
             self.next_attempt = self.clock.now();
         }
         Ok(())
@@ -321,7 +327,9 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             .checked_add(interval.min(self.policy.heartbeat_interval))
             .ok_or_else(|| self.halt(SdkError::InvalidLease))?;
         self.failures = 0;
-        self.published = Some(self.snapshot());
+        if self.metadata_changed() {
+            self.published = Some(self.snapshot());
+        }
         Ok(())
     }
 
@@ -423,12 +431,11 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                 Err(_) => Err(self.halt(SdkError::RegistrationUncertain)),
             };
         };
-        let snapshot = self.snapshot();
-        let changed = self.published.as_ref() != Some(&snapshot);
+        let changed = self.metadata_changed();
         let response = if changed {
             let response = self
                 .transport
-                .update(&identity.id, &identity.key, snapshot)
+                .update(&identity.id, &identity.key, self.snapshot())
                 .await;
             self.observe_http(HttpEvent::Update(response.as_ref()), observe)?;
             response.map_err(|error| RequestFailure::from_error(&error))
