@@ -1,6 +1,7 @@
 //! Handwritten registration lifecycle on top of generated protocol bindings.
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs, missing_debug_implementations)]
+pub mod compatibility;
 pub mod transport;
 pub use server_browser_models as models;
 pub use transport::{

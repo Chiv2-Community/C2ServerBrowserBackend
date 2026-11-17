@@ -12,6 +12,12 @@ use super::{configuration, ContentType, Error};
 use crate::{apis::ResponseContent, models};
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn add_to_ban_list_url(base_url: &str) -> String {
+    format!("{}/api/v1/admin/ban-list", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`add_to_ban_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -31,7 +37,7 @@ pub async fn add_to_ban_list(
 ) -> Result<models::BanListResponse, Error<AddToBanListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-    let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
+    let uri_str = add_to_ban_list_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -85,6 +91,15 @@ pub async fn add_to_ban_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn add_to_verified_list_url(base_url: &str) -> String {
+    format!(
+        "{}/api/v1/admin/verified-list",
+        base_url.trim_end_matches('/')
+    )
+}
+
 /// Typed HTTP errors from [`add_to_verified_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -105,7 +120,7 @@ pub async fn add_to_verified_list(
 ) -> Result<models::VerifiedListResponse, Error<AddToVerifiedListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-    let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
+    let uri_str = add_to_verified_list_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -159,6 +174,16 @@ pub async fn add_to_verified_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn check_banned_url(base_url: &str, ip: &str) -> String {
+    format!(
+        "{}/api/v1/check-banned/{ip}",
+        base_url.trim_end_matches('/'),
+        ip = crate::apis::urlencode(ip)
+    )
+}
+
 /// Typed HTTP errors from [`check_banned`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -174,11 +199,7 @@ pub async fn check_banned(
     ip: &str,
 ) -> Result<models::BanStatusResponse, Error<CheckBannedError>> {
     let p_path_ip = ip;
-    let uri_str = format!(
-        "{}/api/v1/check-banned/{ip}",
-        configuration.base_path,
-        ip = crate::apis::urlencode(p_path_ip)
-    );
+    let uri_str = check_banned_url(&configuration.base_path, p_path_ip);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -217,6 +238,16 @@ pub async fn check_banned(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn delete_server_url(base_url: &str, server_id: &str) -> String {
+    format!(
+        "{}/api/v1/servers/{server_id}",
+        base_url.trim_end_matches('/'),
+        server_id = crate::apis::urlencode(server_id)
+    )
+}
+
 /// Typed HTTP errors from [`delete_server`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -237,11 +268,7 @@ pub async fn delete_server(
 ) -> Result<models::StatusResponse, Error<DeleteServerError>> {
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
-    let uri_str = format!(
-        "{}/api/v1/servers/{server_id}",
-        configuration.base_path,
-        server_id = crate::apis::urlencode(p_path_server_id)
-    );
+    let uri_str = delete_server_url(&configuration.base_path, p_path_server_id);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
@@ -300,6 +327,12 @@ pub async fn delete_server(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn get_ban_list_url(base_url: &str) -> String {
+    format!("{}/api/v1/admin/ban-list", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`get_ban_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -316,7 +349,7 @@ pub async fn get_ban_list(
     x_chiv2_server_browser_admin_key: &str,
 ) -> Result<models::BanListResponse, Error<GetBanListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
-    let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
+    let uri_str = get_ban_list_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -363,6 +396,12 @@ pub async fn get_ban_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn get_servers_url(base_url: &str) -> String {
+    format!("{}/api/v1/servers", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`get_servers`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -376,7 +415,7 @@ pub enum GetServersError {
 pub async fn get_servers(
     configuration: &configuration::Configuration,
 ) -> Result<models::ServerListResponse, Error<GetServersError>> {
-    let uri_str = format!("{}/api/v1/servers", configuration.base_path);
+    let uri_str = get_servers_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -415,6 +454,15 @@ pub async fn get_servers(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn get_verified_list_url(base_url: &str) -> String {
+    format!(
+        "{}/api/v1/admin/verified-list",
+        base_url.trim_end_matches('/')
+    )
+}
+
 /// Typed HTTP errors from [`get_verified_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -431,7 +479,7 @@ pub async fn get_verified_list(
     x_chiv2_server_browser_admin_key: &str,
 ) -> Result<models::VerifiedListResponse, Error<GetVerifiedListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
-    let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
+    let uri_str = get_verified_list_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -480,6 +528,16 @@ pub async fn get_verified_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn heartbeat_url(base_url: &str, server_id: &str) -> String {
+    format!(
+        "{}/api/v1/servers/{server_id}/heartbeat",
+        base_url.trim_end_matches('/'),
+        server_id = crate::apis::urlencode(server_id)
+    )
+}
+
 /// Typed HTTP errors from [`heartbeat`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -501,11 +559,7 @@ pub async fn heartbeat(
 ) -> Result<models::UpdateResponse, Error<HeartbeatError>> {
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
-    let uri_str = format!(
-        "{}/api/v1/servers/{server_id}/heartbeat",
-        configuration.base_path,
-        server_id = crate::apis::urlencode(p_path_server_id)
-    );
+    let uri_str = heartbeat_url(&configuration.base_path, p_path_server_id);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -566,6 +620,12 @@ pub async fn heartbeat(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn jwks_url(base_url: &str) -> String {
+    format!("{}/api/v1/auth/jwks.json", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`jwks`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -580,7 +640,7 @@ pub enum JwksError {
 pub async fn jwks(
     configuration: &configuration::Configuration,
 ) -> Result<models::JwksResponse, Error<JwksError>> {
-    let uri_str = format!("{}/api/v1/auth/jwks.json", configuration.base_path);
+    let uri_str = jwks_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -619,6 +679,12 @@ pub async fn jwks(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn login_url(base_url: &str) -> String {
+    format!("{}/api/v1/auth/login", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`login`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -637,7 +703,7 @@ pub async fn login(
     login_request: models::LoginRequest,
 ) -> Result<models::StatusResponse, Error<LoginError>> {
     let p_body_login_request = login_request;
-    let uri_str = format!("{}/api/v1/auth/login", configuration.base_path);
+    let uri_str = login_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -683,6 +749,12 @@ pub async fn login(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn register_url(base_url: &str) -> String {
+    format!("{}/api/v1/servers", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`register`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -701,7 +773,7 @@ pub async fn register(
     server_registration_request: models::ServerRegistrationRequest,
 ) -> Result<models::RegistrationResponse, Error<RegisterError>> {
     let p_body_server_registration_request = server_registration_request;
-    let uri_str = format!("{}/api/v1/servers", configuration.base_path);
+    let uri_str = register_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -751,6 +823,12 @@ pub async fn register(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn remove_from_ban_list_url(base_url: &str) -> String {
+    format!("{}/api/v1/admin/ban-list", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`remove_from_ban_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -770,7 +848,7 @@ pub async fn remove_from_ban_list(
 ) -> Result<models::BanListResponse, Error<RemoveFromBanListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-    let uri_str = format!("{}/api/v1/admin/ban-list", configuration.base_path);
+    let uri_str = remove_from_ban_list_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
@@ -826,6 +904,15 @@ pub async fn remove_from_ban_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn remove_from_verified_list_url(base_url: &str) -> String {
+    format!(
+        "{}/api/v1/admin/verified-list",
+        base_url.trim_end_matches('/')
+    )
+}
+
 /// Typed HTTP errors from [`remove_from_verified_list`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -846,7 +933,7 @@ pub async fn remove_from_verified_list(
 ) -> Result<models::VerifiedListResponse, Error<RemoveFromVerifiedListError>> {
     let p_header_x_chiv2_server_browser_admin_key = x_chiv2_server_browser_admin_key;
     let p_body_ip_list_request = ip_list_request;
-    let uri_str = format!("{}/api/v1/admin/verified-list", configuration.base_path);
+    let uri_str = remove_from_verified_list_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
@@ -903,6 +990,12 @@ pub async fn remove_from_verified_list(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn send_swagger_url(base_url: &str) -> String {
+    format!("{}/api/v1/swagger.yaml", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`send_swagger`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -916,7 +1009,7 @@ pub enum SendSwaggerError {
 pub async fn send_swagger(
     configuration: &configuration::Configuration,
 ) -> Result<String, Error<SendSwaggerError>> {
-    let uri_str = format!("{}/api/v1/swagger.yaml", configuration.base_path);
+    let uri_str = send_swagger_url(&configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -965,6 +1058,16 @@ pub async fn send_swagger(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn update_url(base_url: &str, server_id: &str) -> String {
+    format!(
+        "{}/api/v1/servers/{server_id}",
+        base_url.trim_end_matches('/'),
+        server_id = crate::apis::urlencode(server_id)
+    )
+}
+
 /// Typed HTTP errors from [`update`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -989,11 +1092,7 @@ pub async fn update(
     let p_header_x_chiv2_server_browser_key = x_chiv2_server_browser_key;
     let p_path_server_id = server_id;
     let p_body_update_registered_server = update_registered_server;
-    let uri_str = format!(
-        "{}/api/v1/servers/{server_id}",
-        configuration.base_path,
-        server_id = crate::apis::urlencode(p_path_server_id)
-    );
+    let uri_str = update_url(&configuration.base_path, p_path_server_id);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

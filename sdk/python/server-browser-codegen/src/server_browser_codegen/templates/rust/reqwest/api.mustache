@@ -9,6 +9,12 @@ use super::{Error, configuration, ContentType};
 
 {{#operations}}
 {{#operation}}
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn {{{operationId}}}_url(base_url: &str{{#pathParams}}, {{{paramName}}}: {{#isString}}&str{{/isString}}{{^isString}}{{{dataType}}}{{/isString}}{{/pathParams}}) -> String {
+    format!("{}{{{path}}}", base_url.trim_end_matches('/'){{#pathParams}}, {{{baseName}}}={{#isString}}crate::apis::urlencode({{/isString}}{{{paramName}}}{{#isString}}){{/isString}}{{/pathParams}})
+}
+
 /// Typed HTTP errors from [`{{operationId}}`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -42,7 +48,7 @@ pub async fn {{{operationId}}}(configuration: &configuration::Configuration, {{#
     {{#allParams}}
     let {{{vendorExtensions.x-rust-param-identifier}}} = {{{paramName}}};
     {{/allParams}}
-    let uri_str = format!("{}{{{path}}}", configuration.base_path{{#pathParams}}, {{{baseName}}}={{#isString}}crate::apis::urlencode({{/isString}}{{{vendorExtensions.x-rust-param-identifier}}}{{#isString}}){{/isString}}{{/pathParams}});
+    let uri_str = {{{operationId}}}_url(&configuration.base_path{{#pathParams}}, {{{vendorExtensions.x-rust-param-identifier}}}{{/pathParams}});
     let mut req_builder = configuration.client.request(reqwest::Method::{{{httpMethod}}}, &uri_str);
     {{#queryParams}}
     {{#required}}

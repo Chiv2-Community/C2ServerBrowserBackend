@@ -121,6 +121,14 @@ Immutable registration metadata changes require stopping and constructing a new
 manager. This SDK does not implement game hooks, discovery, Discord verification,
 credential persistence, or authorization rules.
 
+## Native compatibility URLs
+
+For applications that must use the game's HTTP transport, `compatibility::tbio_base_url`
+and `compatibility::playfab_matchmake_url` derive endpoints from generated operation
+URL helpers. Both preserve deployment path prefixes and normalize trailing slashes.
+They construct URLs only: applications still own native hooks, credentials and transport.
+Generated clients use those same operation URL helpers when sending requests.
+
 ## Tests
 
 ```sh

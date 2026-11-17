@@ -12,6 +12,18 @@ fn configuration(server: &MockServer) -> Configuration {
     }
 }
 
+#[test]
+fn operation_urls_preserve_prefixes_and_encode_path_parameters() {
+    assert_eq!(
+        api_v1_api::check_banned_url("https://example.test/browser///", "2001:db8::1"),
+        "https://example.test/browser/api/v1/check-banned/2001%3Adb8%3A%3A1"
+    );
+    assert_eq!(
+        api_v1_api::delete_server_url("https://example.test/browser/", "a/b?c#d"),
+        "https://example.test/browser/api/v1/servers/a%2Fb%3Fc%23d"
+    );
+}
+
 #[tokio::test]
 async fn client_uses_injected_transport_and_encodes_path_parameter() {
     let server = MockServer::start().await;
@@ -24,7 +36,7 @@ async fn client_uses_injected_transport_and_encodes_path_parameter() {
         .mount(&server)
         .await;
     let config = Configuration {
-        base_path: server.uri(),
+        base_path: format!("{}/browser///", server.uri()),
         ..Configuration::with_client(
             reqwest::Client::builder()
                 .no_proxy()
@@ -42,7 +54,7 @@ async fn client_uses_injected_transport_and_encodes_path_parameter() {
     let requests = server.received_requests().await.unwrap();
     assert_eq!(
         requests[0].url.path(),
-        "/api/v1/check-banned/2001%3Adb8%3A%3A1"
+        "/browser/api/v1/check-banned/2001%3Adb8%3A%3A1"
     );
 }
 

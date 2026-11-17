@@ -12,6 +12,12 @@ use super::{configuration, ContentType, Error};
 use crate::{apis::ResponseContent, models};
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn get_motd_url(base_url: &str) -> String {
+    format!("{}/api/tbio/GetMotd", base_url.trim_end_matches('/'))
+}
+
 /// Typed HTTP errors from [`get_motd`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -27,7 +33,7 @@ pub async fn get_motd(
     motd_request: models::MotdRequest,
 ) -> Result<models::TbioMotdResponse, Error<GetMotdError>> {
     let p_body_motd_request = motd_request;
-    let uri_str = format!("{}/api/tbio/GetMotd", configuration.base_path);
+    let uri_str = get_motd_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -69,6 +75,15 @@ pub async fn get_motd(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn playfab_client_matchmake_url(base_url: &str) -> String {
+    format!(
+        "{}/api/playfab/Client/Matchmake",
+        base_url.trim_end_matches('/')
+    )
+}
+
 /// Typed HTTP errors from [`playfab_client_matchmake`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -86,7 +101,7 @@ pub async fn playfab_client_matchmake(
     matchmake_request: models::MatchmakeRequest,
 ) -> Result<models::PlayfabMatchmakeResponse, Error<PlayfabClientMatchmakeError>> {
     let p_body_matchmake_request = matchmake_request;
-    let uri_str = format!("{}/api/playfab/Client/Matchmake", configuration.base_path);
+    let uri_str = playfab_client_matchmake_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -139,6 +154,15 @@ pub async fn playfab_client_matchmake(
     }
 }
 
+/// Build this operation's URL without query parameters or making a request.
+#[must_use]
+pub fn tbio_get_servers_url(base_url: &str) -> String {
+    format!(
+        "{}/api/tbio/GetCurrentGames",
+        base_url.trim_end_matches('/')
+    )
+}
+
 /// Typed HTTP errors from [`tbio_get_servers`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -152,7 +176,7 @@ pub enum TbioGetServersError {
 pub async fn tbio_get_servers(
     configuration: &configuration::Configuration,
 ) -> Result<models::TbioServerListResponse, Error<TbioGetServersError>> {
-    let uri_str = format!("{}/api/tbio/GetCurrentGames", configuration.base_path);
+    let uri_str = tbio_get_servers_url(&configuration.base_path);
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
