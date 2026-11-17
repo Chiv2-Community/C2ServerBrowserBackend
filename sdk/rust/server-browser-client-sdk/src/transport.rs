@@ -10,7 +10,7 @@ use server_browser_models::{
 };
 use std::{future::Future, net::IpAddr, time::Duration};
 
-/// Credential-safe failure reported by a registration transport.
+/// Credential-safe classification for lifecycle failures and application logs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RequestFailure {
     /// HTTP rejection with its status code only.

@@ -33,22 +33,6 @@ fn lifecycle_only(
     }
 }
 
-impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
-    async fn run_lifecycle(
-        &mut self,
-        control: &RegistrationControl,
-        observe: impl FnMut(&LifecycleEvent),
-    ) -> Result<(), SdkError> {
-        self.run(control, lifecycle_only(observe)).await
-    }
-}
-
-impl<T: RegistrationTransport, C: Clock> RegistrationWorker<T, C> {
-    async fn run_lifecycle(&self, observe: impl FnMut(&LifecycleEvent)) -> Result<(), SdkError> {
-        self.run(lifecycle_only(observe)).await
-    }
-}
-
 #[derive(Default)]
 struct Value<T>(Mutex<T>);
 impl<T: Copy> Value<T> {
@@ -275,7 +259,7 @@ async fn worker_ignores_duplicate_metadata_and_uses_heartbeat() {
     } = fixture();
     let worker = registration.into_worker();
     worker
-        .run_lifecycle(|event| match event {
+        .run(lifecycle_only(|event| match event {
             Event::Registered { .. } => {
                 let metadata = UpdateRegisteredServer::default();
                 assert!(worker.set_update(metadata.clone()));
@@ -284,7 +268,7 @@ async fn worker_ignores_duplicate_metadata_and_uses_heartbeat() {
             }
             Event::Heartbeat => worker.cancel(),
             event => panic!("unexpected event: {event:?}"),
-        })
+        }))
         .await
         .unwrap();
     assert_eq!(
@@ -521,7 +505,7 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
     } = fixture();
     let control = RegistrationControl::default();
     registration
-        .run_lifecycle(&control, |_| control.cancel())
+        .run(&control, lifecycle_only(|_| control.cancel()))
         .await
         .unwrap();
     assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
@@ -532,7 +516,7 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
         ..
     } = fixture();
     registration
-        .run_lifecycle(&control, |_| panic!("cancelled before start"))
+        .run(&control, |_| panic!("cancelled before start"))
         .await
         .unwrap();
     assert!(transport.calls.lock().unwrap().is_empty());
@@ -547,13 +531,13 @@ async fn worker_accepts_updates_and_owns_cleanup() {
     } = fixture();
     let worker = registration.into_worker();
     worker
-        .run_lifecycle(|event| match event {
+        .run(lifecycle_only(|event| match event {
             Event::Registered { .. } => {
                 assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "next".into())));
             }
             Event::Updated => worker.cancel(),
             event => panic!("unexpected event: {event:?}"),
-        })
+        }))
         .await
         .unwrap();
     assert_eq!(
@@ -562,7 +546,7 @@ async fn worker_accepts_updates_and_owns_cleanup() {
     );
     assert!(!worker.set_update(UpdateRegisteredServer::default()));
     assert_eq!(
-        worker.run_lifecycle(|_| panic!("second run")).await,
+        worker.run(|_| panic!("second run")).await,
         Err(SdkError::Stopped)
     );
 }
@@ -577,7 +561,7 @@ async fn worker_renews_without_metadata_and_cleans_up_terminal_errors() {
     let worker = registration.into_worker();
     assert_eq!(
         worker
-            .run_lifecycle(|event| match event {
+            .run(lifecycle_only(|event| match event {
                 Event::Registered { .. } => clock.advance(30),
                 Event::Heartbeat => {
                     transport
@@ -588,7 +572,7 @@ async fn worker_renews_without_metadata_and_cleans_up_terminal_errors() {
                     clock.advance(30);
                 }
                 event => panic!("unexpected event: {event:?}"),
-            })
+            }))
             .await,
         Err(SdkError::Rejected(403))
     );
@@ -611,14 +595,14 @@ async fn worker_shutdown_finishes_registration_before_deleting() {
     let shutdown = async {
         transport.entered.notified().await;
         assert_eq!(
-            worker.run_lifecycle(|_| panic!("concurrent run")).await,
+            worker.run(|_| panic!("concurrent run")).await,
             Err(SdkError::Stopped)
         );
         worker.cancel();
         assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
         transport.release.notify_one();
     };
-    let (result, ()) = tokio::join!(worker.run_lifecycle(|_| {}), shutdown);
+    let (result, ()) = tokio::join!(worker.run(|_| Ok(())), shutdown);
     assert_eq!(result, Ok(()));
     assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
 }
@@ -632,10 +616,10 @@ async fn aborted_worker_never_restarts_an_uncertain_registration() {
     } = fixture();
     *transport.blocked.lock().unwrap() = Some("register");
     let worker = registration.into_worker();
-    interrupt(worker.run_lifecycle(|_| {}), &transport.entered).await;
+    interrupt(worker.run(|_| Ok(())), &transport.entered).await;
     assert!(!worker.set_update(UpdateRegisteredServer::default()));
     assert_eq!(
-        worker.run_lifecycle(|_| panic!("restarted")).await,
+        worker.run(|_| panic!("restarted")).await,
         Err(SdkError::Stopped)
     );
     assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
@@ -1024,7 +1008,10 @@ async fn spawned_driver_waits_without_blocking_and_observes_notifications() {
     let (events, mut received) = tokio::sync::mpsc::unbounded_channel();
     let worker = tokio::spawn(async move {
         registration
-            .run_lifecycle(&worker_control, |event| events.send(event.clone()).unwrap())
+            .run(
+                &worker_control,
+                lifecycle_only(|event| events.send(event.clone()).unwrap()),
+            )
             .await
     });
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -1068,7 +1055,7 @@ async fn cancellation_finishes_in_flight_requests_and_cleans_up_once() {
         *transport.blocked.lock().unwrap() = Some(operation);
         let worker_control = control.clone();
         let worker =
-            tokio::spawn(async move { registration.run_lifecycle(&worker_control, |_| {}).await });
+            tokio::spawn(async move { registration.run(&worker_control, |_| Ok(())).await });
         tokio::time::timeout(Duration::from_secs(1), async {
             transport.entered.notified().await;
             control.cancel();
