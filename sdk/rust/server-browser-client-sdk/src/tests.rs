@@ -1,6 +1,53 @@
+use super::LifecycleEvent as Event;
 use super::*;
 use models::{RegistrationResponse, ServerResponse, UpdateResponse};
 use std::collections::VecDeque;
+
+fn http_failure<E>(failure: RequestFailure) -> HttpError<E> {
+    match failure {
+        RequestFailure::Http(status) => HttpError::ResponseError(Box::new(ResponseContent {
+            status: reqwest::StatusCode::from_u16(status).unwrap(),
+            content: "private-response-body".into(),
+            entity: None,
+        })),
+        RequestFailure::InvalidResponse => {
+            HttpError::Serde(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err())
+        }
+        RequestFailure::Transport => HttpError::Reqwest(
+            reqwest::Client::new()
+                .get("invalid://")
+                .build()
+                .unwrap_err(),
+        ),
+    }
+}
+
+fn lifecycle_only(
+    mut observe: impl FnMut(&LifecycleEvent),
+) -> impl FnMut(&super::Event<'_>) -> ObserverResult {
+    move |event| {
+        if let super::Event::Lifecycle(event) = event {
+            observe(event);
+        }
+        Ok(())
+    }
+}
+
+impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
+    async fn run_lifecycle(
+        &mut self,
+        control: &RegistrationControl,
+        observe: impl FnMut(&LifecycleEvent),
+    ) -> Result<(), SdkError> {
+        self.run(control, lifecycle_only(observe)).await
+    }
+}
+
+impl<T: RegistrationTransport, C: Clock> RegistrationWorker<T, C> {
+    async fn run_lifecycle(&self, observe: impl FnMut(&LifecycleEvent)) -> Result<(), SdkError> {
+        self.run(lifecycle_only(observe)).await
+    }
+}
 
 #[derive(Default)]
 struct Value<T>(Mutex<T>);
@@ -65,8 +112,8 @@ impl RegistrationTransport for Arc<Fake> {
     async fn register(
         &self,
         _: ServerRegistrationRequest,
-    ) -> Result<RegistrationResponse, RequestFailure> {
-        self.call("register").await?;
+    ) -> Result<RegistrationResponse, HttpError<RegisterError>> {
+        self.call("register").await.map_err(http_failure)?;
         self.sequence.set(self.sequence.get() + 1);
         self.heartbeat.set(2_000_000_000.0);
         Ok(RegistrationResponse::new(
@@ -75,9 +122,13 @@ impl RegistrationTransport for Arc<Fake> {
             self.server(),
         ))
     }
-    async fn heartbeat(&self, _: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
+    async fn heartbeat(
+        &self,
+        _: &str,
+        key: &str,
+    ) -> Result<UpdateResponse, HttpError<HeartbeatError>> {
         assert_eq!(key, "secret-test-key");
-        self.call("heartbeat").await?;
+        self.call("heartbeat").await.map_err(http_failure)?;
         self.heartbeat.set(self.heartbeat.get() + 30.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
@@ -89,16 +140,21 @@ impl RegistrationTransport for Arc<Fake> {
         _: &str,
         _: &str,
         _: UpdateRegisteredServer,
-    ) -> Result<UpdateResponse, RequestFailure> {
-        self.call("update").await?;
+    ) -> Result<UpdateResponse, HttpError<UpdateError>> {
+        self.call("update").await.map_err(http_failure)?;
         self.heartbeat.set(self.heartbeat.get() + 1.0);
         Ok(UpdateResponse::new(
             self.server().last_heartbeat + self.lifetime.get(),
             self.server(),
         ))
     }
-    async fn delete(&self, _: &str, _: &str) -> Result<(), RequestFailure> {
-        self.call("delete").await
+    async fn delete(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> Result<StatusResponse, HttpError<DeleteServerError>> {
+        self.call("delete").await.map_err(http_failure)?;
+        Ok(StatusResponse::default())
     }
 }
 
@@ -219,7 +275,7 @@ async fn worker_ignores_duplicate_metadata_and_uses_heartbeat() {
     } = fixture();
     let worker = registration.into_worker();
     worker
-        .run(|event| match event {
+        .run_lifecycle(|event| match event {
             Event::Registered { .. } => {
                 let metadata = UpdateRegisteredServer::default();
                 assert!(worker.set_update(metadata.clone()));
@@ -465,7 +521,7 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
     } = fixture();
     let control = RegistrationControl::default();
     registration
-        .run(&control, |_| control.cancel())
+        .run_lifecycle(&control, |_| control.cancel())
         .await
         .unwrap();
     assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
@@ -476,7 +532,7 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
         ..
     } = fixture();
     registration
-        .run(&control, |_| panic!("cancelled before start"))
+        .run_lifecycle(&control, |_| panic!("cancelled before start"))
         .await
         .unwrap();
     assert!(transport.calls.lock().unwrap().is_empty());
@@ -491,7 +547,7 @@ async fn worker_accepts_updates_and_owns_cleanup() {
     } = fixture();
     let worker = registration.into_worker();
     worker
-        .run(|event| match event {
+        .run_lifecycle(|event| match event {
             Event::Registered { .. } => {
                 assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "next".into())));
             }
@@ -506,7 +562,7 @@ async fn worker_accepts_updates_and_owns_cleanup() {
     );
     assert!(!worker.set_update(UpdateRegisteredServer::default()));
     assert_eq!(
-        worker.run(|_| panic!("second run")).await,
+        worker.run_lifecycle(|_| panic!("second run")).await,
         Err(SdkError::Stopped)
     );
 }
@@ -521,7 +577,7 @@ async fn worker_renews_without_metadata_and_cleans_up_terminal_errors() {
     let worker = registration.into_worker();
     assert_eq!(
         worker
-            .run(|event| match event {
+            .run_lifecycle(|event| match event {
                 Event::Registered { .. } => clock.advance(30),
                 Event::Heartbeat => {
                     transport
@@ -555,14 +611,14 @@ async fn worker_shutdown_finishes_registration_before_deleting() {
     let shutdown = async {
         transport.entered.notified().await;
         assert_eq!(
-            worker.run(|_| panic!("concurrent run")).await,
+            worker.run_lifecycle(|_| panic!("concurrent run")).await,
             Err(SdkError::Stopped)
         );
         worker.cancel();
         assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
         transport.release.notify_one();
     };
-    let (result, ()) = tokio::join!(worker.run(|_| {}), shutdown);
+    let (result, ()) = tokio::join!(worker.run_lifecycle(|_| {}), shutdown);
     assert_eq!(result, Ok(()));
     assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
 }
@@ -576,109 +632,110 @@ async fn aborted_worker_never_restarts_an_uncertain_registration() {
     } = fixture();
     *transport.blocked.lock().unwrap() = Some("register");
     let worker = registration.into_worker();
-    interrupt(worker.run(|_| {}), &transport.entered).await;
+    interrupt(worker.run_lifecycle(|_| {}), &transport.entered).await;
     assert!(!worker.set_update(UpdateRegisteredServer::default()));
     assert_eq!(
-        worker.run(|_| panic!("restarted")).await,
+        worker.run_lifecycle(|_| panic!("restarted")).await,
         Err(SdkError::Stopped)
     );
     assert_eq!(*transport.calls.lock().unwrap(), ["register"]);
 }
 
 #[tokio::test]
-async fn response_listeners_cover_each_http_operation() {
+async fn observer_covers_each_http_operation_before_lifecycle_events() {
     let Fixture {
-        mut registration,
+        registration,
         transport,
         clock,
     } = fixture();
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let responses = Arc::clone(&observed);
-    registration.add_registration_response_listener(move |response| {
-        assert_eq!(response.unwrap().server.unique_id, "1");
-        responses.lock().unwrap().push("register");
-        Ok(())
-    });
-    let responses = Arc::clone(&observed);
-    registration.add_update_response_listener(move |response| {
-        assert_eq!(response.unwrap().server.unique_id, "1");
-        responses.lock().unwrap().push("update");
-        Ok(())
-    });
-    let responses = Arc::clone(&observed);
-    registration.add_heartbeat_response_listener(move |response| {
-        assert_eq!(response.unwrap().server.unique_id, "1");
-        responses.lock().unwrap().push("heartbeat");
-        Ok(())
-    });
-    let responses = Arc::clone(&observed);
-    registration.add_deletion_response_listener(move |response| {
-        assert_eq!(response, Ok(()));
-        responses.lock().unwrap().push("delete");
-        Ok(())
-    });
+    let mut observed = Vec::new();
     let worker = registration.into_worker();
     worker
-        .run(|event| match event {
-            Event::Registered { .. } => {
-                assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "map".into())));
+        .run(|event| {
+            match event {
+                super::Event::Http(http) => {
+                    assert!(!format!("{event:?}").contains("secret-test-key"));
+                    observed.push(match http {
+                        HttpEvent::Register(response) => {
+                            assert_eq!(response.as_ref().unwrap().server.unique_id, "1");
+                            "register"
+                        }
+                        HttpEvent::Update(response) => {
+                            assert!(response.is_ok());
+                            "update"
+                        }
+                        HttpEvent::Heartbeat(response) => {
+                            assert!(response.is_ok());
+                            "heartbeat"
+                        }
+                        HttpEvent::Delete(response) => {
+                            assert!(response.is_ok());
+                            "delete"
+                        }
+                    });
+                }
+                super::Event::Lifecycle(Event::Registered { .. }) => {
+                    assert_eq!(observed.last(), Some(&"register"));
+                    assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "map".into())));
+                }
+                super::Event::Lifecycle(Event::Updated) => {
+                    assert_eq!(observed.last(), Some(&"update"));
+                    clock.advance(30);
+                }
+                super::Event::Lifecycle(Event::Heartbeat) => {
+                    assert_eq!(observed.last(), Some(&"heartbeat"));
+                    worker.cancel();
+                }
+                event @ super::Event::Lifecycle(_) => panic!("unexpected event: {event:?}"),
             }
-            Event::Updated => clock.advance(30),
-            Event::Heartbeat => worker.cancel(),
-            event => panic!("unexpected event: {event:?}"),
+            Ok(())
         })
         .await
         .unwrap();
-    assert_eq!(*observed.lock().unwrap(), *transport.calls.lock().unwrap());
-    assert_eq!(
-        *observed.lock().unwrap(),
-        ["register", "update", "heartbeat", "delete"]
-    );
+    assert_eq!(observed, *transport.calls.lock().unwrap());
+    assert_eq!(observed, ["register", "update", "heartbeat", "delete"]);
 }
 
 #[tokio::test]
-async fn listener_errors_halt_the_worker_and_cleanup_remains_single_shot() {
-    for operation in ["register", "update", "heartbeat", "delete"] {
+async fn observer_errors_halt_the_worker_and_cleanup_remains_single_shot() {
+    for operation in ["register", "update", "heartbeat", "delete", "lifecycle"] {
         let Fixture {
-            mut registration,
+            registration,
             transport,
             clock,
         } = fixture();
-        match operation {
-            "register" => {
-                registration
-                    .add_registration_response_listener(|_| Err("private-listener-error".into()));
-                registration
-                    .add_registration_response_listener(|_| panic!("listener after failure"));
-            }
-            "update" => {
-                registration.add_update_response_listener(|_| Err("private-listener-error".into()));
-            }
-            "heartbeat" => registration
-                .add_heartbeat_response_listener(|_| Err("private-listener-error".into())),
-            "delete" => registration
-                .add_deletion_response_listener(|_| Err("private-listener-error".into())),
-            _ => unreachable!(),
-        }
         let worker = registration.into_worker();
         let result = worker
             .run(|event| {
-                assert!(matches!(event, Event::Registered { .. }));
-                match operation {
-                    "update" => {
-                        assert!(worker.set_update(UpdateRegisteredServer::new(
-                            1,
-                            32,
-                            "map".into()
-                        )));
-                    }
-                    "heartbeat" => clock.advance(30),
-                    "delete" => worker.cancel(),
-                    _ => panic!("event after listener failure"),
+                let reject = matches!(
+                    (operation, event),
+                    ("register", super::Event::Http(HttpEvent::Register(_)))
+                        | ("update", super::Event::Http(HttpEvent::Update(_)))
+                        | ("heartbeat", super::Event::Http(HttpEvent::Heartbeat(_)))
+                        | ("delete", super::Event::Http(HttpEvent::Delete(_)))
+                        | ("lifecycle", super::Event::Lifecycle(_))
+                );
+                if reject {
+                    return Err("private-observer-error".into());
                 }
+                if let super::Event::Lifecycle(Event::Registered { .. }) = event {
+                    match operation {
+                        "update" => {
+                            assert!(worker.set_update(UpdateRegisteredServer::new(
+                                1,
+                                32,
+                                "map".into()
+                            )));
+                        }
+                        "heartbeat" => clock.advance(30),
+                        "delete" => worker.cancel(),
+                        _ => panic!("event after observer failure"),
+                    }
+                }
+                Ok(())
             })
             .await;
-        assert_eq!(result, Err(SdkError::ListenerFailed));
+        assert_eq!(result, Err(SdkError::ObserverFailed));
         assert_eq!(transport.calls.lock().unwrap().last(), Some(&"delete"));
         assert_eq!(
             transport
@@ -694,14 +751,14 @@ async fn listener_errors_halt_the_worker_and_cleanup_remains_single_shot() {
             worker.run(|_| panic!("restarted")).await,
             Err(SdkError::Stopped)
         );
-        assert!(!format!("{worker:?} {result:?}").contains("private-listener-error"));
+        assert!(!format!("{worker:?} {result:?}").contains("private-observer-error"));
     }
 }
 
 #[tokio::test]
-async fn listeners_receive_http_failures_before_retry_events() {
+async fn observers_receive_http_failures_before_retry_events() {
     let Fixture {
-        mut registration,
+        registration,
         transport,
         clock,
     } = fixture();
@@ -710,28 +767,32 @@ async fn listeners_receive_http_failures_before_retry_events() {
         .lock()
         .unwrap()
         .push_back(RequestFailure::Http(429));
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let responses = Arc::clone(&observed);
-    registration.add_registration_response_listener(move |response| {
-        responses.lock().unwrap().push(response.map(|_| ()));
-        Ok(())
-    });
+    let mut observed = Vec::new();
     let worker = registration.into_worker();
     worker
-        .run(|event| match event {
-            Event::RetryScheduled(_) => {
-                assert_eq!(*observed.lock().unwrap(), [Err(RequestFailure::Http(429))]);
-                clock.advance(10);
+        .run(|event| {
+            match event {
+                super::Event::Http(HttpEvent::Register(response)) => {
+                    observed.push(
+                        response
+                            .as_ref()
+                            .map(|_| ())
+                            .map_err(|error| RequestFailure::from_error(error)),
+                    );
+                }
+                super::Event::Http(HttpEvent::Delete(_)) => {}
+                super::Event::Lifecycle(Event::RetryScheduled(_)) => {
+                    assert_eq!(observed, [Err(RequestFailure::Http(429))]);
+                    clock.advance(10);
+                }
+                super::Event::Lifecycle(Event::Registered { .. }) => worker.cancel(),
+                event => panic!("unexpected event: {event:?}"),
             }
-            Event::Registered { .. } => worker.cancel(),
-            event => panic!("unexpected event: {event:?}"),
+            Ok(())
         })
         .await
         .unwrap();
-    assert_eq!(
-        *observed.lock().unwrap(),
-        [Err(RequestFailure::Http(429)), Ok(())]
-    );
+    assert_eq!(observed, [Err(RequestFailure::Http(429)), Ok(())]);
 }
 
 #[tokio::test]
@@ -963,7 +1024,7 @@ async fn spawned_driver_waits_without_blocking_and_observes_notifications() {
     let (events, mut received) = tokio::sync::mpsc::unbounded_channel();
     let worker = tokio::spawn(async move {
         registration
-            .run(&worker_control, |event| events.send(event.clone()).unwrap())
+            .run_lifecycle(&worker_control, |event| events.send(event.clone()).unwrap())
             .await
     });
     tokio::time::timeout(Duration::from_secs(1), async {
@@ -1006,7 +1067,8 @@ async fn cancellation_finishes_in_flight_requests_and_cleans_up_once() {
         }
         *transport.blocked.lock().unwrap() = Some(operation);
         let worker_control = control.clone();
-        let worker = tokio::spawn(async move { registration.run(&worker_control, |_| {}).await });
+        let worker =
+            tokio::spawn(async move { registration.run_lifecycle(&worker_control, |_| {}).await });
         tokio::time::timeout(Duration::from_secs(1), async {
             transport.entered.notified().await;
             control.cancel();

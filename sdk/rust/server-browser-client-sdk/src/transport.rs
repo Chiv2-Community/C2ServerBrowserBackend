@@ -1,7 +1,12 @@
 //! Bounded default transport and a typed injection boundary for lifecycle tests.
-use server_browser_client::apis::{api_v1_api as api, configuration::Configuration, Error};
+use server_browser_client::apis::{api_v1_api as api, configuration::Configuration};
+pub use server_browser_client::apis::{
+    api_v1_api::{DeleteServerError, HeartbeatError, RegisterError, UpdateError},
+    Error as HttpError, ResponseContent,
+};
 use server_browser_models::{
-    RegistrationResponse, ServerRegistrationRequest, UpdateRegisteredServer, UpdateResponse,
+    RegistrationResponse, ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
+    UpdateResponse,
 };
 use std::{future::Future, net::IpAddr, time::Duration};
 
@@ -16,44 +21,57 @@ pub enum RequestFailure {
     InvalidResponse,
 }
 
-/// Injected protocol operations; implementations must keep credentials out of errors.
+impl RequestFailure {
+    /// Classify an HTTP error without exposing its response body or request URL.
+    #[must_use]
+    pub const fn from_error<E>(error: &HttpError<E>) -> Self {
+        match error {
+            HttpError::ResponseError(response) => Self::Http(response.status.as_u16()),
+            HttpError::Serde(_) => Self::InvalidResponse,
+            HttpError::Reqwest(_) => Self::Transport,
+        }
+    }
+}
+
+/// Injected protocol operations with generated route-specific errors.
+/// Errors retain response bodies and request details: never log them wholesale.
 pub trait RegistrationTransport: Sync {
     /// Submit one non-idempotent registration attempt.
     ///
     /// # Errors
-    /// Returns a transport, HTTP, or decoding failure without credential details.
+    /// Returns a generated transport, HTTP, or decoding error; details may be sensitive.
     fn register(
         &self,
         request: ServerRegistrationRequest,
-    ) -> impl Future<Output = Result<RegistrationResponse, RequestFailure>> + Send;
+    ) -> impl Future<Output = Result<RegistrationResponse, HttpError<RegisterError>>> + Send;
     /// Publish metadata for a known identity.
     ///
     /// # Errors
-    /// Returns a transport, HTTP, or decoding failure without credential details.
+    /// Returns a generated transport, HTTP, or decoding error; details may be sensitive.
     fn update(
         &self,
         id: &str,
         key: &str,
         update: UpdateRegisteredServer,
-    ) -> impl Future<Output = Result<UpdateResponse, RequestFailure>> + Send;
+    ) -> impl Future<Output = Result<UpdateResponse, HttpError<UpdateError>>> + Send;
     /// Renew the lease of a known identity.
     ///
     /// # Errors
-    /// Returns a transport, HTTP, or decoding failure without credential details.
+    /// Returns a generated transport, HTTP, or decoding error; details may be sensitive.
     fn heartbeat(
         &self,
         id: &str,
         key: &str,
-    ) -> impl Future<Output = Result<UpdateResponse, RequestFailure>> + Send;
+    ) -> impl Future<Output = Result<UpdateResponse, HttpError<HeartbeatError>>> + Send;
     /// Delete a known identity once.
     ///
     /// # Errors
-    /// Returns a transport, HTTP, or decoding failure without credential details.
+    /// Returns a generated transport, HTTP, or decoding error; details may be sensitive.
     fn delete(
         &self,
         id: &str,
         key: &str,
-    ) -> impl Future<Output = Result<(), RequestFailure>> + Send;
+    ) -> impl Future<Output = Result<StatusResponse, HttpError<DeleteServerError>>> + Send;
 }
 
 /// Bounded async HTTP transport with redacted diagnostic output.
@@ -100,22 +118,12 @@ impl HttpTransport {
     }
 }
 
-fn safe_failure<E>(error: Error<E>) -> RequestFailure {
-    match error {
-        Error::ResponseError(response) => RequestFailure::Http(response.status.as_u16()),
-        Error::Serde(_) => RequestFailure::InvalidResponse,
-        Error::Reqwest(_) => RequestFailure::Transport,
-    }
-}
-
 impl RegistrationTransport for HttpTransport {
     async fn register(
         &self,
         request: ServerRegistrationRequest,
-    ) -> Result<RegistrationResponse, RequestFailure> {
-        api::register(&self.configuration, request)
-            .await
-            .map_err(safe_failure)
+    ) -> Result<RegistrationResponse, HttpError<RegisterError>> {
+        api::register(&self.configuration, request).await
     }
 
     async fn update(
@@ -123,22 +131,23 @@ impl RegistrationTransport for HttpTransport {
         id: &str,
         key: &str,
         update: UpdateRegisteredServer,
-    ) -> Result<UpdateResponse, RequestFailure> {
-        api::update(&self.configuration, key, id, update)
-            .await
-            .map_err(safe_failure)
+    ) -> Result<UpdateResponse, HttpError<UpdateError>> {
+        api::update(&self.configuration, key, id, update).await
     }
 
-    async fn heartbeat(&self, id: &str, key: &str) -> Result<UpdateResponse, RequestFailure> {
-        api::heartbeat(&self.configuration, key, id)
-            .await
-            .map_err(safe_failure)
+    async fn heartbeat(
+        &self,
+        id: &str,
+        key: &str,
+    ) -> Result<UpdateResponse, HttpError<HeartbeatError>> {
+        api::heartbeat(&self.configuration, key, id).await
     }
 
-    async fn delete(&self, id: &str, key: &str) -> Result<(), RequestFailure> {
-        api::delete_server(&self.configuration, key, id)
-            .await
-            .map(|_| ())
-            .map_err(safe_failure)
+    async fn delete(
+        &self,
+        id: &str,
+        key: &str,
+    ) -> Result<StatusResponse, HttpError<DeleteServerError>> {
+        api::delete_server(&self.configuration, key, id).await
     }
 }

@@ -3,10 +3,14 @@
 #![deny(missing_docs, missing_debug_implementations)]
 pub mod transport;
 pub use server_browser_models as models;
-pub use transport::{HttpTransport, RegistrationTransport, RequestFailure};
+pub use transport::{
+    DeleteServerError, HeartbeatError, HttpError, HttpTransport, RegisterError,
+    RegistrationTransport, RequestFailure, ResponseContent, UpdateError,
+};
 
 use models::{
-    RegistrationResponse, ServerRegistrationRequest, UpdateRegisteredServer, UpdateResponse,
+    RegistrationResponse, ServerRegistrationRequest, StatusResponse, UpdateRegisteredServer,
+    UpdateResponse,
 };
 use std::{
     sync::{Arc, Mutex},
@@ -71,8 +75,8 @@ pub enum SdkError {
     RetriesExhausted,
     /// The single best-effort deletion failed.
     CleanupFailed(RequestFailure),
-    /// A response listener rejected a response; its error details are not logged.
-    ListenerFailed,
+    /// An observer rejected an event; its error details are not logged.
+    ObserverFailed,
     /// The manager has been stopped.
     Stopped,
 }
@@ -86,7 +90,7 @@ impl std::error::Error for SdkError {}
 
 /// Outcome of one lifecycle poll.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event {
+pub enum LifecycleEvent {
     /// A new registration was established.
     Registered {
         /// Identifier assigned by the backend; never a credential.
@@ -109,29 +113,42 @@ struct Identity {
     key: String,
 }
 
-/// Response callbacks can halt the driver without exposing their error details.
-pub type ListenerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-type ResponseListener<R> = Box<dyn FnMut(Result<&R, RequestFailure>) -> ListenerResult + Send>;
-type DeletionListener = Box<dyn FnMut(Result<(), RequestFailure>) -> ListenerResult + Send>;
-
-#[derive(Default)]
-struct ResponseListeners {
-    registration: Vec<ResponseListener<RegistrationResponse>>,
-    heartbeat: Vec<ResponseListener<UpdateResponse>>,
-    update: Vec<ResponseListener<UpdateResponse>>,
-    deletion: Vec<DeletionListener>,
+/// HTTP completion by route, before lifecycle processing.
+/// Payloads and generated errors may contain credentials; Debug output is redacted.
+pub enum HttpEvent<'a> {
+    /// POST /api/v1/servers.
+    Register(Result<&'a RegistrationResponse, &'a HttpError<RegisterError>>),
+    /// POST /api/v1/servers/{id}/heartbeat.
+    Heartbeat(Result<&'a UpdateResponse, &'a HttpError<HeartbeatError>>),
+    /// PUT /api/v1/servers/{id}.
+    Update(Result<&'a UpdateResponse, &'a HttpError<UpdateError>>),
+    /// DELETE /api/v1/servers/{id}, including an already-absent registration.
+    Delete(Result<&'a StatusResponse, &'a HttpError<DeleteServerError>>),
 }
 
-fn notify<R>(
-    listeners: &mut [ResponseListener<R>],
-    response: Result<&R, RequestFailure>,
-) -> Result<(), SdkError> {
-    for listener in listeners {
-        listener(response).map_err(|_| SdkError::ListenerFailed)?;
+impl std::fmt::Debug for HttpEvent<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let route = match self {
+            Self::Register(_) => "Register",
+            Self::Heartbeat(_) => "Heartbeat",
+            Self::Update(_) => "Update",
+            Self::Delete(_) => "Delete",
+        };
+        write!(formatter, "{route}([REDACTED])")
     }
-    Ok(())
 }
+
+/// Observer notifications; match only the categories and routes you need.
+#[derive(Debug)]
+pub enum Event<'a> {
+    /// Credential-safe lifecycle outcome.
+    Lifecycle(LifecycleEvent),
+    /// Route-specific HTTP response or generated error.
+    Http(HttpEvent<'a>),
+}
+
+/// Observers can halt the driver without exposing their error details.
+pub type ObserverResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 /// One owner serializes registration, updates, heartbeat and cleanup.
 pub struct Registration<T, C = SystemClock> {
@@ -144,7 +161,6 @@ pub struct Registration<T, C = SystemClock> {
     next_attempt: Instant,
     failures: u32,
     terminal_error: Option<SdkError>,
-    listeners: ResponseListeners,
 }
 
 impl<T, C> std::fmt::Debug for Registration<T, C> {
@@ -171,43 +187,6 @@ impl<T: RegistrationTransport> Registration<T> {
 }
 
 impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
-    /// Add a listener for each registration HTTP result, including failed attempts.
-    /// Success responses contain a secret key: never log the complete response.
-    /// Listeners run synchronously in insertion order; an error halts the lifecycle.
-    pub fn add_registration_response_listener(
-        &mut self,
-        listener: impl FnMut(Result<&RegistrationResponse, RequestFailure>) -> ListenerResult
-            + Send
-            + 'static,
-    ) {
-        self.listeners.registration.push(Box::new(listener));
-    }
-
-    /// Add a listener for each heartbeat HTTP result; errors halt the lifecycle.
-    pub fn add_heartbeat_response_listener(
-        &mut self,
-        listener: impl FnMut(Result<&UpdateResponse, RequestFailure>) -> ListenerResult + Send + 'static,
-    ) {
-        self.listeners.heartbeat.push(Box::new(listener));
-    }
-
-    /// Add a listener for each metadata-update HTTP result; errors halt the lifecycle.
-    pub fn add_update_response_listener(
-        &mut self,
-        listener: impl FnMut(Result<&UpdateResponse, RequestFailure>) -> ListenerResult + Send + 'static,
-    ) {
-        self.listeners.update.push(Box::new(listener));
-    }
-
-    /// Add a listener for the single deletion HTTP result, including failure or 404.
-    /// A listener error is returned to the driver; deletion is never repeated.
-    pub fn add_deletion_response_listener(
-        &mut self,
-        listener: impl FnMut(Result<(), RequestFailure>) -> ListenerResult + Send + 'static,
-    ) {
-        self.listeners.deletion.push(Box::new(listener));
-    }
-
     /// Convert this manager into a single-run worker with concurrent metadata updates.
     /// The application owns the task and runtime that drive [`RegistrationWorker::run`].
     #[must_use]
@@ -246,7 +225,6 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             next_attempt,
             failures: 0,
             terminal_error: None,
-            listeners: ResponseListeners::default(),
         })
     }
 
@@ -347,7 +325,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         Ok(())
     }
 
-    fn retry(&mut self) -> Result<Event, SdkError> {
+    fn retry(&mut self) -> Result<LifecycleEvent, SdkError> {
         self.failures += 1;
         if self.failures >= self.policy.maximum_failures {
             return Err(self.halt(SdkError::RetriesExhausted));
@@ -366,7 +344,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             .now()
             .checked_add(delay)
             .ok_or_else(|| self.halt(SdkError::InvalidPolicy))?;
-        Ok(Event::RetryScheduled(delay))
+        Ok(LifecycleEvent::RetryScheduled(delay))
     }
 
     /// Make at most one request. Waiting never sleeps or performs network I/O.
@@ -378,11 +356,28 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// # Cancellation
     /// Dropping an in-flight first registration halts with uncertainty. Dropping
     /// a renewal retains the known identity and previous publication schedule.
-    pub async fn poll(&mut self) -> Result<Event, SdkError> {
+    pub async fn poll(&mut self) -> Result<LifecycleEvent, SdkError> {
+        self.poll_observed(&mut |_| Ok(())).await
+    }
+
+    fn observe_http(
+        &mut self,
+        event: HttpEvent<'_>,
+        observe: &mut impl FnMut(&Event<'_>) -> ObserverResult,
+    ) -> Result<(), SdkError> {
+        observe(&Event::Http(event)).map_err(|_| self.halt(SdkError::ObserverFailed))
+    }
+
+    async fn poll_observed(
+        &mut self,
+        observe: &mut impl FnMut(&Event<'_>) -> ObserverResult,
+    ) -> Result<LifecycleEvent, SdkError> {
         self.check_running()?;
         let started = self.clock.now();
         if started < self.next_attempt {
-            return Ok(Event::Waiting(self.next_attempt.duration_since(started)));
+            return Ok(LifecycleEvent::Waiting(
+                self.next_attempt.duration_since(started),
+            ));
         }
         let Some(identity) = self.identity.as_ref() else {
             // Persist uncertainty before suspension: dropping this future must
@@ -404,12 +399,8 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                     });
                 }
             }
-            notify(
-                &mut self.listeners.registration,
-                response.as_ref().map_err(|error| *error),
-            )
-            .map_err(|error| self.halt(error))?;
-            return match response {
+            self.observe_http(HttpEvent::Register(response.as_ref()), observe)?;
+            return match response.map_err(|error| RequestFailure::from_error(&error)) {
                 Ok(response) => {
                     if self.identity.is_none() {
                         return Err(self.halt(SdkError::RegistrationUncertain));
@@ -419,7 +410,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                         response.refresh_before,
                         response.server.last_heartbeat,
                     )?;
-                    Ok(Event::Registered {
+                    Ok(LifecycleEvent::Registered {
                         server_id: response.server.unique_id,
                     })
                 }
@@ -435,23 +426,24 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         let snapshot = self.snapshot();
         let changed = self.published.as_ref() != Some(&snapshot);
         let response = if changed {
-            self.transport
+            let response = self
+                .transport
                 .update(&identity.id, &identity.key, snapshot)
-                .await
+                .await;
+            self.observe_http(HttpEvent::Update(response.as_ref()), observe)?;
+            response.map_err(|error| RequestFailure::from_error(&error))
         } else {
-            self.transport.heartbeat(&identity.id, &identity.key).await
+            let response = self.transport.heartbeat(&identity.id, &identity.key).await;
+            self.observe_http(HttpEvent::Heartbeat(response.as_ref()), observe)?;
+            response.map_err(|error| RequestFailure::from_error(&error))
         };
-        let listeners = if changed {
-            &mut self.listeners.update
-        } else {
-            &mut self.listeners.heartbeat
-        };
-        if let Err(error) = notify(listeners, response.as_ref().map_err(|error| *error)) {
-            return Err(self.halt(error));
-        }
         match response {
             Ok(response) => {
-                if response.server.unique_id != identity.id {
+                if self
+                    .identity
+                    .as_ref()
+                    .is_none_or(|identity| response.server.unique_id != identity.id)
+                {
                     return Err(self.halt(SdkError::InvalidLease));
                 }
                 self.renew(
@@ -460,9 +452,9 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                     response.server.last_heartbeat,
                 )?;
                 Ok(if changed {
-                    Event::Updated
+                    LifecycleEvent::Updated
                 } else {
-                    Event::Heartbeat
+                    LifecycleEvent::Heartbeat
                 })
             }
             Err(RequestFailure::Http(404)) => {
@@ -470,7 +462,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                 self.published = None;
                 self.failures = 0;
                 self.next_attempt = self.clock.now();
-                Ok(Event::RegistrationLost)
+                Ok(LifecycleEvent::RegistrationLost)
             }
             Err(RequestFailure::Http(status)) if (400..500).contains(&status) && status != 429 => {
                 Err(self.halt(SdkError::Rejected(status)))
@@ -489,15 +481,20 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     /// # Cancellation
     /// Dropping this future after deletion starts never permits a second attempt.
     pub async fn stop(&mut self) -> Result<(), SdkError> {
+        self.stop_observed(&mut |_| Ok(())).await
+    }
+
+    async fn stop_observed(
+        &mut self,
+        observe: &mut impl FnMut(&Event<'_>) -> ObserverResult,
+    ) -> Result<(), SdkError> {
         self.terminal_error = Some(SdkError::Stopped);
         match self.identity.take() {
             Some(identity) => {
                 let response = self.transport.delete(&identity.id, &identity.key).await;
-                for listener in &mut self.listeners.deletion {
-                    listener(response).map_err(|_| SdkError::ListenerFailed)?;
-                }
-                match response {
-                    Ok(()) | Err(RequestFailure::Http(404)) => Ok(()),
+                self.observe_http(HttpEvent::Delete(response.as_ref()), observe)?;
+                match response.map_err(|error| RequestFailure::from_error(&error)) {
+                    Ok(_) | Err(RequestFailure::Http(404)) => Ok(()),
                     Err(error) => Err(SdkError::CleanupFailed(error)),
                 }
             }
@@ -506,19 +503,20 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
     }
 
     /// Drive the lifecycle in the caller's Tokio task and runtime.
+    /// The observer receives HTTP completions and non-waiting lifecycle events.
     /// Cancellation wakes waits promptly but lets an in-flight request finish;
     /// injected transports must bound request duration. No runtime is created.
     /// On error, call `stop` explicitly to attempt cleanup of a known registration.
     ///
     /// # Errors
-    /// Returns lifecycle or cleanup failures from polling, updates, or shutdown.
+    /// Returns lifecycle, observer or cleanup failures from polling, updates, or shutdown.
     ///
     /// # Panics
     /// Panics if the control mutex was poisoned or the observer panics.
     pub async fn run(
         &mut self,
         control: &RegistrationControl,
-        mut observe: impl FnMut(&Event),
+        mut observe: impl FnMut(&Event<'_>) -> ObserverResult,
     ) -> Result<(), SdkError> {
         loop {
             // Register before checking shared state. A publication between the
@@ -531,14 +529,15 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                 (pending.cancelled, pending.update.take())
             };
             if cancelled {
-                return self.stop().await;
+                return self.stop_observed(&mut observe).await;
             }
             if let Some(update) = update {
                 self.set_update(update)?;
             }
-            let event = self.poll().await?;
-            if !matches!(event, Event::Waiting(_)) {
-                observe(&event);
+            let event = self.poll_observed(&mut observe).await?;
+            if !matches!(event, LifecycleEvent::Waiting(_)) {
+                observe(&Event::Lifecycle(event))
+                    .map_err(|_| self.halt(SdkError::ObserverFailed))?;
             }
             let delay = self.next_delay().ok_or(SdkError::Stopped)?;
             tokio::select! {
@@ -605,7 +604,10 @@ impl<T: RegistrationTransport, C: Clock> RegistrationWorker<T, C> {
     ///
     /// # Panics
     /// Panics if a mutex was poisoned or the observer panics.
-    pub async fn run(&self, observe: impl FnMut(&Event)) -> Result<(), SdkError> {
+    pub async fn run(
+        &self,
+        mut observe: impl FnMut(&Event<'_>) -> ObserverResult,
+    ) -> Result<(), SdkError> {
         let mut registration = self
             .registration
             .lock()
@@ -613,8 +615,8 @@ impl<T: RegistrationTransport, C: Clock> RegistrationWorker<T, C> {
             .take()
             .ok_or(SdkError::Stopped)?;
         let _close = CloseOnDrop(self.control.clone());
-        let result = registration.run(&self.control, observe).await;
-        let cleanup = registration.stop().await;
+        let result = registration.run(&self.control, &mut observe).await;
+        let cleanup = registration.stop_observed(&mut observe).await;
         result.and(cleanup)
     }
 }

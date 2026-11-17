@@ -2,7 +2,8 @@
 use server_browser_client::apis::{api_v1_api as api, configuration::Configuration};
 use server_browser_client_sdk::{
     models::{Chivalry2Ports, ServerRegistrationRequest, UpdateRegisteredServer},
-    Clock, Event, HttpTransport, Policy, Registration, SdkError,
+    Clock, Event as SdkEvent, HttpEvent, HttpTransport, LifecycleEvent as Event, Policy,
+    Registration, SdkError,
 };
 use std::{
     cell::Cell,
@@ -91,6 +92,9 @@ async fn registration_sdk_against_python_backend() {
     let mut events = Vec::new();
     registration
         .run(|event| {
+            let SdkEvent::Lifecycle(event) = event else {
+                return Ok(());
+            };
             events.push(event.clone());
             match event {
                 Event::Registered { .. } => {
@@ -103,18 +107,23 @@ async fn registration_sdk_against_python_backend() {
                 Event::Updated => registration.cancel(),
                 _ => panic!("unexpected lifecycle event"),
             }
+            Ok(())
         })
         .await
         .unwrap();
     assert_eq!(events.len(), 2);
-    let mut rejected = Registration::new(transport, request, Policy::default()).unwrap();
-    rejected.add_registration_response_listener(|_| Err("listener rejected registration".into()));
+    let rejected = Registration::new(transport, request, Policy::default()).unwrap();
     assert_eq!(
         rejected
             .into_worker()
-            .run(|_| panic!("listener failure must halt the driver"))
+            .run(|event| match event {
+                SdkEvent::Http(HttpEvent::Register(_)) =>
+                    Err("observer rejected registration".into()),
+                SdkEvent::Http(HttpEvent::Delete(_)) => Ok(()),
+                _ => panic!("observer failure must halt the driver"),
+            })
             .await,
-        Err(SdkError::ListenerFailed)
+        Err(SdkError::ObserverFailed)
     );
     assert!(api::get_servers(&configuration)
         .await

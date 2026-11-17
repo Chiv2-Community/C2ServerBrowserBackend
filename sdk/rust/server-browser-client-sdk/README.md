@@ -6,7 +6,7 @@ Generation does not modify this crate. There is no Python lifecycle SDK yet.
 ```rust,no_run
 use server_browser_client_sdk::{
     models::{Chivalry2Ports, ServerRegistrationRequest},
-    HttpTransport, Policy, Registration,
+    Event, HttpEvent, HttpTransport, Policy, Registration, RequestFailure,
 };
 use std::sync::Arc;
 
@@ -16,18 +16,20 @@ let request = ServerRegistrationRequest::new(
     "My server".into(), "Community server".into(), "map".into(), 0, 32,
 );
 let transport = HttpTransport::new("https://browser.example", None)?;
-let mut registration = Registration::new(transport, request, Policy::default())?;
-registration.add_registration_response_listener(|response| {
-    match response {
-        Ok(response) => println!("Registered {}", response.server.unique_id),
-        Err(failure) => eprintln!("Registration failed: {failure:?}"),
-    }
-    Ok(())
-});
+let registration = Registration::new(transport, request, Policy::default())?;
 let registration = Arc::new(registration.into_worker());
 let worker = Arc::clone(&registration);
 let task = tokio::spawn(async move {
-    worker.run(|event| println!("{event:?}")).await
+    worker.run(|event| {
+        match event {
+            Event::Lifecycle(event) => println!("{event:?}"),
+            Event::Http(HttpEvent::Register(Err(error))) => {
+                eprintln!("Registration failed: {:?}", RequestFailure::from_error(error));
+            }
+            _ => {}
+        }
+        Ok(())
+    }).await
 });
 // Publish metadata independently with registration.set_update(UpdateRegisteredServer { ... }).
 // On application shutdown:
@@ -50,23 +52,32 @@ await `poll` and honor `next_delay`. `RegistrationTransport` returns `Send` futu
 `Clock` remains injectable. A manager is spawnable when its transport and clock
 are `Send`. Synchronous control methods only hold brief metadata mutexes.
 
-## Response listeners
+## Observer events
 
-Add listeners to `Registration` before converting it into a worker:
+`run` accepts one fallible observer. Match only the events you need:
 
-- `add_registration_response_listener`: registration responses, including failures.
-- `add_heartbeat_response_listener`: heartbeat responses.
-- `add_update_response_listener`: metadata-update responses.
-- `add_deletion_response_listener`: the single deletion result, including HTTP 404.
+- `Event::Lifecycle(LifecycleEvent)`: registration, renewal, loss and retry outcomes.
+- `Event::Http(HttpEvent)`: `Register`, `Heartbeat`, `Update`, and `Delete` completions,
+  including failed attempts and deletion HTTP 404.
 
-Callbacks receive a typed response or credential-safe `RequestFailure` and return
-`ListenerResult` (`Result<(), Box<dyn Error + Send + Sync>>`). They run in insertion
-order within the driver; keep them brief and nonblocking. The first callback error
-halts the lifecycle with `SdkError::ListenerFailed` and skips remaining callbacks
-for that response. Error details are deliberately omitted from SDK diagnostics.
-The worker attempts cleanup of a known registration, including when a successful
-registration's listener fails. Failed deletion/listeners never cause a second DELETE.
-Registration responses contain the secret key: log only explicitly selected safe fields.
+Each HTTP variant borrows a route-specific `Result`: a generated success response
+or `HttpError<RouteError>`. Errors retain their Display summary, source error,
+HTTP status, raw response body and optional typed error entity. Payloads are borrowed
+only during the callback; clone selected fields if needed. HTTP events precede
+lifecycle processing. A successful registration's identity is retained before its
+HTTP event so observer failure still permits cleanup.
+
+Observers return `ObserverResult` (`Result<(), Box<dyn Error + Send + Sync>>`).
+Keep them brief and nonblocking. Failure halts with `SdkError::ObserverFailed`;
+the callback's error details are omitted from SDK diagnostics. The worker attempts
+single-shot cleanup and reports its HTTP result through the same observer, even
+after observer failure. Failed cleanup/observation never causes a second DELETE.
+
+`Event`/`HttpEvent` Debug output redacts HTTP payloads. Generated responses/errors
+do not: registration responses contain the secret key, and errors may include
+credentials, URLs or response bodies. Log selected safe fields or use
+`RequestFailure::from_error` for credential-safe error classification.
+Low-level `poll` returns `LifecycleEvent`; `poll` and `stop` have no observer.
 
 ## Lifecycle policy
 
