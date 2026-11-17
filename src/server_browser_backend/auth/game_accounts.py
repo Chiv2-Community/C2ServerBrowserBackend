@@ -1,7 +1,8 @@
 """Persistent first-use pins for independently verified identities, not provider links.
 
-All workers share this private database. Never evict pins or automatically
-replace them: recovery requires an operator-reviewed correction while stopped.
+All workers share this private database. Never automatically evict or replace
+pins. Recovery and privacy requests require an explicit operator workflow;
+see docs/game-account-linkage.md and docs/player-identity-privacy.md.
 """
 
 from __future__ import annotations

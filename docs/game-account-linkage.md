@@ -1,5 +1,8 @@
 # Game account linkage
 
+Deployment also requires the [player identity privacy review](player-identity-privacy.md).
+Pins and mismatch records are personal-data processing, not anonymous telemetry.
+
 Independent PlayFab and EOS proofs do not establish that the provider associates
 those accounts. Never infer a link from a client claim, display name, public
 user-data value, or simultaneous control of two accounts.
@@ -61,7 +64,10 @@ route does not establish these pins and is not a fallback for signed rejection.
 Default budgets are 100,000 pins, 100,000 distinct mismatches and 16,384 SQLite
 pages. Workers must use identical persisted limits. Full, busy or corrupt storage
 fails closed; pins/audits are never automatically evicted. Retention and access to
-this identity database are operator responsibilities.
+this identity database are operator responsibilities. These are capacity limits,
+not a justified retention schedule. There is currently no built-in expiry,
+subject export, restriction or erasure workflow; resolve those deployment gaps
+without silently resetting the first-use trust boundary.
 
 ### Manual recovery
 

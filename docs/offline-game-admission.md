@@ -65,6 +65,10 @@ redemption by an interceptor. No proof-of-possession transport is implemented.
 
 ## Backend configuration
 
+Before public deployment, resolve the operator decisions and missing retention/
+rights workflows in the [identity privacy review](player-identity-privacy.md).
+Private files and short-lived JWTs do not make persistent account links anonymous.
+
 Keep the existing `GAME_JOIN_VERIFIER_SESSION_TICKET` and `GAME_JOIN_AUDIENCE`; the latter
 is the exact trusted backend issuer URL, without a trailing slash.
 
@@ -94,8 +98,9 @@ Evidence: `/tmp/opencode/eos-token-live/result.json`; raw tokens were not saved.
 Do not derive these values from an unverified token in production. Use the existing
 signing module's provisioning and rotation commands with a separate keyring.
 Leave `GAME_JOIN_TICKET_DATABASE` unset to disable opaque issuance/redemption. Those old
-operations remain available for the unfinished plugin transition, not as an
-authentication fallback after JWT rejection.
+operations remain available for older deployments, not as an authentication
+fallback after JWT rejection. The current plugin has no opaque-issuance or
+online-redemption path.
 
 ## Remaining integration and validation
 

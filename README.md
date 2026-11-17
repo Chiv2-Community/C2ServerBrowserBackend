@@ -50,10 +50,19 @@ Container arguments are passed directly to Uvicorn. Gunicorn and its
 `GUNICORN_*` settings are no longer used; migrate deployment settings above.
 There is no equivalent of Gunicorn's worker request timeout or thread setting.
 
+### Validated player identity (development)
+
+Signed PlayFab/EOS game admission and persistent first-use account pinning are
+opt-in, not merge/deployment approval. See [offline admission](docs/offline-game-admission.md)
+for signing/verifier configuration and the required `GAME_ACCOUNT_DATABASE`,
+and [account linkage](docs/game-account-linkage.md) for mismatch handling/recovery.
+Resolve the [identity privacy checklist](docs/player-identity-privacy.md) before
+public deployment; no built-in retention/export/erasure workflow is provided.
+
 ### Discord authentication (development)
 
 Discord signing/JWKS and internal session-storage foundations are available,
-but OAuth/session APIs and game admission are not yet implemented. See
+but OAuth/session APIs and Discord-based game admission are not yet implemented. See
 [Discord authentication](docs/discord-auth.md) for provisioning, rotation,
 storage limits, and rollout gates.
 
