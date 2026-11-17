@@ -20,6 +20,7 @@ url = "2.5"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 
 [dev-dependencies]
+wiremock = "0.6"
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "sync", "time"] }
 
 [features]
