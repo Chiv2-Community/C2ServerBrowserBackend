@@ -45,7 +45,8 @@ threads or runtimes. Call this example from an application-owned Tokio runtime
 with time and I/O enabled. `RegistrationWorker::run` owns scheduling and cleanup;
 `set_update` coalesces metadata without waiting for HTTP. Keep metadata collection
 outside the driver so slow collection cannot delay lease maintenance.
-The worker runs once; cancellation/completion rejects further updates. Aborting
+Both lifecycle and worker `set_update` methods return `Result<(), SdkError>`.
+The worker runs once; cancellation/completion rejects updates with `SdkError::Stopped`. Aborting
 the driver closes it without hidden I/O; stranded identities expire server-side.
 For lower-level control, use `Registration::run` with `RegistrationControl`, or
 await `poll` and honor `next_delay`. `RegistrationTransport` returns `Send` futures; the monotonic

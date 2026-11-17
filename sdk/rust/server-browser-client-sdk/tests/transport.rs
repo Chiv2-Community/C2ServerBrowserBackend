@@ -131,7 +131,10 @@ async fn http_observer_receives_typed_errors_without_leaking_them_in_debug() {
         Err(SdkError::ObserverFailed)
     );
     assert!(observed);
-    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
 }
 
 #[tokio::test]

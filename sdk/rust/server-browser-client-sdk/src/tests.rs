@@ -301,8 +301,8 @@ async fn worker_ignores_duplicate_metadata_and_uses_heartbeat() {
         .run(lifecycle_only(|event| match event {
             Event::Registered { .. } => {
                 let metadata = UpdateRegisteredServer::default();
-                assert!(worker.set_update(metadata.clone()));
-                assert!(worker.set_update(metadata));
+                worker.set_update(metadata.clone()).unwrap();
+                worker.set_update(metadata).unwrap();
                 clock.advance(30);
             }
             Event::Heartbeat => worker.cancel(),
@@ -548,7 +548,10 @@ async fn cancellation_cleans_up_and_control_is_single_run() {
         .await
         .unwrap();
     assert_eq!(*transport.calls.lock().unwrap(), ["register", "delete"]);
-    assert!(!control.publish(UpdateRegisteredServer::default()));
+    assert_eq!(
+        control.publish(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
     let Fixture {
         mut registration,
         transport,
@@ -572,7 +575,9 @@ async fn worker_accepts_updates_and_owns_cleanup() {
     worker
         .run(lifecycle_only(|event| match event {
             Event::Registered { .. } => {
-                assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "next".into())));
+                worker
+                    .set_update(UpdateRegisteredServer::new(1, 32, "next".into()))
+                    .unwrap();
             }
             Event::Updated => worker.cancel(),
             event => panic!("unexpected event: {event:?}"),
@@ -583,7 +588,10 @@ async fn worker_accepts_updates_and_owns_cleanup() {
         *transport.calls.lock().unwrap(),
         ["register", "update", "delete"]
     );
-    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
     assert_eq!(
         worker.run(|_| panic!("second run")).await,
         Err(SdkError::Stopped)
@@ -619,7 +627,10 @@ async fn worker_renews_without_metadata_and_cleans_up_terminal_errors() {
         *transport.calls.lock().unwrap(),
         ["register", "heartbeat", "heartbeat", "delete"]
     );
-    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
 }
 
 #[tokio::test]
@@ -656,7 +667,10 @@ async fn aborted_worker_never_restarts_an_uncertain_registration() {
     *transport.blocked.lock().unwrap() = Some("register");
     let worker = registration.into_worker();
     interrupt(worker.run(|_| Ok(())), &transport.entered).await;
-    assert!(!worker.set_update(UpdateRegisteredServer::default()));
+    assert_eq!(
+        worker.set_update(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
     assert_eq!(
         worker.run(|_| panic!("restarted")).await,
         Err(SdkError::Stopped)
@@ -699,7 +713,9 @@ async fn observer_covers_each_http_operation_before_lifecycle_events() {
                 }
                 super::Event::Lifecycle(Event::Registered { .. }) => {
                     assert_eq!(observed.last(), Some(&"register"));
-                    assert!(worker.set_update(UpdateRegisteredServer::new(1, 32, "map".into())));
+                    worker
+                        .set_update(UpdateRegisteredServer::new(1, 32, "map".into()))
+                        .unwrap();
                 }
                 super::Event::Lifecycle(Event::Updated) => {
                     assert_eq!(observed.last(), Some(&"update"));
@@ -744,11 +760,9 @@ async fn observer_errors_halt_the_worker_and_cleanup_remains_single_shot() {
                 if let super::Event::Lifecycle(Event::Registered { .. }) = event {
                     match operation {
                         "update" => {
-                            assert!(worker.set_update(UpdateRegisteredServer::new(
-                                1,
-                                32,
-                                "map".into()
-                            )));
+                            worker
+                                .set_update(UpdateRegisteredServer::new(1, 32, "map".into()))
+                                .unwrap();
                         }
                         "heartbeat" => clock.advance(30),
                         "delete" => worker.cancel(),
@@ -903,8 +917,10 @@ async fn control_coalescing_moves_mods_ignores_duplicates_and_discards_cancelled
         "1".into(),
     )]);
     let mods = update.mods.as_ref().unwrap().as_ptr();
-    assert!(control.publish(update));
-    assert!(control.publish(UpdateRegisteredServer::new(2, 32, "next".into())));
+    control.publish(update).unwrap();
+    control
+        .publish(UpdateRegisteredServer::new(2, 32, "next".into()))
+        .unwrap();
     {
         let pending = control.inner.pending.lock().unwrap();
         let update = pending.update.as_ref().unwrap();
@@ -914,7 +930,9 @@ async fn control_coalescing_moves_mods_ignores_duplicates_and_discards_cancelled
         drop(pending);
     }
     control.inner.wake.notified().await;
-    assert!(control.publish(UpdateRegisteredServer::new(2, 32, "next".into())));
+    control
+        .publish(UpdateRegisteredServer::new(2, 32, "next".into()))
+        .unwrap();
     tokio::select! {
         biased;
         () = control.inner.wake.notified() => panic!("duplicate update woke the driver"),
@@ -922,8 +940,10 @@ async fn control_coalescing_moves_mods_ignores_duplicates_and_discards_cancelled
     }
     let mut clear = UpdateRegisteredServer::new(2, 32, "next".into());
     clear.mods = Some(Vec::new());
-    assert!(control.publish(clear));
-    assert!(control.publish(UpdateRegisteredServer::new(3, 32, "next".into())));
+    control.publish(clear).unwrap();
+    control
+        .publish(UpdateRegisteredServer::new(3, 32, "next".into()))
+        .unwrap();
     assert_eq!(
         control
             .inner
@@ -938,7 +958,10 @@ async fn control_coalescing_moves_mods_ignores_duplicates_and_discards_cancelled
     );
     control.cancel();
     assert!(control.inner.pending.lock().unwrap().update.is_none());
-    assert!(!control.publish(UpdateRegisteredServer::default()));
+    assert_eq!(
+        control.publish(UpdateRegisteredServer::default()),
+        Err(SdkError::Stopped)
+    );
 }
 
 #[test]
@@ -1088,7 +1111,9 @@ async fn spawned_driver_waits_without_blocking_and_observes_notifications() {
             received.recv().await,
             Some(Event::Registered { .. })
         ));
-        assert!(control.publish(UpdateRegisteredServer::new(1, 32, "notified".into())));
+        control
+            .publish(UpdateRegisteredServer::new(1, 32, "notified".into()))
+            .unwrap();
         assert_eq!(received.recv().await, Some(Event::Updated));
         control.cancel();
         worker.await.unwrap().unwrap();

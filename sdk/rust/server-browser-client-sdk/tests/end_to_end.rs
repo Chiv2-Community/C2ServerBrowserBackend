@@ -98,11 +98,9 @@ async fn registration_sdk_against_python_backend() {
             events.push(event.clone());
             match event {
                 Event::Registered { .. } => {
-                    assert!(registration.set_update(UpdateRegisteredServer::new(
-                        3,
-                        32,
-                        "driver".into()
-                    )));
+                    registration
+                        .set_update(UpdateRegisteredServer::new(3, 32, "driver".into()))
+                        .unwrap();
                 }
                 Event::Updated => registration.cancel(),
                 _ => panic!("unexpected lifecycle event"),

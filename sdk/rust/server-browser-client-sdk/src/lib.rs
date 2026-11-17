@@ -255,7 +255,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         }
     }
 
-    fn metadata_changed(&self) -> bool {
+    fn has_metadata_changed(&self) -> bool {
         self.published.as_ref().is_none_or(|published| {
             published.player_count != self.request.player_count
                 || published.max_players != self.request.max_players
@@ -287,7 +287,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
         if update.mods.is_some() {
             self.request.mods = update.mods;
         }
-        if self.identity.is_some() && self.failures == 0 && self.metadata_changed() {
+        if self.identity.is_some() && self.failures == 0 && self.has_metadata_changed() {
             self.next_attempt = self.clock.now();
         }
         Ok(())
@@ -328,7 +328,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
             .checked_add(interval.min(self.policy.heartbeat_interval))
             .ok_or_else(|| self.halt(SdkError::InvalidLease))?;
         self.failures = 0;
-        if self.metadata_changed() {
+        if self.has_metadata_changed() {
             self.published = Some(self.snapshot());
         }
         Ok(())
@@ -432,7 +432,7 @@ impl<T: RegistrationTransport, C: Clock> Registration<T, C> {
                 Err(_) => Err(self.halt(SdkError::RegistrationUncertain)),
             };
         };
-        let changed = self.metadata_changed();
+        let changed = self.has_metadata_changed();
         let response = if changed {
             let response = self
                 .transport
@@ -583,12 +583,13 @@ impl Drop for CloseOnDrop {
 impl<T: RegistrationTransport, C: Clock> RegistrationWorker<T, C> {
     /// Publish the latest metadata without waiting for an in-flight HTTP request.
     /// Updates are coalesced and never bypass retry backoff.
-    /// Returns false after cancellation or worker completion.
+    ///
+    /// # Errors
+    /// Returns [`SdkError::Stopped`] after cancellation or worker completion.
     ///
     /// # Panics
     /// Panics if the control mutex was poisoned.
-    #[must_use]
-    pub fn set_update(&self, update: UpdateRegisteredServer) -> bool {
+    pub fn set_update(&self, update: UpdateRegisteredServer) -> Result<(), SdkError> {
         self.control.publish(update)
     }
 
@@ -654,26 +655,28 @@ struct ControlState {
 }
 
 impl RegistrationControl {
-    /// Queue the latest update; return false after cancellation.
+    /// Queue the latest update.
+    ///
+    /// # Errors
+    /// Returns [`SdkError::Stopped`] after cancellation.
     ///
     /// # Panics
     /// Panics if the control mutex was poisoned.
-    #[must_use]
-    pub fn publish(&self, mut update: UpdateRegisteredServer) -> bool {
+    pub fn publish(&self, mut update: UpdateRegisteredServer) -> Result<(), SdkError> {
         let mut pending = self.inner.pending.lock().unwrap();
         if pending.cancelled {
-            return false;
+            return Err(SdkError::Stopped);
         }
         if let Some(queued) = pending.update.as_mut() {
             if *queued == update {
-                return true;
+                return Ok(());
             }
             if update.mods.is_none() {
                 if queued.player_count == update.player_count
                     && queued.max_players == update.max_players
                     && queued.current_map == update.current_map
                 {
-                    return true;
+                    return Ok(());
                 }
                 update.mods = queued.mods.take();
             }
@@ -681,7 +684,7 @@ impl RegistrationControl {
         pending.update = Some(update);
         drop(pending);
         self.inner.wake.notify_one();
-        true
+        Ok(())
     }
 
     /// Discard queued metadata, wake the driver and request one cleanup attempt.
