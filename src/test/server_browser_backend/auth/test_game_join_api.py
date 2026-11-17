@@ -1,17 +1,17 @@
+import hashlib
 from dataclasses import replace
 from datetime import datetime
 from ipaddress import ip_address
 from unittest.mock import Mock
-import hashlib
 
 import pytest
 from fastapi.testclient import TestClient
 
 from server_browser_backend.auth.game_identity import (
+    GameIdentityUnavailable,
+    InvalidGameCredential,
     PlayFabIdentityVerifier,
     VerifiedGameIdentity,
-    InvalidGameCredential,
-    GameIdentityUnavailable,
 )
 from server_browser_backend.auth.game_join import GameJoinService
 from server_browser_backend.auth.game_join_tickets import GameJoinTicketStore
@@ -49,18 +49,22 @@ SECRET = "s" * 43
 @pytest.fixture
 def signed_joining(joining, browser, tmp_path):
     import time
+
+    from server_browser_backend.auth.account_digests import AccountDigester
     from server_browser_backend.auth.eos_identity import (
         EosConnectVerifier,
         VerifiedEosIdentity,
     )
-    from server_browser_backend.auth.signing import SigningKeys, provision
     from server_browser_backend.auth.game_accounts import GameAccountStore
+    from server_browser_backend.auth.signing import SigningKeys, provision
 
     client, service, verifier, server, key = joining
     path = tmp_path / "game-signing.json"
     provision(path)
     service.signing = SigningKeys(path)
-    service.accounts = GameAccountStore(tmp_path / "accounts.sqlite")
+    service.accounts = GameAccountStore(
+        tmp_path / "accounts.sqlite", AccountDigester(b"k" * 32)
+    )
     verifier.verify_steam_link.side_effect = (
         lambda identity, steam: VerifiedGameIdentity(identity.playfab_id, steam)
     )
@@ -85,8 +89,9 @@ def admission(client, challenge):
 
 
 def test_signed_admission_contains_only_verified_claims(signed_joining, caplog):
-    import jwt
     import time
+
+    import jwt
 
     client, service, verifier, server, key = signed_joining
     challenge = begin(client).json()["challenge_id"]
@@ -153,9 +158,10 @@ def test_signed_admission_rechecks_registration_after_provider_io(signed_joining
 
 
 def test_signed_admission_cannot_outlive_eos_proof(signed_joining):
-    import jwt
     import time
     from dataclasses import replace
+
+    import jwt
 
     client, service, _, _, _ = signed_joining
     expires = int(time.time()) + 10
@@ -501,8 +507,8 @@ def test_claimed_account_cannot_reserve_victims_challenge_budget(joining):
 
 
 def test_concurrent_completion_mints_one_grant(joining):
-    from concurrent.futures import ThreadPoolExecutor
     import threading
+    from concurrent.futures import ThreadPoolExecutor
 
     client, service, verifier, _, _ = joining
     challenge = begin(client).json()["challenge_id"]

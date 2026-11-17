@@ -54,7 +54,8 @@ There is no equivalent of Gunicorn's worker request timeout or thread setting.
 
 Signed PlayFab/EOS game admission and persistent first-use account pinning are
 opt-in, not merge/deployment approval. See [offline admission](docs/offline-game-admission.md)
-for signing/verifier configuration and the required `GAME_ACCOUNT_DATABASE`,
+for signing/verifier configuration and the required `GAME_ACCOUNT_DATABASE` and
+`GAME_ACCOUNT_HMAC_KEY_FILE`,
 and [account linkage](docs/game-account-linkage.md) for mismatch handling/recovery.
 Resolve the [identity privacy checklist](docs/player-identity-privacy.md) before
 public deployment; no built-in retention/export/erasure workflow is provided.

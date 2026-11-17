@@ -26,8 +26,8 @@ do not assume every community host is simply the backend's processor.
 
 | Data | Processing and recipients | Current retention |
 | --- | --- | --- |
-| PlayFab ID, EOS PUID, optional Steam ID, account UUID, first/last issuance dates | Private SQLite `user_accounts`; backend operators; identity claims also go to the selected game host | No automatic expiry or erasure workflow |
-| Attempted independently verified combinations, reason, dates, count | Private SQLite `validated_mismatches`; authorized backend support | Deduplicated, but no age-based retention or erasure workflow |
+| Namespaced HMACs of PlayFab ID, EOS PUID and optional Steam ID; account UUID, first/last issuance dates | Private SQLite `user_accounts`; backend operators; raw verified identity claims still go to the selected game host | No automatic expiry or erasure workflow |
+| HMACs of attempted independently verified combinations, reason, dates, count | Private SQLite `validated_mismatches`; authorized backend support | Deduplicated, but no age-based retention or erasure workflow |
 | EOS Connect token and challenge completion secret | Client to backend; verification in memory | Not intentionally persisted; inspect ingress/APM/debug logging separately |
 | Public PlayFab proof commitment | Temporarily published by the client; read by the independent verifier | Client attempts cleanup and confirms it; interrupted clients can leave a commitment behind |
 | Reusable player PlayFab session | Client to fixed PlayFab HTTPS endpoints only | Not forwarded to the backend/host or stored in these tables |
@@ -37,10 +37,14 @@ do not assume every community host is simply the backend's processor.
 | IPs, request metadata, game/host logs, support tickets, backups and telemetry | Deployment-dependent; may include reverse proxy and Graylog providers | Must be inventoried and assigned separate retention rules |
 
 Current safeguards include independent proofs, generic mismatch responses, private
-database files, bounded storage, no public association lookup, and no intentional
+database files, keyed identity digests with a separately provisioned secret,
+bounded storage, no public association lookup, and no intentional
 raw-token logging in the new identity flow. They do not establish compliance.
 The SQLite database is not encrypted by the application. A 0600 file mode does not
 protect a stolen disk, a compromised operator account, or copies/backups.
+The HMAC key must be backed up separately from the database. Digests reduce
+database-only exposure but remain pseudonymous personal data; key holders can
+match known IDs. See [key provisioning and migration](game-account-linkage.md#identity-digests-and-provisioning).
 
 ## Decisions required before deployment
 

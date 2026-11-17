@@ -26,7 +26,7 @@ they are not represented as a provider-maintained association.
 
 ## First-use pinning
 
-Signed admissions require `GAME_ACCOUNT_DATABASE`, an explicit durable SQLite
+Signed admissions require `GAME_ACCOUNT_HMAC_KEY_FILE` and `GAME_ACCOUNT_DATABASE`, an explicit durable SQLite
 path shared by all backend workers. The parent directory must exist and be
 private. The file must be a private regular file (created with mode 0600).
 Back up this database; deleting it discards the established trust boundary.
@@ -36,8 +36,8 @@ until the database path is provisioned; missing configuration fails startup.
 
 After PlayFab control and EOS proof verification, the backend atomically checks:
 
-- `user_accounts`: UUID `id`, unique `playfab_id`, nullable unique `steam_id`,
-  unique `eos_id` (EOS PUID), `first_login_date`, `last_login_date`.
+- `user_accounts`: UUID `id`, unique `playfab_digest`, nullable unique
+  `steam_digest`, unique `eos_digest` (EOS PUID), `first_login_date`, `last_login_date`.
 - A new nonconflicting combination is pinned on first accepted issuance.
 - Matching issuance updates only the last-login timestamp. A verified Steam ID
   can be added to the same PlayFab/EOS pair if not pinned elsewhere. Epic logins
@@ -46,7 +46,7 @@ After PlayFab control and EOS proof verification, the backend atomically checks:
   `account_mismatch`, message `Account Mismatch`. The response reveals no stored
   IDs. No JWT is minted and no existing pin/login timestamp is changed.
 - `validated_mismatches` retains a UUID, attempted verified PlayFab/Steam/EOS
-  combination, reason, first/last mismatch timestamps and occurrence count.
+  digest combination, reason, first/last mismatch timestamps and occurrence count.
   Repeated combinations update the same record, including nullable Steam IDs.
 - Failed proofs and stale registrations create neither pins nor mismatch rows.
   Mismatch audit records commit despite admission rejection; pin/login changes
@@ -55,6 +55,51 @@ After PlayFab control and EOS proof verification, the backend atomically checks:
 Dates are UTC Unix seconds. Login dates mean successful backend admission
 issuance, not confirmation that the game connection completed. No raw proofs,
 JWTs or reusable player credentials are stored in these tables.
+
+### Identity digests and provisioning
+
+Both tables store 32-byte HMAC-SHA-256 BLOBs, not raw IDs. The input is
+`unchained-account-id-v1\0<provider>\0<canonical-id>` using ASCII bytes and provider
+`playfab`, `steam` or `eos`. PlayFab IDs canonicalize to uppercase; EOS PUIDs must
+be lowercase hexadecimal; Steam IDs use their validated decimal representation.
+Provider verification and JWT issuance still use raw verified IDs transiently.
+
+Provision a private 32-byte random key once, outside the database and its backups:
+
+```sh
+python -m server_browser_backend.auth.game_accounts init-key /private/keys/accounts.key
+export GAME_ACCOUNT_HMAC_KEY_FILE=/private/keys/accounts.key
+export GAME_ACCOUNT_DATABASE=/private/data/accounts.sqlite
+```
+
+The parent directories must already exist and be private. Do not use the signing
+key as the HMAC key. All workers must use the same key; a domain-separated database
+key check detects accidental replacement and fails startup. Provisioning never
+overwrites a key, and startup never generates one. Back up the key separately with
+restricted access: loss prevents matching existing pins. Key rotation is not
+implemented; existing digests cannot be rehashed without the original IDs. Do not
+delete the database or swap keys to rotate them.
+
+For an existing plaintext database, stop **all writers**, preserve a private backup,
+then migrate to a new path on the same deployment:
+
+```sh
+python -m server_browser_backend.auth.game_accounts migrate /private/data/accounts.sqlite /private/data/accounts-digests.sqlite --key /private/keys/accounts.key
+export GAME_ACCOUNT_DATABASE=/private/data/accounts-digests.sqlite
+```
+
+Migration preserves UUIDs, timestamps, mismatch counts, limits and nullable Steam
+associations; it publishes only a complete database and refuses an existing target.
+Startup rejects the old schema rather than silently resetting pins. Verify counts,
+correct logins and rejected conflicts before resuming service. The migration does
+not modify or erase the plaintext source, snapshots, journals or backups: arrange
+secure retirement under the operator's retention policy. Do not keep a public copy
+or assume in-place SQL updates would remove plaintext from old SQLite pages.
+
+HMAC is pseudonymisation, not anonymisation. Operators holding the key can match
+known IDs, and association graphs/timestamps remain sensitive. No public digest
+lookup API is added. Scoped support lookups can use `identity_digests()` with
+verified/requester-authorized IDs; avoid logging those raw inputs.
 
 This is deliberately **trust on first use**: the first combination can be
 provider-unlinked even when both proofs validate. Later conflicting combinations
@@ -74,12 +119,20 @@ without silently resetting the first-use trust boundary.
 There is no public reassociation/reset API. Review the affected verified mismatch
 and establish the correct account association through support. Stop all workers,
 back up the database, and have an authorized operator make a deliberate correction
-while preserving uniqueness and the mismatch history. Record the old/new values,
+while preserving uniqueness and the mismatch history. Record the old/new digests,
 operator, time and reason in the support audit. Never automatically replace a pin
 in response to a login attempt. Previously issued JWTs remain usable until expiry
 (at most 60 seconds); existing host connections are not revoked by a correction.
 
 ### Live pinning validation
+
+The HMAC-at-rest update passed 765 backend tests (5 skipped) and scoped type checks
+for the changed production modules. Full-project mypy still reports the existing
+`game_identity.py:109` `json.loads(body)` argument-type error.
+Tests cover digest-only database pages, key provisioning/replacement rejection,
+restart/concurrent pinning, and offline plaintext migration preserving history.
+It does not change the admission wire contract. No new native game runtime pass
+or migration of the earlier controlled-account database is claimed below.
 
 Backend implementation `0077356` passed controlled Steam and Epic native browser
 joins using the protocol-compatible plugin host/browser probes. Both pins retained

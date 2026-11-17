@@ -77,6 +77,9 @@ For the new signed path, configure:
 - `GAME_JOIN_SIGNING_KEYRING`: explicitly provisioned private RSA keyring path.
 - `GAME_ACCOUNT_DATABASE`: required durable private SQLite path shared by workers;
   back it up and retain it across deployments. Startup rejects a missing path.
+- `GAME_ACCOUNT_HMAC_KEY_FILE`: required private, explicitly provisioned 32-byte
+  key file for persistent identity digests; keep separate from database backups.
+  See [provisioning and plaintext migration](game-account-linkage.md#identity-digests-and-provisioning).
 - `EOS_CONNECT_ISSUER`: exact EOS Connect issuer.
 - `EOS_CONNECT_CLIENT_ID`, `EOS_CONNECT_PRODUCT_ID`, `EOS_CONNECT_SANDBOX_ID`,
   `EOS_CONNECT_DEPLOYMENT_ID`: operator-pinned game trust settings.

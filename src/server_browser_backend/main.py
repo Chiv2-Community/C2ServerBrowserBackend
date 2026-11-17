@@ -6,12 +6,13 @@ from os import environ
 from pathlib import Path
 
 from server_browser_backend.application import Application
-from server_browser_backend.auth.signing import SigningKeys
-from server_browser_backend.auth.game_join import GameJoinService
-from server_browser_backend.auth.game_identity import PlayFabIdentityVerifier
-from server_browser_backend.auth.game_join_tickets import GameJoinTicketStore
+from server_browser_backend.auth.account_digests import AccountDigester
 from server_browser_backend.auth.eos_identity import EosConnectVerifier
 from server_browser_backend.auth.game_accounts import GameAccountStore
+from server_browser_backend.auth.game_identity import PlayFabIdentityVerifier
+from server_browser_backend.auth.game_join import GameJoinService
+from server_browser_backend.auth.game_join_tickets import GameJoinTicketStore
+from server_browser_backend.auth.signing import SigningKeys
 from server_browser_backend.env import show_registered_ips
 from server_browser_backend.ip_list import IpList
 from server_browser_backend.logging_config import configure_logging
@@ -54,6 +55,9 @@ def create_default_app() -> Application:
         raise ValueError(
             "Signed game admission requires persistent GAME_ACCOUNT_DATABASE"
         )
+    account_key_path = environ.get("GAME_ACCOUNT_HMAC_KEY_FILE")
+    if game_signing and not account_key_path:
+        raise ValueError("Signed game admission requires GAME_ACCOUNT_HMAC_KEY_FILE")
     eos_settings = {
         name: environ.get(variable, "")
         for name, variable in {
@@ -92,8 +96,10 @@ def create_default_app() -> Application:
             eos=eos,
             signing=game_signing,
             accounts=(
-                GameAccountStore(Path(account_path))
-                if game_signing and account_path
+                GameAccountStore(
+                    Path(account_path), AccountDigester.load(Path(account_key_path))
+                )
+                if game_signing and account_path and account_key_path
                 else None
             ),
         )

@@ -8,6 +8,7 @@ from uuid import UUID
 
 import pytest
 
+from server_browser_backend.auth.account_digests import AccountDigester
 from server_browser_backend.auth.eos_identity import VerifiedEosIdentity
 from server_browser_backend.auth.game_accounts import (
     AccountLimits,
@@ -20,6 +21,7 @@ from server_browser_backend.auth.game_identity import (
 )
 
 STEAM = "76561197993652680"
+DIGESTER = AccountDigester(b"k" * 32)
 
 
 def eos(puid="a" * 32, steam=None):
@@ -42,13 +44,13 @@ def test_pin_persists_across_restart_and_matching_login_updates_only_last_date(
     tmp_path,
 ):
     path = tmp_path / "accounts.sqlite"
-    store = GameAccountStore(path, clock=lambda: 100)
+    store = GameAccountStore(path, DIGESTER, clock=lambda: 100)
     assert login(store) == "signed"
     first = rows(store, "user_accounts")[0]
     UUID(first["id"])
-    assert first["steam_id"] is None
+    assert first["steam_digest"] is None
     assert first["first_login_date"] == first["last_login_date"] == 100
-    restarted = GameAccountStore(path, clock=lambda: 200)
+    restarted = GameAccountStore(path, DIGESTER, clock=lambda: 200)
     login(restarted, pf="abc123")
     assert rows(store, "user_accounts") == [{**first, "last_login_date": 200}]
     assert rows(store, "validated_mismatches") == []
@@ -66,7 +68,7 @@ def test_pin_persists_across_restart_and_matching_login_updates_only_last_date(
     ],
 )
 def test_conflicts_audit_after_commit_and_never_mutate_pin(tmp_path, change):
-    store = GameAccountStore(tmp_path / "db", clock=lambda: 100)
+    store = GameAccountStore(tmp_path / "db", DIGESTER, clock=lambda: 100)
     login(store, steam=STEAM)
     first = rows(store, "user_accounts")
     for now in (200, 300):
@@ -82,7 +84,7 @@ def test_conflicts_audit_after_commit_and_never_mutate_pin(tmp_path, change):
 
 
 def test_null_steam_mismatches_are_deduplicated(tmp_path):
-    store = GameAccountStore(tmp_path / "db")
+    store = GameAccountStore(tmp_path / "db", DIGESTER)
     login(store)
     for _ in range(3):
         with pytest.raises(AccountMismatch):
@@ -92,11 +94,13 @@ def test_null_steam_mismatches_are_deduplicated(tmp_path):
 
 
 def test_steam_can_be_added_only_to_the_same_pair_and_is_not_erased(tmp_path):
-    store = GameAccountStore(tmp_path / "db")
+    store = GameAccountStore(tmp_path / "db", DIGESTER)
     login(store)
     login(store, steam=STEAM)
     login(store)
-    assert rows(store, "user_accounts")[0]["steam_id"] == STEAM
+    assert rows(store, "user_accounts")[0]["steam_digest"] == DIGESTER.digest(
+        "steam", STEAM
+    )
     with pytest.raises(AccountMismatch):
         login(store, pf="DEF456", puid="b" * 32, steam=STEAM)
     assert len(rows(store, "user_accounts")) == 1
@@ -104,7 +108,7 @@ def test_steam_can_be_added_only_to_the_same_pair_and_is_not_erased(tmp_path):
 
 def test_simultaneous_first_use_can_pin_only_one_conflicting_pair(tmp_path):
     path = tmp_path / "db"
-    stores = [GameAccountStore(path), GameAccountStore(path)]
+    stores = [GameAccountStore(path, DIGESTER), GameAccountStore(path, DIGESTER)]
     barrier = Barrier(2)
 
     def attempt(index):
@@ -121,7 +125,7 @@ def test_simultaneous_first_use_can_pin_only_one_conflicting_pair(tmp_path):
 
 
 def test_signing_failure_rolls_back_first_pin_and_last_login(tmp_path):
-    store = GameAccountStore(tmp_path / "db", clock=lambda: 100)
+    store = GameAccountStore(tmp_path / "db", DIGESTER, clock=lambda: 100)
 
     def fail():
         raise GameIdentityUnavailable("signer unavailable")
@@ -137,7 +141,9 @@ def test_signing_failure_rolls_back_first_pin_and_last_login(tmp_path):
 
 
 def test_capacity_fails_closed_without_evicting_pins_or_audit(tmp_path):
-    store = GameAccountStore(tmp_path / "db", AccountLimits(accounts=1, mismatches=1))
+    store = GameAccountStore(
+        tmp_path / "db", DIGESTER, AccountLimits(accounts=1, mismatches=1)
+    )
     login(store)
     with pytest.raises(GameIdentityUnavailable):
         login(store, pf="DEF456", puid="b" * 32)
@@ -157,9 +163,9 @@ def test_capacity_fails_closed_without_evicting_pins_or_audit(tmp_path):
 
 def test_workers_cannot_disagree_on_persisted_limits(tmp_path):
     path = tmp_path / "db"
-    GameAccountStore(path)
+    GameAccountStore(path, DIGESTER)
     with pytest.raises(ValueError, match="identical persisted limits"):
-        GameAccountStore(path, AccountLimits(accounts=2))
+        GameAccountStore(path, DIGESTER, AccountLimits(accounts=2))
 
 
 @pytest.mark.parametrize("kind", ["public", "symlink"])
@@ -174,13 +180,13 @@ def test_refuses_unsafe_database_file(tmp_path, kind):
         target.touch(mode=0o600)
         path.symlink_to(target)
     with pytest.raises(ValueError, match="private regular file"):
-        GameAccountStore(path)
+        GameAccountStore(path, DIGESTER)
 
 
 def test_storage_failure_does_not_issue_admission(tmp_path):
     from unittest.mock import Mock
 
-    store = GameAccountStore(tmp_path / "db")
+    store = GameAccountStore(tmp_path / "db", DIGESTER)
     store.path.unlink()
     store.path.mkdir()
     mint = Mock()
@@ -190,7 +196,7 @@ def test_storage_failure_does_not_issue_admission(tmp_path):
 
 
 def test_unverified_steam_pair_cannot_be_pinned(tmp_path):
-    store = GameAccountStore(tmp_path / "db")
+    store = GameAccountStore(tmp_path / "db", DIGESTER)
     with pytest.raises(ValueError, match="Verified Steam association required"):
         store.admit(VerifiedGameIdentity("ABC123"), eos(steam=STEAM), lambda: "signed")
     assert rows(store, "user_accounts") == []
