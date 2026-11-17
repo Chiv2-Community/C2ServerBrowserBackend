@@ -893,8 +893,8 @@ async fn stopping_before_registration_never_performs_network_io() {
     assert!(transport.calls.lock().unwrap().is_empty());
 }
 
-#[test]
-fn control_coalescing_preserves_omitted_mod_updates() {
+#[tokio::test]
+async fn control_coalescing_moves_mods_ignores_duplicates_and_discards_cancelled_updates() {
     let control = RegistrationControl::default();
     let mut update = UpdateRegisteredServer::new(1, 32, "first".into());
     update.mods = Some(vec![models::Mod::new(
@@ -902,13 +902,43 @@ fn control_coalescing_preserves_omitted_mod_updates() {
         "org".into(),
         "1".into(),
     )]);
+    let mods = update.mods.as_ref().unwrap().as_ptr();
     assert!(control.publish(update));
     assert!(control.publish(UpdateRegisteredServer::new(2, 32, "next".into())));
-    let pending = control.inner.pending.lock().unwrap();
-    let update = pending.update.as_ref().unwrap();
-    assert_eq!(update.player_count, 2);
-    assert_eq!(update.mods.as_ref().unwrap()[0].name, "mod");
-    drop(pending);
+    {
+        let pending = control.inner.pending.lock().unwrap();
+        let update = pending.update.as_ref().unwrap();
+        assert_eq!(update.player_count, 2);
+        assert_eq!(update.mods.as_ref().unwrap()[0].name, "mod");
+        assert_eq!(update.mods.as_ref().unwrap().as_ptr(), mods);
+        drop(pending);
+    }
+    control.inner.wake.notified().await;
+    assert!(control.publish(UpdateRegisteredServer::new(2, 32, "next".into())));
+    tokio::select! {
+        biased;
+        () = control.inner.wake.notified() => panic!("duplicate update woke the driver"),
+        () = std::future::ready(()) => {},
+    }
+    let mut clear = UpdateRegisteredServer::new(2, 32, "next".into());
+    clear.mods = Some(Vec::new());
+    assert!(control.publish(clear));
+    assert!(control.publish(UpdateRegisteredServer::new(3, 32, "next".into())));
+    assert_eq!(
+        control
+            .inner
+            .pending
+            .lock()
+            .unwrap()
+            .update
+            .as_ref()
+            .unwrap()
+            .mods,
+        Some(Vec::new())
+    );
+    control.cancel();
+    assert!(control.inner.pending.lock().unwrap().update.is_none());
+    assert!(!control.publish(UpdateRegisteredServer::default()));
 }
 
 #[test]

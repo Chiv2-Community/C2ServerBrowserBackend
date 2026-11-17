@@ -663,14 +663,19 @@ impl RegistrationControl {
         if pending.cancelled {
             return false;
         }
-        if update.mods.is_none() {
-            update.mods = pending
-                .update
-                .as_ref()
-                .and_then(|update| update.mods.clone());
-        }
-        if pending.update.as_ref() == Some(&update) {
-            return true;
+        if let Some(queued) = pending.update.as_mut() {
+            if *queued == update {
+                return true;
+            }
+            if update.mods.is_none() {
+                if queued.player_count == update.player_count
+                    && queued.max_players == update.max_players
+                    && queued.current_map == update.current_map
+                {
+                    return true;
+                }
+                update.mods = queued.mods.take();
+            }
         }
         pending.update = Some(update);
         drop(pending);
@@ -678,12 +683,15 @@ impl RegistrationControl {
         true
     }
 
-    /// Wake the driver and request one cleanup attempt.
+    /// Discard queued metadata, wake the driver and request one cleanup attempt.
     ///
     /// # Panics
     /// Panics if the control mutex was poisoned.
     pub fn cancel(&self) {
-        self.inner.pending.lock().unwrap().cancelled = true;
+        let mut pending = self.inner.pending.lock().unwrap();
+        pending.cancelled = true;
+        pending.update = None;
+        drop(pending);
         self.inner.wake.notify_one();
     }
 }
