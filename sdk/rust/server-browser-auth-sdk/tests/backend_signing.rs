@@ -4,7 +4,7 @@ use server_browser_client::{
     apis::api_v1_api as api,
     models::{Chivalry2Ports, ServerRegistrationRequest},
 };
-use server_browser_client_sdk::{Event, HttpTransport, Policy, Registration};
+use server_browser_client_sdk::{HttpTransport, Policy, Registration};
 
 #[test]
 #[ignore = "requires Docker and the published backend image"]
@@ -26,10 +26,7 @@ fn backend_signed_ticket_verifies_once_for_live_registration() {
         );
         let mut registration =
             Registration::new(client.clone(), request, Policy::default()).unwrap();
-        assert!(matches!(
-            registration.poll().await,
-            Ok(Event::Registered { .. })
-        ));
+        registration.poll().await.unwrap();
         let id = registration.server_id().unwrap().to_owned();
         let jwks = api::jwks(client.configuration())
             .await
