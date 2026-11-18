@@ -24,19 +24,18 @@ def run_release_tags(tag, output, workflow_ref=None):
     )
 
 
-@pytest.mark.parametrize("metadata", ["", "+abc123", "+build.123-sha"])
 @pytest.mark.parametrize("prerelease", ["", "-alpha", "-alpha.1", "-rc.1", "-0", "-0a", "-alpha-1"])
-def test_release_tags(metadata, prerelease, tmp_path):
+def test_release_tags(prerelease, tmp_path):
     output = tmp_path / "output"
-    version = f"1.3.0{prerelease}{metadata}"
+    version = f"1.3.0{prerelease}"
     result = run_release_tags(f"v{version}", output)
     assert result.returncode == 0, result.stderr
     lines = output.read_text().splitlines()
     image = "ghcr.io/chiv2-community/c2serverbrowserbackend"
     assert f"version={version}" in lines
     assert f"image={image}" in lines
-    assert f"{image}:{version.replace('+', '_')}" in lines
-    assert (f"{image}:latest" in lines) == (metadata == "" and prerelease == "")
+    assert f"{image}:{version}" in lines
+    assert (f"{image}:latest" in lines) == (prerelease == "")
 
 
 @pytest.mark.parametrize(
@@ -45,6 +44,8 @@ def test_release_tags(metadata, prerelease, tmp_path):
         "v1.1",
         "v01.1.0",
         "v1.1.0+",
+        "v1.3.0-alpha.3+b86e57c",
+        "v1.3.0+abc123",
         "v1.1.0+a..b",
         "v1.1.0+bad_sha",
         "v1.1.0-",
@@ -53,7 +54,7 @@ def test_release_tags(metadata, prerelease, tmp_path):
         "v1.1.0-alpha..1",
         "v1.1.0-alpha_1",
         "v1.1.0-alpha\ninjected",
-        "v1.1.0+" + "a" * 128,
+        "v1.1.0-" + "a" * 128,
     ],
 )
 def test_invalid_release_tags(tag, tmp_path):
