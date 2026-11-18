@@ -1,6 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$version = (Get-Content -Raw VERSION).Trim()
-uv run --no-project python scripts/sync_versions.py --check --tag "v$version"
+$version = (uv run --locked bump-my-version show current_version).Trim()
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # If we can't login, no reason to continue.

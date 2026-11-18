@@ -58,7 +58,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          uv run --no-project python scripts/sync_versions.py --check --tag "$RELEASE_TAG"
+          test "$RELEASE_TAG" = "v$(uv run --locked bump-my-version show current_version)"
           ./ci.sh
 
       - name: Upload SDK distributions and OpenAPI contract

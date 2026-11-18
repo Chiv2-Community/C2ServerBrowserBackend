@@ -1,6 +1,4 @@
 ﻿$ErrorActionPreference = "Stop"
-uv run --no-project python scripts/sync_versions.py --check
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv lock --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv lock --directory mock --check

@@ -19,9 +19,11 @@ adapter, interfaces, and models. Client code never depends on server packages.
 Only the adapter and concrete backend require FastAPI. Only the backend requires
 Uvicorn. Models and server interfaces require neither HTTPX nor an HTTP framework.
 
-All packages share the repository `VERSION` and use exact internal dependency
-versions. Run `python scripts/sync_versions.py` after editing `VERSION`, then
-release them together. Package-index name ownership has not been established, and no PyPI
+All packages use the coordinated version and exact internal dependencies managed
+by `.bumpversion.toml`. Use `uv run bump-my-version bump number` for the next
+prerelease, then refresh lockfiles and release together
+([versioning](../CONTRIBUTING.md#publishing)).
+Package-index name ownership has not been established, and no PyPI
 publication is configured. Build artifacts are usable without package-index
 publication. Publishing a GitHub Release attaches the wheels, sdists, and
 authoritative OpenAPI YAML; no new release is created by these changes.

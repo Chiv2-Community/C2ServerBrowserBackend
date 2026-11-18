@@ -157,27 +157,27 @@ has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
 
-`VERSION` is the package-version source of truth. Use SemVer without `v`:
-`1.3.0-alpha.3`, `1.3.0-beta.1`, `1.3.0-rc.1`, then `1.3.0`.
-Python uses the equivalent PEP 440 versions (`1.3.0a3`, `1.3.0b1`,
-`1.3.0rc1`). Build metadata and other prerelease spellings are rejected rather
-than mapped inconsistently across ecosystems.
+`.bumpversion.toml` configures `bump-my-version` to update every Python project
+(including codegen and mock), the Rust workspace, and exact internal pins.
+All manifests use the same SemVer spelling; Python packaging normalizes
+`1.3.0-alpha.3` to `1.3.0a3` automatically.
 
-To bump every Python project (including codegen and mock) and Rust crate:
+```bash
+uv run bump-my-version bump number   # alpha.3 -> alpha.4
+# Or select a version, including a stable release:
+uv run bump-my-version bump --new-version 1.3.0
+uv lock
+uv lock --directory mock
+cargo update --workspace --manifest-path sdk/rust/Cargo.toml
+./ci.sh                             # Windows: ./ci.ps1
+```
 
-1. Edit `VERSION`.
-2. Run `python scripts/sync_versions.py`. It updates manifest versions, exact
-   internal dependencies, and the Python/Rust lockfiles.
-3. Run `./ci.sh` (Windows: `./ci.ps1`).
-4. Commit the changes, then release with the exact tag `v<VERSION>`.
-
-Cargo crates inherit the shared workspace version and dependencies. Python
-manifests are synchronized copies because Python and Cargo cannot both
-natively reference an arbitrary version file. Keeping ordinary manifest
-metadata lets isolated sdists and `.crate` archives build without the checkout.
-CI rejects drift before building; release workflows also reject tag mismatches.
-Existing tags are not changed. Git commit pins retain exact source provenance;
-do not add `+<sha>` to release tags.
+The tool does not commit or tag. Commit the changes, then release with
+`v<current_version>` from `.bumpversion.toml`. Cargo crates inherit the workspace
+version; no custom version parser or manifest rewriter is needed.
+Tests reject inconsistent versions and internal pins; release workflows reject
+tag mismatches. Git pins retain exact source provenance, so release tags do not
+need `+<sha>`. Isolated sdists and `.crate` archives need no checkout to build.
 The OpenAPI document's `info.version` identifies the API contract, not the
 package release, and is not changed by package-version bumps.
 

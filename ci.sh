@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-uv run --no-project python scripts/sync_versions.py --check
 uv lock --check
 uv lock --directory mock --check
 uv sync --frozen --all-packages

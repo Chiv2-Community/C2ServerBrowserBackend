@@ -1,6 +1,6 @@
 [project]
 name = "chivalry2-unofficial-server-browser-mock-host"
-version = "1.3.0a3"
+version = "1.3.0-alpha.3"
 description = "A mock host for use in a test environment"
 authors = [
     {name = "Jacob Barber", email = "Jacoby6000@gmail.com"},

@@ -1,8 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION=$(tr -d '\r\n' < VERSION)
-uv run --no-project python scripts/sync_versions.py --check --tag "v$VERSION"
+VERSION=$(uv run --locked bump-my-version show current_version)
 
 # If we can't login, no reason to continue.
 docker login
