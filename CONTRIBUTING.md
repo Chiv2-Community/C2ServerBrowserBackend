@@ -166,8 +166,6 @@ All manifests use the same SemVer spelling; Python packaging normalizes
 uv run bump-my-version bump number   # alpha.3 -> alpha.4
 # Or select a version, including a stable release:
 uv run bump-my-version bump --new-version 1.3.0
-# Optional commit-hash metadata:
-uv run bump-my-version bump --new-version 1.3.0-alpha.4+abc1234
 uv lock
 uv lock --directory mock
 cargo update --workspace --manifest-path sdk/rust/Cargo.toml
@@ -178,11 +176,9 @@ The tool does not commit or tag. Commit the changes, then release with
 `v<current_version>` from `.bumpversion.toml`. Cargo crates inherit the workspace
 version; no custom version parser or manifest rewriter is needed.
 The bump tool checks configured version occurrences; release workflows reject
-tag mismatches. Versions may include lowercase hexadecimal `+<sha>` metadata;
-select the hash explicitly with `--new-version`. Ordinary bumps drop the old hash.
-Cargo ignores build metadata for version ordering and dependency selection;
-Git pins still identify exact source. Isolated sdists and `.crate` archives
-need no checkout to build.
+tag mismatches. Use plain release or prerelease versions, without `+<sha>`.
+Git pins and OCI revision labels identify exact source commits.
+Isolated sdists and `.crate` archives need no checkout to build.
 The OpenAPI document's `info.version` identifies the API contract, not the
 package release, and is not changed by package-version bumps.
 
@@ -210,8 +206,8 @@ and the installed `--root` command.
 Publishing runs only through CI. The workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
 tag matching `.bumpversion.toml` is pushed. For example, `v1.3.0-alpha.3`
-publishes `:1.3.0-alpha.3`; `v1.3.0-alpha.3+abc1234` publishes
-`:1.3.0-alpha.3_abc1234`. Only stable tags without metadata update `:latest`.
+publishes `:1.3.0-alpha.3`. Only stable tags update `:latest`.
+CI rejects tags containing build metadata.
 The workflow requires the tag to match the coordinated package version.
 
 To recover publication for an existing tag, dispatch the updated workflow without
