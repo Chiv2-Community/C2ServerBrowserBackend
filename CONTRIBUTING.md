@@ -157,6 +157,30 @@ has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
 
+`VERSION` is the package-version source of truth. Use SemVer without `v`:
+`1.3.0-alpha.3`, `1.3.0-beta.1`, `1.3.0-rc.1`, then `1.3.0`.
+Python uses the equivalent PEP 440 versions (`1.3.0a3`, `1.3.0b1`,
+`1.3.0rc1`). Build metadata and other prerelease spellings are rejected rather
+than mapped inconsistently across ecosystems.
+
+To bump every Python project (including codegen and mock) and Rust crate:
+
+1. Edit `VERSION`.
+2. Run `python scripts/sync_versions.py`. It updates manifest versions, exact
+   internal dependencies, and the Python/Rust lockfiles.
+3. Run `./ci.sh` (Windows: `./ci.ps1`).
+4. Commit the changes, then release with the exact tag `v<VERSION>`.
+
+Cargo crates inherit the shared workspace version and dependencies. Python
+manifests are synchronized copies because Python and Cargo cannot both
+natively reference an arbitrary version file. Keeping ordinary manifest
+metadata lets isolated sdists and `.crate` archives build without the checkout.
+CI rejects drift before building; release workflows also reject tag mismatches.
+Existing tags are not changed. Git commit pins retain exact source provenance;
+do not add `+<sha>` to release tags.
+The OpenAPI document's `info.version` identifies the API contract, not the
+package release, and is not changed by package-version bumps.
+
 Docker uses a wheel-builder stage and a clean runtime stage. The builder exports
 locked non-development dependencies, builds the backend plus models/interfaces/
 FastAPI wheels, and installs them into a virtual environment. The final image
@@ -171,10 +195,9 @@ Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
 which checks out its tag, validates all packages, and attaches the wheels,
 sdists, Rust archives, and authoritative YAML to that release. It does not create releases or
 overwrite existing assets. No package-index publication is configured; verify
-name ownership before adding it. The four generated distributions use one coordinated version and
-exact internal dependency constraints; update their `pyproject.toml` versions and
-the backend requirements together, then refresh `uv.lock` and run `./ci.sh`.
-The development-only codegen tool has its own version and owns the pinned
+name ownership before adding it. Distributions share the coordinated version and
+exact internal dependency constraints described above.
+The development-only codegen tool owns the pinned
 generator dependency; it is never installed in runtime SDK/backend environments.
 See its [README](sdk/python/server-browser-codegen/README.md) for template ownership
 and the installed `--root` command.

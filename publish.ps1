@@ -1,17 +1,23 @@
-﻿# If we can't login, no reason to continue.
-docker login
+﻿$ErrorActionPreference = "Stop"
+$version = (Get-Content -Raw VERSION).Trim()
+uv run --no-project python scripts/sync_versions.py --check --tag "v$version"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$version = Select-String -Path "pyproject.toml" -Pattern "version" |
-        Select-Object -First 1 |
-        ForEach-Object { $_.Line -replace 'version = ', '' -replace '"', '' -replace "'", '' } |
-        ForEach-Object { $_.Trim() }
+# If we can't login, no reason to continue.
+docker login
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 ./ci.ps1
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-docker buildx build . `
-  -t "jacoby6000/chivalry2-unofficial-server-browser-backend:$version" `
-  -t "jacoby6000/chivalry2-unofficial-server-browser-backend:latest" `
-  --push
+$tags = @("-t", "jacoby6000/chivalry2-unofficial-server-browser-backend:$version")
+if (-not $version.Contains("-")) {
+    $tags += @("-t", "jacoby6000/chivalry2-unofficial-server-browser-backend:latest")
+}
+docker buildx build . @tags --push
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 git tag "v$version"
-git push --tags
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+git push origin "refs/tags/v$version"
+exit $LASTEXITCODE

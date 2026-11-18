@@ -1,15 +1,15 @@
 [project]
 name = "chivalry2-unofficial-server-browser-backend"
-version = "1.2.3"
+version = "1.3.0a3"
 description = "A server browser backend for unofficial chivalry2 servers. Keeps track of live servers with a heartbeat, and allows clients to list them. Probably usable for other unofficial gameservers."
 authors = [{name = "Jacob Barber", email = "Jacoby6000@gmail.com"}]
 license = {text = "GPL3"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "server-browser-models==1.0.0",
-    "server-browser-server==1.0.0",
-    "server-browser-fastapi==1.0.0",
+    "server-browser-models==1.3.0a3",
+    "server-browser-server==1.3.0a3",
+    "server-browser-fastapi==1.3.0a3",
     "fastapi>=0.115,<1",
     "uvicorn>=0.34,<1",
     "pygelf>=0.4.2",
@@ -24,12 +24,12 @@ dev = [
     "autoflake>=2.2.0",
     "mypy>=1.4.1",
     "isort>=5.12.0",
-    "server-browser-codegen==0.1.0",
+    "server-browser-codegen==1.3.0a3",
     "pyyaml==6.0.3",
     "openapi-spec-validator==0.7.2",
     "types-pyyaml>=6.0.12.20261111",
     "httpx>=0.28,<1",
-    "server-browser-client==1.0.0",
+    "server-browser-client==1.3.0a3",
 ]
 
 [build-system]

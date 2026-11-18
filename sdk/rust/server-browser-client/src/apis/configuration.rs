@@ -24,7 +24,9 @@ impl Configuration {
     pub fn with_client(client: reqwest::Client) -> Self {
         Self {
             base_path: "http://localhost".to_owned(),
-            user_agent: Some("server-browser-client/1.0.0".to_owned()),
+            user_agent: Some(
+                concat!("server-browser-client/", env!("CARGO_PKG_VERSION")).to_owned(),
+            ),
             client,
         }
     }

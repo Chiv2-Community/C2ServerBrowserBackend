@@ -89,9 +89,11 @@ async fn client_uses_injected_transport_and_encodes_path_parameter() {
     );
     let request = server.worker.await.unwrap();
     assert!(request.starts_with("GET /api/v1/check-banned/2001%3Adb8%3A%3A1 "));
-    assert!(request
-        .to_ascii_lowercase()
-        .contains("user-agent: server-browser-client/1.0.0\r\n"));
+    assert!(request.to_ascii_lowercase().contains(concat!(
+        "user-agent: server-browser-client/",
+        env!("CARGO_PKG_VERSION"),
+        "\r\n"
+    )));
 }
 
 async fn check_redirect_policy(injected: bool) {
