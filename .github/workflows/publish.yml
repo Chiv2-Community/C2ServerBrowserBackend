@@ -55,7 +55,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.93.0
 
       - name: Validate and build all packages
-        run: ./ci.sh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = "v$(uv run --locked bump-my-version show current_version)"
+          ./ci.sh
 
       - name: Upload SDK distributions and OpenAPI contract
         uses: actions/upload-artifact@v4

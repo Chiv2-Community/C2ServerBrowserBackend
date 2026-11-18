@@ -33,7 +33,11 @@ jobs:
           components: clippy, rustfmt
 
       - name: Validate and build all packages
-        run: ./ci.sh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          test "$RELEASE_TAG" = "v$(uv run --locked bump-my-version show current_version)"
+          ./ci.sh
 
       - name: Attach distributions and authoritative OpenAPI contract
         env:

@@ -1,6 +1,6 @@
 [package]
 name = "server-browser-client"
-version = "{{{packageVersion}}}"
+version.workspace = true
 edition = "2021"
 description = "Generated async client for the Chivalry 2 community server browser API"
 license = "GPL-3.0-only"
@@ -13,7 +13,7 @@ categories = ["api-bindings", "network-programming"]
 workspace = true
 
 [dependencies]
-server-browser-models = { version = "={{{packageVersion}}}", path = "../server-browser-models" }
+server-browser-models = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2.5"

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+uv lock --check
+uv lock --directory mock --check
 uv sync --frozen --all-packages
 uv run server-browser-codegen --check
 uv run mypy

@@ -195,7 +195,7 @@ def generate(root: Path, check: bool = False) -> None:
                 str(templates),
                 "-c",
                 str(config),
-                "--additional-properties=packageName=server-browser-client,packageVersion=1.0.0,supportAsync=true,avoidBoxedModels=true",
+                "--additional-properties=packageName=server-browser-client,supportAsync=true,avoidBoxedModels=true",
                 "--global-property=apiDocs=false,modelDocs=false,apiTests=false,modelTests=false",
             ],
             root,

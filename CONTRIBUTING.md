@@ -157,6 +157,35 @@ has not been exercised. Swagger content intentionally changes with the contract.
 
 ## Publishing
 
+`.bumpversion.toml` configures `bump-my-version` to update every Python project
+(including codegen and mock), the Rust workspace, and exact internal pins.
+All manifests use the same SemVer spelling; Python packaging normalizes
+`1.3.0-alpha.3` to `1.3.0a3` automatically.
+
+```bash
+uv run bump-my-version bump number   # alpha.3 -> alpha.4
+# Or select a version, including a stable release:
+uv run bump-my-version bump --new-version 1.3.0
+# Optional commit-hash metadata:
+uv run bump-my-version bump --new-version 1.3.0-alpha.4+abc1234
+uv lock
+uv lock --directory mock
+cargo update --workspace --manifest-path sdk/rust/Cargo.toml
+./ci.sh                             # Windows: ./ci.ps1
+```
+
+The tool does not commit or tag. Commit the changes, then release with
+`v<current_version>` from `.bumpversion.toml`. Cargo crates inherit the workspace
+version; no custom version parser or manifest rewriter is needed.
+The bump tool checks configured version occurrences; release workflows reject
+tag mismatches. Versions may include lowercase hexadecimal `+<sha>` metadata;
+select the hash explicitly with `--new-version`. Ordinary bumps drop the old hash.
+Cargo ignores build metadata for version ordering and dependency selection;
+Git pins still identify exact source. Isolated sdists and `.crate` archives
+need no checkout to build.
+The OpenAPI document's `info.version` identifies the API contract, not the
+package release, and is not changed by package-version bumps.
+
 Docker uses a wheel-builder stage and a clean runtime stage. The builder exports
 locked non-development dependencies, builds the backend plus models/interfaces/
 FastAPI wheels, and installs them into a virtual environment. The final image
@@ -171,26 +200,25 @@ Publishing a GitHub Release triggers `.github/workflows/release-packages.yml`,
 which checks out its tag, validates all packages, and attaches the wheels,
 sdists, Rust archives, and authoritative YAML to that release. It does not create releases or
 overwrite existing assets. No package-index publication is configured; verify
-name ownership before adding it. The four generated distributions use one coordinated version and
-exact internal dependency constraints; update their `pyproject.toml` versions and
-the backend requirements together, then refresh `uv.lock` and run `./ci.sh`.
-The development-only codegen tool has its own version and owns the pinned
+name ownership before adding it. Distributions share the coordinated version and
+exact internal dependency constraints described above.
+The development-only codegen tool owns the pinned
 generator dependency; it is never installed in runtime SDK/backend environments.
 See its [README](sdk/python/server-browser-codegen/README.md) for template ownership
 and the installed `--root` command.
 
-The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
+Publishing runs only through CI. The workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
-`vMAJOR.MINOR.PATCH` tag, optionally followed by `-prerelease` and/or
-`+build.metadata`, is pushed. For example, `v1.3.0-alpha` publishes `:1.3.0-alpha`.
-Only stable tags without build metadata update `:latest`.
-The version comes from the Git tag, not `pyproject.toml`.
+tag matching `.bumpversion.toml` is pushed. For example, `v1.3.0-alpha.3`
+publishes `:1.3.0-alpha.3`; `v1.3.0-alpha.3+abc1234` publishes
+`:1.3.0-alpha.3_abc1234`. Only stable tags without metadata update `:latest`.
+The workflow requires the tag to match the coordinated package version.
 
 To recover publication for an existing tag, dispatch the updated workflow without
 moving or recreating the tag:
 
 ```bash
-gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha
+gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha.3
 ```
 
 The selected workflow revision validates the tag, then builds its exact commit.
@@ -211,10 +239,8 @@ After the workflow is merged into `main`, tag the desired release commit:
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag v1.1.0
-git push origin refs/tags/v1.1.0
+git tag v1.3.0-alpha.3
+git push origin refs/tags/v1.3.0-alpha.3
 ```
 
-Use a new version for each release. Prerelease tags are not supported.
-Do not run `publish.sh` or `publish.ps1` for tag-triggered releases; those scripts
-publish to Docker Hub and create tags themselves.
+Use a new version for each release. Do not publish packages or images locally.

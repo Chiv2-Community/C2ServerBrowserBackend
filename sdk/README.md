@@ -40,7 +40,9 @@ Runtime consumers need neither Java nor generation tools.
 
 ## Rust consumption
 
-All three Rust crates start at `1.0.0`; dependencies pin exact sibling versions.
+All three Rust crates inherit the version in `sdk/rust/Cargo.toml`, coordinated
+with Python by `.bumpversion.toml`. Dependencies pin exact sibling versions.
+See [versioning](../CONTRIBUTING.md#publishing) for the bump command and tag policy.
 Models depend only on serialization libraries, not an HTTP client or backend. The
 async client uses reqwest and reexports the shared model module. Use the
 model crate directly when no HTTP transport is needed.

@@ -24,7 +24,7 @@ impl Configuration {
     pub fn with_client(client: reqwest::Client) -> Self {
         Self {
             base_path: "{{{basePath}}}".to_owned(),
-            user_agent: Some("server-browser-client/{{{packageVersion}}}".to_owned()),
+            user_agent: Some(concat!("server-browser-client/", env!("CARGO_PKG_VERSION")).to_owned()),
             client,
         }
     }

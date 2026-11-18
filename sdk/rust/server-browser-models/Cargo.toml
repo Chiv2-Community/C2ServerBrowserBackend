@@ -1,6 +1,6 @@
 [package]
 name = "server-browser-models"
-version = "1.0.0"
+version.workspace = true
 edition = "2021"
 description = "Generated models for the Chivalry 2 community server browser API"
 license = "GPL-3.0-only"

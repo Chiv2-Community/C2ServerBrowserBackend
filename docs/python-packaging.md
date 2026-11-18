@@ -19,15 +19,17 @@ adapter, interfaces, and models. Client code never depends on server packages.
 Only the adapter and concrete backend require FastAPI. Only the backend requires
 Uvicorn. Models and server interfaces require neither HTTPX nor an HTTP framework.
 
-The four reusable packages start at version `1.0.0` and use exact internal
-dependency versions. Release them together; the concrete backend retains its
-own version. Package-index name ownership has not been established, and no PyPI
+All packages use the coordinated version and exact internal dependencies managed
+by `.bumpversion.toml`. Use `uv run bump-my-version bump number` for the next
+prerelease, then refresh lockfiles and release together
+([versioning](../CONTRIBUTING.md#publishing)).
+Package-index name ownership has not been established, and no PyPI
 publication is configured. Build artifacts are usable without package-index
 publication. Publishing a GitHub Release attaches the wheels, sdists, and
 authoritative OpenAPI YAML; no new release is created by these changes.
 
 The codegen project is a root development dependency, not a runtime dependency.
-Its independent version starts at `0.1.0`. Run `uv run server-browser-codegen`
+Its version is synchronized with the runtime packages. Run `uv run server-browser-codegen`
 to regenerate SDK sources or add `--check` to detect drift. Configuration,
 templates grouped by generated module, and tests belong to that project rather
 than top-level scripts. See its [README](../sdk/python/server-browser-codegen/README.md).

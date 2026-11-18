@@ -1,4 +1,8 @@
 ﻿$ErrorActionPreference = "Stop"
+uv lock --check
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+uv lock --directory mock --check
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv sync --frozen --all-packages
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 uv run server-browser-codegen --check
