@@ -175,7 +175,7 @@ cargo update --workspace --manifest-path sdk/rust/Cargo.toml
 The tool does not commit or tag. Commit the changes, then release with
 `v<current_version>` from `.bumpversion.toml`. Cargo crates inherit the workspace
 version; no custom version parser or manifest rewriter is needed.
-Tests reject inconsistent versions and internal pins; release workflows reject
+The bump tool checks configured version occurrences; release workflows reject
 tag mismatches. Git pins retain exact source provenance, so release tags do not
 need `+<sha>`. Isolated sdists and `.crate` archives need no checkout to build.
 The OpenAPI document's `info.version` identifies the API contract, not the
