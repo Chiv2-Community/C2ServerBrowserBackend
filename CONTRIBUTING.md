@@ -202,18 +202,17 @@ generator dependency; it is never installed in runtime SDK/backend environments.
 See its [README](sdk/python/server-browser-codegen/README.md) for template ownership
 and the installed `--root` command.
 
-The GitHub Actions workflow in `.github/workflows/publish.yml` tests and publishes
+Publishing runs only through CI. The workflow in `.github/workflows/publish.yml` tests and publishes
 the tagged commit to `ghcr.io/chiv2-community/c2serverbrowserbackend` when a
-`vMAJOR.MINOR.PATCH` tag, optionally followed by `-prerelease` and/or
-`+build.metadata`, is pushed. For example, `v1.3.0-alpha` publishes `:1.3.0-alpha`.
-Only stable tags without build metadata update `:latest`.
-The version comes from the Git tag, not `pyproject.toml`.
+tag matching `.bumpversion.toml` is pushed. For example, `v1.3.0-alpha.3`
+publishes `:1.3.0-alpha.3`. Only stable tags update `:latest`.
+The workflow requires the tag to match the coordinated package version.
 
 To recover publication for an existing tag, dispatch the updated workflow without
 moving or recreating the tag:
 
 ```bash
-gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha
+gh workflow run publish.yml --ref main -f tag=v1.3.0-alpha.3
 ```
 
 The selected workflow revision validates the tag, then builds its exact commit.
@@ -234,10 +233,8 @@ After the workflow is merged into `main`, tag the desired release commit:
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag v1.1.0
-git push origin refs/tags/v1.1.0
+git tag v1.3.0-alpha.3
+git push origin refs/tags/v1.3.0-alpha.3
 ```
 
-Use a new version for each release. Prerelease tags are not supported.
-Do not run `publish.sh` or `publish.ps1` for tag-triggered releases; those scripts
-publish to Docker Hub and create tags themselves.
+Use a new version for each release. Do not publish packages or images locally.
